@@ -1,0 +1,76 @@
+<?php
+declare(strict_types=1);
+
+final class HouseholdService
+{
+    public function __construct(private PDO $pdo) {}
+
+    public function bootstrap(array $identity): array
+    {
+        $statement = $this->pdo->prepare('INSERT INTO users (firebase_uid, display_name) VALUES (?, ?) ON DUPLICATE KEY UPDATE display_name = IF(disabled = 0, VALUES(display_name), display_name)');
+        $statement->execute([$identity['uid'], $identity['name']]);
+        $statement = $this->pdo->prepare('SELECT id, display_name, disabled FROM users WHERE firebase_uid = ?');
+        $statement->execute([$identity['uid']]);
+        $user = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($user['disabled']) throw new HttpError(403, 'account_disabled', 'This account cannot access the recipe service.');
+        return ['id' => (string) $user['id'], 'display_name' => $user['display_name']];
+    }
+
+    public function households(string $userId): array
+    {
+        $statement = $this->pdo->prepare('SELECT h.id, h.name, m.role FROM households h JOIN household_memberships m ON m.household_id = h.id WHERE m.user_id = ? ORDER BY h.name, h.id');
+        $statement->execute([$userId]);
+        return array_map(static function (array $row): array { $row['id'] = (string) $row['id']; return $row; }, $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    public function membership(string $userId, string $householdId, bool $admin = false): array
+    {
+        $statement = $this->pdo->prepare('SELECT role FROM household_memberships WHERE household_id = ? AND user_id = ?');
+        $statement->execute([$householdId, $userId]);
+        $member = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!$member) throw new HttpError(404, 'household_not_found', 'Household not found.');
+        if ($admin && !in_array($member['role'], ['owner', 'admin'], true)) {
+            throw new HttpError(403, 'permission_denied', 'An owner or administrator must make this change.');
+        }
+        return $member;
+    }
+
+    public function create(string $userId, string $name, string $personName): array
+    {
+        $this->pdo->beginTransaction();
+        try {
+            $statement = $this->pdo->prepare('INSERT INTO households (name) VALUES (?)');
+            $statement->execute([$name]);
+            $id = $this->pdo->lastInsertId();
+            $statement = $this->pdo->prepare("INSERT INTO household_memberships (household_id, user_id, role) VALUES (?, ?, 'owner')");
+            $statement->execute([$id, $userId]);
+            $statement = $this->pdo->prepare('INSERT INTO household_people (household_id, user_id, display_name) VALUES (?, ?, ?)');
+            $statement->execute([$id, $userId, $personName]);
+            $this->pdo->commit();
+            return ['id' => $id, 'name' => $name, 'role' => 'owner'];
+        } catch (Throwable $error) {
+            $this->pdo->rollBack();
+            throw $error;
+        }
+    }
+
+    public function people(string $userId, string $householdId): array
+    {
+        $this->membership($userId, $householdId);
+        $statement = $this->pdo->prepare('SELECT id, display_name, user_id FROM household_people WHERE household_id = ? ORDER BY id');
+        $statement->execute([$householdId]);
+        return array_map(static function (array $row): array {
+            $row['id'] = (string) $row['id'];
+            $row['user_id'] = $row['user_id'] === null ? null : (string) $row['user_id'];
+            return $row;
+        }, $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    public function addPerson(string $userId, string $householdId, string $name): array
+    {
+        $this->membership($userId, $householdId, true);
+        $statement = $this->pdo->prepare('INSERT INTO household_people (household_id, display_name) VALUES (?, ?)');
+        $statement->execute([$householdId, $name]);
+        return ['id' => $this->pdo->lastInsertId(), 'display_name' => $name, 'user_id' => null];
+    }
+}

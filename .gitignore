@@ -1,0 +1,11 @@
+/config/local.php
+.env
+.env.*
+!.env.example
+*.sql.dump
+*.bak
+/vendor/
+/app/
+/storage/*
+!/storage/.htaccess
+!/storage/.gitkeep

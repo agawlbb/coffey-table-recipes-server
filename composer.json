@@ -1,0 +1,16 @@
+{
+  "name": "coffeytable/recipes-api",
+  "description": "Household recipe and meal planning service",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.0",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*",
+    "ext-json": "*",
+    "ext-curl": "*",
+    "ext-openssl": "*",
+    "ext-mbstring": "*",
+    "firebase/php-jwt": "^7.2"
+  }
+}

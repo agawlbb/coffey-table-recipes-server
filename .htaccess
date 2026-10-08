@@ -1,0 +1,14 @@
+Options -Indexes
+# Override inherited wildcard CORS headers; the API emits its own allowlist.
+Header always unset Access-Control-Allow-Origin
+Header always unset Access-Control-Allow-Methods
+Header always unset Access-Control-Allow-Headers
+RewriteEngine On
+RewriteRule (^|/)\. - [F,L]
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteRule ^$ /CoffeyTableRecipes/app/ [R=302,L]
+RewriteRule ^api/v1(?:/.*)?$ index.php [QSA,L]
+RewriteRule ^(?:config|src|database|bin|storage|vendor|tests)(?:/|$) - [F,L]
+<FilesMatch "^(composer\.(json|lock)|README\.md|\.git.*)$">
+    Require all denied
+</FilesMatch>
