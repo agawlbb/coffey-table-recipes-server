@@ -1,0 +1,50 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__).'/src/bootstrap.php';
+require dirname(__DIR__).'/src/RecipeImportTools.php';
+$count=0;
+function verifyImport(bool $ok,string $message): void {global $count;if(!$ok)throw new RuntimeException($message);$count++;}
+$base='https://example.com/recipes/cake/';
+$images=RecipeImportTools::images(['../cake.jpg',['@type'=>'ImageObject','url'=>'https://example.com/page','contentUrl'=>'/images/cake.jpg','caption'=>'Cake'],['url'=>'//cdn.example.com/a.png'],'../cake.jpg','data:image/png;base64,xxx','javascript:alert(1)','file:///C:/secret','https://example.com:8080/x'], $base);
+verifyImport(count($images)===3,'Image parsing/deduplication/invalid schemes');
+verifyImport($images[0]['source_url']==='https://example.com/recipes/cake.jpg','Relative URL against final source');
+verifyImport($images[1]['source_url']==='https://example.com/images/cake.jpg','contentUrl precedes page URL');
+verifyImport($images[1]['caption']==='Cake','Source caption preserved');
+verifyImport($images[2]['source_url']==='https://cdn.example.com/a.png','Protocol-relative source');
+verifyImport(RecipeImportTools::images('https://example.com/a.jpg',$base)[0]['source_url']==='https://example.com/a.jpg','Single string');
+verifyImport(RecipeImportTools::images(['@type'=>'ImageObject','url'=>'a.jpg'],$base)[0]['source_url']==='https://example.com/recipes/cake/a.jpg','Single ImageObject');
+verifyImport(RecipeImportTools::images(['@type'=>'ImageObject','caption'=>'Not a URL'],$base)===[],'Image metadata is not an image reference');
+foreach(['https://user:password@example.com/a.jpg','javascript:x','https://example.com/a b.jpg','https://example.com\\evil/a'] as $url)verifyImport(RecipeImportTools::resolveUrl($url,$base)===null,'Unsafe reference rejected');
+foreach(['127.0.0.1','10.1.1.1','192.168.1.2','172.16.1.1','169.254.169.254','100.64.0.1','0.0.0.0','224.1.1.1','192.0.2.1','198.18.1.1','203.0.113.1','::1','::ffff:127.0.0.1','fe80::1','fc00::1','2001:db8::1','2002:7f00:0001::1','2001::1','3fff::1'] as $ip)verifyImport(!RecipeImportTools::publicIp($ip),'Private/reserved IP rejected: '.$ip);
+verifyImport(RecipeImportTools::publicIp('8.8.8.8'),'Public IPv4');
+verifyImport(RecipeImportTools::publicIp('2606:4700:4700::1111'),'Public IPv6');
+$bob='https://www.bobsredmill.com/recipes/how-to-make/bran-flax-muffins';
+verifyImport(RecipeImportTools::excludedCategory($bob,'Soy Free')==='unverified source dietary claim','Dietary claim mapping');
+verifyImport(RecipeImportTools::excludedCategory($bob,'Muffins')===null,'Muffins retained');
+verifyImport(RecipeImportTools::excludedCategory('https://other.example/recipe','Category')===null,'No blanket taxonomy deletion');
+verifyImport(RecipeImportTools::excludedCategory($bob,'Recipes for celebrations')===null,'Unfamiliar meaningful labels retained');
+verifyImport(RecipeImportTools::yieldValue('15 people',['Bake. Yield: 15 medium muffins'],$bob)==='15 medium muffins','Muffin yield evidence');
+verifyImport(RecipeImportTools::yieldValue('15 people',['Bake.'],$bob)==='15 people','Do not invent muffin yield');
+verifyImport(RecipeImportTools::yieldValue(['4','4 Servings'],[],$base)==='4 Servings','Equivalent yields collapse');
+verifyImport(RecipeImportTools::yieldValue('10; 10-12 servings',[],$base)==='10; 10-12 servings','Ambiguous yield retained');
+$config=configuration();if($config['environment']!=='development')throw new RuntimeException('Development only');
+$db=$config['database'];$admin=new PDO(sprintf('mysql:host=%s;port=%d;charset=utf8mb4',$db['host'],$db['port']),$db['user'],$db['password'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$name='coffey_import_test_'.bin2hex(random_bytes(5));$admin->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4");
+try {
+    $config['database']['name']=$name;$p=database($config);
+    foreach(glob(dirname(__DIR__).'/database/migrations/*.sql') as $file)foreach(explode(';',file_get_contents($file)) as $sql)if(trim($sql)!=='')$p->exec($sql);
+    $p->exec("INSERT INTO households (name) VALUES ('Fixture')");$h=(int)$p->lastInsertId();
+    $p->prepare('INSERT INTO recipes (household_id,title) VALUES (?,?)')->execute([$h,'Photo fixture']);$r=(int)$p->lastInsertId();
+    $verified=[['source_url'=>'https://example.com/a.jpg','mime_type'=>'image/jpeg','width_pixels'=>100,'height_pixels'=>100],['source_url'=>'https://example.com/b.jpg','mime_type'=>'image/jpeg','width_pixels'=>200,'height_pixels'=>100]];
+    $pending=RecipeImportTools::pendingPhotos([],$verified,'Source');
+    $insert=$p->prepare('INSERT INTO recipe_photos (household_id,recipe_id,position,source_url,mime_type,width_pixels,height_pixels,attribution,is_cover) VALUES (?,?,?,?,?,?,?,?,?)');
+    foreach($pending as $photo)$insert->execute([$h,$r,$photo['position'],$photo['source_url'],$photo['mime_type'],$photo['width_pixels'],$photo['height_pixels'],$photo['attribution'],$photo['is_cover']]);
+    $existing=$p->query('SELECT * FROM recipe_photos')->fetchAll(PDO::FETCH_ASSOC);
+    verifyImport(count($existing)===2 && $existing[0]['is_cover']==1 && $existing[1]['is_cover']==0,'One source cover');
+    verifyImport(RecipeImportTools::pendingPhotos($existing,$verified,'Source')===[],'Second backfill has no edits');
+    $p->exec('UPDATE recipe_photos SET is_cover=0');$p->exec('UPDATE recipe_photos SET is_cover=1 WHERE position=2');
+    $existing=$p->query('SELECT * FROM recipe_photos')->fetchAll(PDO::FETCH_ASSOC);
+    $pending=RecipeImportTools::pendingPhotos($existing,array_merge($verified,[['source_url'=>'https://example.com/c.jpg','mime_type'=>'image/jpeg','width_pixels'=>50,'height_pixels'=>50]]),'Source');
+    verifyImport(count($pending)===1 && $pending[0]['position']===3 && $pending[0]['is_cover']===0,'Preserve user cover and append position');
+}finally{$admin->exec("DROP DATABASE `$name`");}
+echo "$count recipe import checks passed.\n";
