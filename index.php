@@ -44,8 +44,10 @@ try {
         } else {
             $query = $_GET['q'] ?? '';
             $offset = $_GET['offset'] ?? '0';
+            $category = $_GET['category'] ?? '';
             if (!is_string($query) || !is_string($offset) || !preg_match('/^[0-9]{1,6}$/', $offset)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
-            respond(200, $recipes->browse($user['id'], $recipeMatch[1], trim($query), (int) $offset));
+            if (!is_string($category)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe category.');
+            respond(200, $recipes->browse($user['id'], $recipeMatch[1], trim($query), (int) $offset, trim($category)));
         }
     } elseif ($route === '/me' || $route === '/households' || preg_match('#^/households/([1-9][0-9]{0,18})/people$#', $route, $match)) {
         $identity = authenticatedIdentity($config);

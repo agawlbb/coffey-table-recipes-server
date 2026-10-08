@@ -84,6 +84,10 @@ try {
     schemaReject($pdo, "INSERT INTO cooking_event_recipes (household_id,event_id,recipe_id,recipe_revision) VALUES ($h1,$event,$foreign,1)");
     $pdo->exec("DELETE FROM cooking_events WHERE id=$event");
     $service = new RecipeService($pdo, $households);
+    $pdo->exec("INSERT INTO recipe_tags (household_id,recipe_id,kind,label) VALUES ($h1,$r1,'category','Breakfast'),($h2,$foreign,'category','Foreign category')");
+    $filtered = $service->browse($a['id'], $h1, 'farine', 0, 'Breakfast');
+    expectSchema(count($filtered['recipes']) === 1 && $filtered['categories'] === ['Breakfast'], 'Household category filtering failed.');
+    expectSchema(count($service->browse($a['id'], $h1, '', 0, 'Foreign category')['recipes']) === 0, 'Foreign category disclosed.');
     expectSchema(count($service->browse($a['id'], $h1)['recipes']) === 2, 'Browse leaks another household.');
     expectSchema(count($service->browse($a['id'], $h1, 'farine')['recipes']) === 1, 'Ingredient search failed.');
     expectSchema(count($service->browse($a['id'], $h1, '%')['recipes']) === 0, 'Search wildcard was not escaped.');

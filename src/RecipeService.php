@@ -16,11 +16,15 @@ final class RecipeService
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
-    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0): array {
+    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0, string $category = ''): array {
         $this->households->membership($userId, $householdId);
-        if (mb_strlen($query) > 200 || $offset < 0 || $offset > 100000) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
+        if (mb_strlen($query) > 200 || mb_strlen($category) > 120 || $offset < 0 || $offset > 100000) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
         $parameters = [$householdId];
         $where = 'r.household_id = ?';
+        if ($category !== '') {
+            $where .= " AND EXISTS (SELECT 1 FROM recipe_tags c WHERE c.recipe_id=r.id AND c.kind='category' AND c.label=?)";
+            $parameters[] = $category;
+        }
         if ($query !== '') {
             // Escape LIKE wildcards so searches are literal, not user-supplied patterns.
             $like = '%' . strtr($query, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
@@ -32,7 +36,8 @@ final class RecipeService
             FROM recipes r WHERE $where ORDER BY r.title,r.id LIMIT 31 OFFSET $offset", $parameters);
         $hasMore = count($items) > 30;
         if ($hasMore) array_pop($items);
-        return ['recipes' => $items, 'next_offset' => $hasMore ? $offset + count($items) : null];
+        $categories = $this->rows("SELECT DISTINCT label FROM recipe_tags WHERE household_id=? AND kind='category' ORDER BY label", [$householdId]);
+        return ['recipes' => $items, 'categories' => array_column($categories, 'label'), 'next_offset' => $hasMore ? $offset + count($items) : null];
     }
 
     public function detail(string $userId, string $householdId, string $recipeId): array {
