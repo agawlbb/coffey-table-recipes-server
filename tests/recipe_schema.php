@@ -84,6 +84,27 @@ try {
     schemaReject($pdo, "INSERT INTO cooking_event_recipes (household_id,event_id,recipe_id,recipe_revision) VALUES ($h1,$event,$foreign,1)");
     $pdo->exec("DELETE FROM cooking_events WHERE id=$event");
     $service = new RecipeService($pdo, $households);
+    $breakfast = (string) $pdo->query("SELECT id FROM recipe_categories WHERE slug='breakfast'")->fetchColumn();
+    $pdo->exec("INSERT INTO recipe_categories(parent_id,slug,label,image_key) VALUES ($breakfast,'breakfast-pancakes','Pancakes','pancakes')");
+    $pancakes = (string) $pdo->query("SELECT id FROM recipe_categories WHERE slug='breakfast-pancakes'")->fetchColumn();
+    $muffins = (string) $pdo->query("SELECT id FROM recipe_categories WHERE slug='breakfast-muffins'")->fetchColumn();
+    $pdo->exec("INSERT INTO recipe_category_assignments VALUES ($h1,$r1,$pancakes),($h1,$r1,$muffins),($h2,$foreign,$muffins)");
+    schemaReject($pdo, "INSERT INTO recipe_category_assignments VALUES ($h1,$foreign,$pancakes)");
+    $roots = $service->browse($a['id'], $h1, '', 0, '', '', true);
+    expectSchema(count($roots['category_nodes']) === 6 && $roots['view'] === 'categories', 'Root categories missing.');
+    $rootBreakfast = array_values(array_filter($roots['category_nodes'], static fn($n) => $n['id'] === $breakfast))[0];
+    expectSchema((int)$rootBreakfast['recipe_count'] === 1, 'Root count double-counts multi-category recipes.');
+    expectSchema(count($service->browse($a['id'], $h1, '', 0, '', $breakfast, true)['category_nodes']) === 2, 'Present subcategories missing.');
+    expectSchema(count($service->browse($b['id'], $h2, '', 0, '', $breakfast, true)['category_nodes']) === 1, 'Subcategories leak other households.');
+    expectSchema(count($service->browse($a['id'], $h1, 'farine', 0, '', $breakfast, true)['recipes']) === 1, 'Root scoped search failed.');
+    expectSchema(count($service->browse($a['id'], $h1, 'Muffins', 0, '', $breakfast, true)['recipes']) === 1, 'Category label search failed.');
+    expectSchema(count($service->browse($a['id'], $h1, '', 0, '', $pancakes, true)['recipes']) === 1, 'Leaf browsing failed.');
+    expectSchema(count($service->browse($a['id'], $h1, 'Foreign', 0, '', $muffins, true)['recipes']) === 0, 'Scoped search leaks other households.');
+    expectSchema(count($service->browse($a['id'], $h1, '%', 0, '', $breakfast, true)['recipes']) === 0, 'Scoped wildcard search was not escaped.');
+    foreach (['0', '1 OR 1=1', '999999'] as $scope) {
+        try { $service->browse($a['id'], $h1, '', 0, '', $scope, true); throw new RuntimeException('Invalid scope accepted.'); }
+        catch (HttpError $error) { expectSchema(in_array($error->status, [400,404], true), 'Wrong scope rejection response.'); }
+    }
     $pdo->exec("INSERT INTO recipe_tags (household_id,recipe_id,kind,label) VALUES ($h1,$r1,'category','Breakfast'),($h2,$foreign,'category','Foreign category')");
     $filtered = $service->browse($a['id'], $h1, 'farine', 0, 'Breakfast');
     expectSchema(count($filtered['recipes']) === 1 && $filtered['categories'] === ['Breakfast'], 'Household category filtering failed.');
@@ -100,8 +121,17 @@ try {
         catch (HttpError $error) { expectSchema($error->status === 404, 'Wrong isolation response.'); }
     }
     $pdo->exec("UPDATE recipes SET parent_recipe_id=NULL WHERE id=$r2");
+    for ($i=0; $i<31; $i++) {
+        $insert->execute([$h1, sprintf('Paging %02d', $i), 'en', null, null]);
+        $pagingId = $pdo->lastInsertId();
+        $pdo->exec("INSERT INTO recipe_category_assignments VALUES ($h1,$pagingId,$pancakes)");
+    }
+    $page = $service->browse($a['id'], $h1, 'Paging', 0, '', $pancakes, true);
+    expectSchema(count($page['recipes']) === 30 && $page['next_offset'] === 30, 'Scoped paging first page failed.');
+    $lastPage = $service->browse($a['id'], $h1, 'Paging', 30, '', $pancakes, true);
+    expectSchema(count($lastPage['recipes']) === 1 && $lastPage['next_offset'] === null, 'Scoped paging final page failed.');
     $pdo->exec("DELETE FROM recipes WHERE id=$r1");
-    foreach (['recipe_ingredient_groups', 'recipe_ingredients', 'recipe_steps', 'recipe_step_actions', 'recipe_photos', 'recipe_tags', 'recipe_favorites', 'recipe_nutrition'] as $table) {
+    foreach (['recipe_ingredient_groups', 'recipe_ingredients', 'recipe_steps', 'recipe_step_actions', 'recipe_photos', 'recipe_tags', 'recipe_favorites', 'recipe_nutrition', 'recipe_category_assignments'] as $table) {
         expectSchema($pdo->query("SELECT COUNT(*) FROM $table WHERE recipe_id=$r1")->fetchColumn() == 0, "Recipe children remain in $table.");
     }
 } finally {
