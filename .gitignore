@@ -10,3 +10,4 @@
 !/storage/.htaccess
 !/storage/.gitkeep
 /config/*.local.json
+/media/recipe-illustrations/*.jpg
