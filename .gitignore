@@ -9,3 +9,4 @@
 /storage/*
 !/storage/.htaccess
 !/storage/.gitkeep
+/config/*.local.json
