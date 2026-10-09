@@ -11,3 +11,7 @@
 !/storage/.gitkeep
 /config/*.local.json
 /media/recipe-illustrations/*.jpg
+/media/recipe-photos/*.jpg
+/media/recipe-photos/*.png
+/media/recipe-photos/*.webp
+/media/recipe-photos/*.gif
