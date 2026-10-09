@@ -13,4 +13,12 @@ The initial copy on 2026-10-09 imported 17 tables and 187 rows. Each hosted tabl
 
 Verification: hosted liveness, authenticated household and recipe reads, and protection of internal paths. The host returns ModSecurity 406 to curl's default user agent; browser and Dart user agents work. Health is a liveness check, not a database check.
 
+## Browser CORS headers
+
+The recipe `.htaccess` clears inherited CORS headers from Apache's `onsuccess` table when PHP runs outside mod_php. CGI PHP sends its own allowlisted headers through the `always` table; `Header always unset` removes those headers and prevents the localhost browser from loading households even when the API answers OPTIONS with 204. Local XAMPP mod_php sends headers through `onsuccess` and inherits wildcard headers through `always`, so the local cleanup targets `always` instead. See [Apache's Header documentation](https://httpd.apache.org/docs/2.4/mod/mod_headers.html#header).
+
+After deploying `.htaccess`, verify an OPTIONS request to `/CoffeyTableRecipes/api/v1/me` with `Origin: http://localhost`, request method GET, and request headers `authorization,content-type`. Expect 204 and exactly one `Access-Control-Allow-Origin: http://localhost`, plus allowed method and header lists. Check a disallowed origin receives no allow-origin header, then reload the signed-in local web app and verify household loading. Use a browser user agent for command-line hosted checks.
+
+On 2026-10-09 the missing hosted headers were reproduced and this correction was prepared locally. Hosted deployment and signed-in browser verification remain pending because the saved cPanel login was rejected. No API routes, schema, database contents, or app backend selection were changed.
+
 Before future API or schema changes, explain the change and ask whether to return app builds to the local backend. Back up the hosted database before any future migration or replacement. Do not import a fresh local dump over the hosted database without reviewing changes made since this initial copy.

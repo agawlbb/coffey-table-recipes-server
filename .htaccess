@@ -1,8 +1,17 @@
 Options -Indexes
-# Override inherited wildcard CORS headers; the API emits its own allowlist.
-Header always unset Access-Control-Allow-Origin
-Header always unset Access-Control-Allow-Methods
-Header always unset Access-Control-Allow-Headers
+# Hosted CGI PHP uses the always table for its explicit CORS allowlist.
+# Clear inherited onsuccess headers without removing PHP's response headers.
+# Local XAMPP mod_php uses onsuccess and inherits wildcard always headers.
+<IfModule php_module>
+    Header always unset Access-Control-Allow-Origin
+    Header always unset Access-Control-Allow-Methods
+    Header always unset Access-Control-Allow-Headers
+</IfModule>
+<IfModule !php_module>
+    Header onsuccess unset Access-Control-Allow-Origin
+    Header onsuccess unset Access-Control-Allow-Methods
+    Header onsuccess unset Access-Control-Allow-Headers
+</IfModule>
 RewriteEngine On
 RewriteRule (^|/)\. - [F,L]
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
