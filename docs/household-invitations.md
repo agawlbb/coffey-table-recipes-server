@@ -21,3 +21,5 @@ Email send failures remain recorded as failed and allow retry. Duplicate active 
 ## Validation
 
 `php tests/invitations.php` exercises the migration and service with a disposable database and fake Firebase/mail callbacks. It covers account eligibility, owner/admin access, email matching/verification, duplicate invites, sending failures, expiry, acceptance preserving the original person, declining, and household creation after acceptance. Real Firebase lookup and SMTP authentication must also be verified during hosted deployment; these tests do not deliver email.
+
+Expanded validation on 2026-10-10 passed 57 checks, including recipe access denied before acceptance and allowed afterward, disabled Firebase/local accounts, revoked inviter permissions, disabled recipients, and the 20-attempt limit including failed delivery attempts. Hosted unauthenticated GET `/me` and POST invitation/send-response routes returned 401 without creating invitations. Hosted SMTP authentication and Firebase lookup passed during deployment; a real recipient delivery test remains pending.

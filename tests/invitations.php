@@ -54,6 +54,8 @@ try {
     rejectInvite(static fn() => $service->respond($unverified, $invite['id'], 'accept'), 403);
     $new = $households->bootstrap($identity('new', 'new@example.test'));
     expectInvite(count($service->pending($new)['invitations']) === 1, 'New signup did not match invite.');
+    $recipes = new RecipeService($pdo, $households);
+    rejectInvite(static fn() => $recipes->browse($new['id'], $h['id']), 404);
     rejectInvite(static fn() => $service->respond($existing, $invite['id'], 'accept'), 404);
     rejectInvite(static fn() => $service->respond($new, $invite['id'], 'invalid'), 422);
     $secondPerson = $households->addPerson($foreign['id'], $other['id'], 'Also guest');
@@ -64,6 +66,7 @@ try {
     $people = $households->people($owner['id'], $h['id']);
     expectInvite(count($people) === 2 && $people[1]['id'] === $person['id'] && $people[1]['user_id'] === $new['id'], 'Acceptance did not link original person.');
     expectInvite($households->households($new['id'])[0]['role'] === 'member', 'Invitation granted administrator access.');
+    expectInvite(is_array($recipes->browse($new['id'], $h['id'])), 'Accepted member cannot read household recipes.');
     expectInvite($pdo->query('SELECT status FROM household_invitations WHERE id = ' . (int) $second['id'])->fetchColumn() === 'cancelled', 'Acceptance left competing invitations active.');
     rejectInvite(static fn() => $service->respond($new, $invite['id'], 'accept'), 409);
     rejectInvite(static fn() => $service->invite($new, $h['id'], $secondPerson['id'], 'abc@example.test'), 403);
@@ -85,6 +88,34 @@ try {
     $households->create($existing['id'], 'Own household', 'Existing');
     rejectInvite(static fn() => $service->respond($existing, $retry['id'], 'accept'), 409);
     expectInvite(count($households->households($existing['id'])) === 1, 'Acceptance bypassed single household policy.');
+    $edgePerson = $households->addPerson($owner['id'], $h['id'], 'Edge guest');
+    $directory['disabled@example.test'] = ['uid' => 'disabled', 'disabled' => true];
+    $mailCount = count($messages);
+    rejectInvite(static fn() => $service->invite($owner, $h['id'], $edgePerson['id'], 'disabled@example.test'), 409);
+    expectInvite(count($messages) === $mailCount, 'Disabled Firebase account received email.');
+    $disabledLocal = $households->bootstrap($identity('disabled-local', 'disabled-local@example.test'));
+    $pdo->prepare('UPDATE users SET disabled = 1 WHERE id = ?')->execute([$disabledLocal['id']]);
+    $directory['disabled-local@example.test'] = ['uid' => 'disabled-local'];
+    rejectInvite(static fn() => $service->invite($owner, $h['id'], $edgePerson['id'], 'disabled-local@example.test'), 409);
+    $edgeUser = $households->bootstrap($identity('edge', 'edge@example.test'));
+    $edgeInvite = $service->invite($owner, $h['id'], $edgePerson['id'], 'edge@example.test');
+    $pdo->prepare("UPDATE household_memberships SET role = 'member' WHERE household_id = ? AND user_id = ?")->execute([$h['id'], $owner['id']]);
+    expectInvite($service->pending($edgeUser)['invitations'] === [], 'Revoked administrator invitation remains visible.');
+    rejectInvite(static fn() => $service->respond($edgeUser, $edgeInvite['id'], 'accept'), 403);
+    expectInvite($households->households($edgeUser['id']) === [], 'Revoked administrator granted membership.');
+    $pdo->prepare("UPDATE household_memberships SET role = 'owner' WHERE household_id = ? AND user_id = ?")->execute([$h['id'], $owner['id']]);
+    $pdo->prepare('UPDATE users SET disabled = 1 WHERE id = ?')->execute([$edgeUser['id']]);
+    rejectInvite(static fn() => $service->respond($edgeUser, $edgeInvite['id'], 'accept'), 403);
+    $pdo->prepare('UPDATE users SET disabled = 0 WHERE id = ?')->execute([$edgeUser['id']]);
+    $service->respond($edgeUser, $edgeInvite['id'], 'decline');
+    // Failed delivery attempts count toward the limit and release the person for retry.
+    $q = $pdo->prepare('SELECT COUNT(*) FROM household_invitations WHERE invited_by_user_id = ?');
+    $q->execute([$owner['id']]);
+    for ($attempt = (int) $q->fetchColumn(); $attempt < 20; $attempt++) {
+        rejectInvite(static fn() => $failedMail->invite($owner, $h['id'], $edgePerson['id'], 'rate@example.test'), 503);
+    }
+    rejectInvite(static fn() => $service->invite($owner, $h['id'], $edgePerson['id'], 'rate@example.test'), 429);
+    expectInvite($households->people($owner['id'], $h['id'])[3]['user_id'] === null, 'Rate limit or failed delivery linked the person.');
     expectInvite(!str_contains(InvitationMail::text('Owner', 'Our table', false, 'https://example.test'), 'password'), 'Invitation exposed credentials.');
 } finally {
     if (!preg_match('/^coffey_invite_test_[a-f0-9]{10}$/', $testDatabase)) throw new RuntimeException('Invalid test database name.');
