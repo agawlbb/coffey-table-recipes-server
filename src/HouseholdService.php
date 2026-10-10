@@ -18,7 +18,7 @@ final class HouseholdService
 
     public function households(string $userId): array
     {
-        $statement = $this->pdo->prepare('SELECT h.id, h.name, m.role FROM households h JOIN household_memberships m ON m.household_id = h.id WHERE m.user_id = ? ORDER BY h.name, h.id');
+        $statement = $this->pdo->prepare('SELECT h.id, h.name, m.role FROM households h JOIN household_memberships m ON m.household_id = h.id WHERE m.user_id = ? ORDER BY h.id');
         $statement->execute([$userId]);
         return array_map(static function (array $row): array { $row['id'] = (string) $row['id']; return $row; }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
@@ -39,6 +39,12 @@ final class HouseholdService
     {
         $this->pdo->beginTransaction();
         try {
+            // Serialize creation for this account without restricting future memberships.
+            $lock = $this->pdo->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE');
+            $lock->execute([$userId]);
+            if ($this->households($userId) !== []) {
+                throw new HttpError(409, 'household_already_exists', 'Your account already belongs to a household.');
+            }
             $statement = $this->pdo->prepare('INSERT INTO households (name) VALUES (?)');
             $statement->execute([$name]);
             $id = $this->pdo->lastInsertId();
@@ -52,6 +58,18 @@ final class HouseholdService
             $this->pdo->rollBack();
             throw $error;
         }
+    }
+
+    public function rename(string $userId, string $householdId, string $name): array
+    {
+        $membership = $this->membership($userId, $householdId, true);
+        $name = trim($name);
+        if ($name === '' || mb_strlen($name) > 200) {
+            throw new HttpError(400, 'invalid_name', 'Enter a household name of up to 200 characters.');
+        }
+        $statement = $this->pdo->prepare('UPDATE households SET name = ? WHERE id = ?');
+        $statement->execute([$name, $householdId]);
+        return ['id' => $householdId, 'name' => $name, 'role' => $membership['role']];
     }
 
     public function people(string $userId, string $householdId): array

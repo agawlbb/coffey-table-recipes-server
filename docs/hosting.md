@@ -22,3 +22,13 @@ After deploying `.htaccess`, verify an OPTIONS request to `/CoffeyTableRecipes/a
 On 2026-10-09 the missing hosted headers were reproduced and the correction was deployed through the signed-in cPanel File Manager to the verified recipe directory. Hosted OPTIONS returned 204 with exactly one localhost allow-origin header; an unknown origin received none, and hosted health returned healthy JSON. The signed-in local web app successfully loaded the household recipe list in Chrome. Local XAMPP also passed allowed and disallowed origin preflight checks. No API routes, schema, database contents, or app backend selection were changed.
 
 Before future API or schema changes, explain the change and ask whether to return app builds to the local backend. Back up the hosted database before any future migration or replacement. Do not import a fresh local dump over the hosted database without reviewing changes made since this initial copy.
+
+## Household management API (2026-10-10, prepared locally)
+
+The user selected continued testing on coffeybean.com. The app backend URL remains unchanged. Deploy the updated `index.php` and `src/HouseholdService.php` together to the verified recipe directory before testing hosted household rename. This change needs no database migration.
+
+`POST /api/v1/households/{id}/name` accepts JSON `name` and returns the renamed `household` (`id`, `name`, `role`). It requires authenticated owner/admin membership; outsiders receive 404 and ordinary members receive 403. Blank names or names over 200 characters are rejected.
+
+Household creation now locks the account row and rejects accounts with any existing household membership with HTTP 409. The database still allows multiple memberships, and existing memberships are retained. Household lists are ordered by ID so the one-household UI consistently uses the oldest household, including after renaming.
+
+Local validation: 39 authentication/household checks and 55 recipe schema checks passed against disposable databases; PHP syntax checks passed. The hosted API has not been updated as part of this source change.

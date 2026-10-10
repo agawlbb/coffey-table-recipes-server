@@ -71,6 +71,12 @@ try {
     check(count($service->people($alice['id'], $a['id'])) === 1, 'Owner person missing.');
     rejected(static fn() => $service->people($alice['id'], $b['id']), 404);
     rejected(static fn() => $service->addPerson($alice['id'], $b['id'], 'Intruder'), 404);
+    rejected(static fn() => $service->create($alice['id'], 'Second household', 'Alice'), 409);
+    check(count($service->households($alice['id'])) === 1, 'Rejected creation left another household.');
+    check($service->rename($alice['id'], $a['id'], 'Renamed A')['name'] === 'Renamed A', 'Owner rename failed.');
+    check($service->households($alice['id'])[0]['name'] === 'Renamed A', 'Rename was not persisted.');
+    rejected(static fn() => $service->rename($alice['id'], $b['id'], 'Intruder'), 404);
+    rejected(static fn() => $service->rename($alice['id'], $a['id'], '   '), 400);
     $person = $service->addPerson($alice['id'], $a['id'], 'A child');
     check($person['user_id'] === null, 'Household people incorrectly require a login.');
     $statement = $pdo->prepare("INSERT INTO household_memberships (household_id, user_id, role) VALUES (?, ?, 'member')");
@@ -78,6 +84,7 @@ try {
     check(count($service->households($bob['id'])) === 2, 'Multiple household membership failed.');
     check(count($service->people($bob['id'], $a['id'])) === 2, 'Member cannot read their own household.');
     rejected(static fn() => $service->addPerson($bob['id'], $a['id'], 'Not allowed'), 403);
+    rejected(static fn() => $service->rename($bob['id'], $a['id'], 'Not allowed'), 403);
     try {
         $statement = $pdo->prepare('INSERT INTO household_people (household_id, user_id, display_name) VALUES (?, ?, ?)');
         $statement->execute([$b['id'], $alice['id'], 'Wrong household']);
