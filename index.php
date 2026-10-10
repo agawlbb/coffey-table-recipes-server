@@ -52,6 +52,16 @@ try {
             if (!is_string($scope) || !is_string($tree) || !in_array($tree, ['0', '1'], true)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
             respond(200, $recipes->browse($user['id'], $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1'));
         }
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/name$#', $route, $nameMatch)) {
+        $identity = authenticatedIdentity($config);
+        $service = new HouseholdService(database($config));
+        $user = $service->bootstrap($identity);
+        $service->membership($user['id'], $nameMatch[1], true);
+        if ($method !== 'POST') {
+            header('Allow: POST, OPTIONS');
+            throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        }
+        respond(200, ['household' => $service->rename($user['id'], $nameMatch[1], requiredName(requestBody(), 'name'))]);
     } elseif ($route === '/me' || $route === '/households' || preg_match('#^/households/([1-9][0-9]{0,18})/people$#', $route, $match)) {
         $identity = authenticatedIdentity($config);
         $service = new HouseholdService(database($config));
