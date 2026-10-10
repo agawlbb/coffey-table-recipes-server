@@ -5,10 +5,36 @@ use Firebase\JWT\JWT;
 
 final class FirebaseAccountDirectory
 {
+    private ?string $token = null;
     public function __construct(private array $config) {}
 
     public function lookup(string $email): ?array
     {
+        return $this->lookupBy(['email' => [$email]]);
+    }
+
+    public function requireAccount(string $uid): void
+    {
+        $user = $this->lookupBy(['localId' => [$uid]]);
+        if ($user === null || $user['disabled']) throw new HttpError(401, 'account_deleted', 'Please sign in again.');
+    }
+
+    public function delete(string $uid): void
+    {
+        // Missing accounts are successful retries after an interrupted SQL commit.
+        if ($this->lookupBy(['localId' => [$uid]]) === null) return;
+        try {
+            $this->post('https://identitytoolkit.googleapis.com/v1/projects/' . rawurlencode($this->config['firebase_project_id']) . '/accounts:delete',
+                json_encode(['localId' => $uid], JSON_THROW_ON_ERROR),
+                ['Content-Type: application/json', 'Authorization: Bearer ' . $this->accessToken()]);
+        } catch (HttpError $error) {
+            throw new HttpError(503, 'account_delete_unavailable', 'Firebase deletion could not be completed. Check the server deletion permission and try again.');
+        }
+    }
+
+    private function accessToken(): string
+    {
+        if ($this->token !== null) return $this->token;
         $file = $this->config['firebase_service_account_file'];
         if ($file === '' || !is_file($file)) {
             throw new HttpError(503, 'account_lookup_unavailable', 'Invitation account lookup is not configured yet.');
@@ -28,9 +54,14 @@ final class FirebaseAccountDirectory
             http_build_query(['grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => $assertion]),
             ['Content-Type: application/x-www-form-urlencoded']);
         if (empty($token['access_token'])) throw new HttpError(503, 'account_lookup_unavailable', 'Account lookup is temporarily unavailable.');
+        return $this->token = $token['access_token'];
+    }
+
+    private function lookupBy(array $filter): ?array
+    {
         $response = $this->post('https://identitytoolkit.googleapis.com/v1/projects/' . rawurlencode($this->config['firebase_project_id']) . '/accounts:lookup',
-            json_encode(['email' => [$email]], JSON_THROW_ON_ERROR),
-            ['Content-Type: application/json', 'Authorization: Bearer ' . $token['access_token']]);
+            json_encode($filter, JSON_THROW_ON_ERROR),
+            ['Content-Type: application/json', 'Authorization: Bearer ' . $this->accessToken()]);
         $users = $response['users'] ?? [];
         if ($users === []) return null;
         $user = $users[0];

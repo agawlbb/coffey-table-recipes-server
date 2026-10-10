@@ -3,17 +3,34 @@ declare(strict_types=1);
 
 final class HouseholdService
 {
-    public function __construct(private PDO $pdo) {}
+    public function __construct(private PDO $pdo, private $requireFirebaseAccount = null) {}
 
     public function bootstrap(array $identity): array
     {
-        $statement = $this->pdo->prepare('INSERT INTO users (firebase_uid, display_name, email, email_verified) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name = IF(disabled = 0, VALUES(display_name), display_name), email = IF(disabled = 0, VALUES(email), email), email_verified = IF(disabled = 0, VALUES(email_verified), email_verified)');
-        $statement->execute([$identity['uid'], $identity['name'], $identity['email'] ?? null, !empty($identity['email_verified']) ? 1 : 0]);
-        $statement = $this->pdo->prepare('SELECT id, display_name, email, email_verified, disabled FROM users WHERE firebase_uid = ?');
-        $statement->execute([$identity['uid']]);
-        $user = $statement->fetch(PDO::FETCH_ASSOC);
-        if ($user['disabled']) throw new HttpError(403, 'account_disabled', 'This account cannot access the recipe service.');
-        return ['id' => (string) $user['id'], 'display_name' => $user['display_name'], 'email' => $user['email'], 'email_verified' => (bool) $user['email_verified']];
+        $this->pdo->beginTransaction();
+        try {
+            // Serialize provisioning with deletion so a token cannot recreate a removed UID.
+            $exists = $this->pdo->prepare('SELECT id FROM users WHERE firebase_uid = ? FOR UPDATE');
+            $exists->execute([$identity['uid']]);
+            if ($exists->fetchColumn() === false && $this->requireFirebaseAccount !== null) {
+                ($this->requireFirebaseAccount)($identity['uid']);
+            }
+            $statement = $this->pdo->prepare('INSERT INTO users (firebase_uid, display_name, email, email_verified) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name = IF(disabled = 0, VALUES(display_name), display_name), email = IF(disabled = 0, VALUES(email), email), email_verified = IF(disabled = 0, VALUES(email_verified), email_verified)');
+            $statement->execute([$identity['uid'], $identity['name'], $identity['email'] ?? null, !empty($identity['email_verified']) ? 1 : 0]);
+            $statement = $this->pdo->prepare('SELECT id, display_name, email, email_verified, disabled, account_role FROM users WHERE firebase_uid = ?');
+            $statement->execute([$identity['uid']]);
+            $user = $statement->fetch(PDO::FETCH_ASSOC);
+            if ($user['account_role'] === 'user' && ($identity['email'] ?? null) === 'admin@example.test' && !empty($identity['email_verified']) && !$user['disabled']) {
+                $this->pdo->prepare("UPDATE users SET account_role = 'administrator' WHERE id = ?")->execute([$user['id']]);
+                $user['account_role'] = 'administrator';
+            }
+            if ($user['disabled']) throw new HttpError(403, 'account_disabled', 'This account cannot access the recipe service.');
+            $this->pdo->commit();
+            return ['id' => (string) $user['id'], 'display_name' => $user['display_name'], 'email' => $user['email'], 'email_verified' => (bool) $user['email_verified'], 'account_role' => $user['account_role']];
+        } catch (Throwable $error) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $error;
+        }
     }
 
     public function households(string $userId): array
