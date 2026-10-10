@@ -12,5 +12,5 @@ The user requests that all future project changes be committed to Git.
 - Always use the Codex built-in browser for browser work, rather than Chrome.
 
 - The user selected coffeybean.com as the testing backend host. Keep the local PHP project and local database for future development.
-- Before future work that changes the database structure or backend API, explain the planned change and ask whether the user wants to switch the apps back to the local database/API. Do not switch automatically.
+- Always use coffeybean.com as the testing backend for future work; retain the local database/API for future development.
 - Deploy only to the verified coffeybean.com document root and a dedicated recipe database; this cPanel account hosts other domains.

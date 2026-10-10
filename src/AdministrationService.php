@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class AdministrationService
 {
-    public function __construct(private PDO $pdo, private $deleteFirebase) {}
+    public function __construct(private PDO $pdo, private $deleteFirebase, private $listFirebase = null) {}
 
     private function authorize(string $actorId): void
     {
@@ -18,13 +18,21 @@ final class AdministrationService
     public function users(string $actorId): array
     {
         $this->authorize($actorId);
-        $rows = $this->pdo->query('SELECT id, display_name, email, email_verified, account_role, disabled FROM users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
-        return array_map(static function (array $row): array {
+        $rows = $this->pdo->query('SELECT id, firebase_uid, display_name, email, email_verified, account_role, disabled FROM users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+        $rows = array_map(static function (array $row): array {
             $row['id'] = (string) $row['id'];
             $row['disabled'] = (bool) $row['disabled'];
             $row['email_verified'] = (bool) $row['email_verified'];
             return $row;
         }, $rows);
+        if ($this->listFirebase !== null) {
+            $known = array_column($rows, null, 'firebase_uid');
+            foreach (($this->listFirebase)() as $account) {
+                if (isset($known[$account['uid']])) continue;
+                $rows[] = ['id' => 'firebase:' . $account['uid'], 'firebase_uid' => $account['uid'], 'display_name' => $account['display_name'], 'email' => $account['email'], 'email_verified' => $account['email_verified'], 'disabled' => $account['disabled'], 'account_role' => 'user', 'firebase_only' => true];
+            }
+        }
+        return $rows;
     }
 
     public function people(string $actorId): array
@@ -54,6 +62,46 @@ final class AdministrationService
             if ($person['user_id'] !== null) throw new HttpError(409, 'person_linked', 'This person now has a linked account. Refresh and delete that account instead.');
             $this->pdo->prepare('DELETE FROM household_invitations WHERE person_id = ?')->execute([$personId]);
             $this->pdo->prepare('DELETE FROM household_people WHERE id = ?')->execute([$personId]);
+            $this->pdo->commit();
+        } catch (Throwable $error) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $error;
+        }
+    }
+
+    public function deleteFirebaseOnly(string $actorId, string $uid, bool $confirmed): void
+    {
+        $this->authorize($actorId);
+        if (!$confirmed) throw new HttpError(422, 'confirmation_required', 'Confirm permanent deletion first.');
+        // A now-registered account must use the complete SQL cleanup path.
+        $q = $this->pdo->prepare('SELECT id FROM users WHERE firebase_uid = ?');
+        $q->execute([$uid]);
+        $id = $q->fetchColumn();
+        if ($id !== false) { $this->delete($actorId, (string) $id, true); return; }
+        $this->pdo->beginTransaction();
+        try {
+            $q = $this->pdo->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE');
+            $q->execute([$actorId]); $this->authorize($actorId);
+            $q = $this->pdo->prepare('SELECT id FROM users WHERE firebase_uid = ? FOR UPDATE');
+            $q->execute([$uid]);
+            if ($q->fetchColumn() !== false) throw new HttpError(409, 'account_registered', 'Account setup completed. Refresh and retry deletion.');
+            $email = null;
+            if ($this->listFirebase !== null) {
+                foreach (($this->listFirebase)() as $account) {
+                    if ($account['uid'] === $uid) { $email = $account['email']; break; }
+                }
+            }
+            if ($email !== null && $email !== '') {
+                $q = $this->pdo->prepare('SELECT DISTINCT p.id FROM household_people p JOIN household_invitations i ON i.person_id = p.id WHERE p.user_id IS NULL AND i.email = ?');
+                $q->execute([$email]);
+                foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $personId) {
+                    $this->pdo->prepare('DELETE FROM household_invitations WHERE person_id = ?')->execute([$personId]);
+                    $this->pdo->prepare('DELETE FROM household_people WHERE id = ? AND user_id IS NULL')->execute([$personId]);
+                }
+                $this->pdo->prepare('DELETE FROM household_invitations WHERE email = ?')->execute([$email]);
+            }
+            // The unique-index gap lock blocks concurrent account registration.
+            ($this->deleteFirebase)($uid);
             $this->pdo->commit();
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
