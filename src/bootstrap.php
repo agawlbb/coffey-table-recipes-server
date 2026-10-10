@@ -7,6 +7,7 @@ require_once __DIR__ . '/RecipeService.php';
 require_once __DIR__ . '/InvitationMail.php';
 require_once __DIR__ . '/FirebaseAccountDirectory.php';
 require_once __DIR__ . '/InvitationService.php';
+require_once __DIR__ . '/AdministrationService.php';
 $autoload = dirname(__DIR__) . '/vendor/autoload.php';
 if (is_file($autoload)) require_once $autoload;
 

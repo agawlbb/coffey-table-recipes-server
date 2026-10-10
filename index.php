@@ -28,10 +28,25 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
+    } elseif ($route === '/admin/users' || preg_match('#^/admin/users/([1-9][0-9]{0,18})/delete$#', $route, $adminMatch)) {
+        $identity = authenticatedIdentity($config);
+        $pdo = database($config);
+        $directory = new FirebaseAccountDirectory($config);
+        $user = (new HouseholdService($pdo, [$directory, 'requireAccount']))->bootstrap($identity);
+        $service = new AdministrationService($pdo, [$directory, 'delete']);
+        if ($route === '/admin/users' && $method === 'GET') {
+            respond(200, ['users' => $service->users($user['id'])]);
+        } elseif (isset($adminMatch[1]) && $method === 'POST') {
+            $body = requestBody();
+            $service->delete($user['id'], $adminMatch[1], ($body['confirm'] ?? false) === true);
+            respond(200, ['deleted' => true]);
+        } else {
+            throw new HttpError(405, 'method_not_allowed', 'Unsupported request method.');
+        }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
-        $households = new HouseholdService($pdo);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
         $households->membership($user['id'], $recipeMatch[1]);
         if ($method !== 'GET') {
@@ -56,7 +71,7 @@ try {
         || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
-        $households = new HouseholdService($pdo);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
         if ($method !== 'POST') {
             header('Allow: POST, OPTIONS');
@@ -74,7 +89,7 @@ try {
         }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/me/name$#', $route, $personNameMatch)) {
         $identity = authenticatedIdentity($config);
-        $service = new HouseholdService(database($config));
+        $service = new HouseholdService(database($config), [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $service->bootstrap($identity);
         $service->membership($user['id'], $personNameMatch[1]);
         if ($method !== 'POST') {
@@ -84,7 +99,7 @@ try {
         respond(200, ['person' => $service->renameOwnPerson($user['id'], $personNameMatch[1], requiredName(requestBody(), 'display_name'))]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/name$#', $route, $nameMatch)) {
         $identity = authenticatedIdentity($config);
-        $service = new HouseholdService(database($config));
+        $service = new HouseholdService(database($config), [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $service->bootstrap($identity);
         $service->membership($user['id'], $nameMatch[1], true);
         if ($method !== 'POST') {
@@ -95,7 +110,7 @@ try {
     } elseif ($route === '/me' || $route === '/households' || preg_match('#^/households/([1-9][0-9]{0,18})/people$#', $route, $match)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
-        $service = new HouseholdService($pdo);
+        $service = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $service->bootstrap($identity);
         if ($route === '/me' && $method === 'GET') {
             $pending = invitationService($pdo, $service, $config)->pending($user);
