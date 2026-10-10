@@ -84,6 +84,24 @@ final class HouseholdService
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    public function renameOwnPerson(string $userId, string $householdId, string $name): array
+    {
+        $this->membership($userId, $householdId);
+        $name = trim($name);
+        if ($name === '' || mb_strlen($name) > 200) {
+            throw new HttpError(400, 'invalid_name', 'Enter a name of up to 200 characters.');
+        }
+        $statement = $this->pdo->prepare('SELECT id FROM household_people WHERE household_id = ? AND user_id = ?');
+        $statement->execute([$householdId, $userId]);
+        $personId = $statement->fetchColumn();
+        if ($personId === false) {
+            throw new HttpError(404, 'person_not_found', 'Your name at this table was not found.');
+        }
+        $statement = $this->pdo->prepare('UPDATE household_people SET display_name = ? WHERE id = ? AND household_id = ? AND user_id = ?');
+        $statement->execute([$name, $personId, $householdId, $userId]);
+        return ['id' => (string) $personId, 'display_name' => $name, 'user_id' => $userId];
+    }
+
     public function addPerson(string $userId, string $householdId, string $name): array
     {
         $this->membership($userId, $householdId, true);
