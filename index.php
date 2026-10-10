@@ -72,6 +72,16 @@ try {
             if (!is_string($body['decision'] ?? null)) throw new HttpError(422, 'invalid_decision', 'Choose accept or decline.');
             respond(200, ['invitation' => $invitations->respond($user, $respondMatch[1], $body['decision'])]);
         }
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/me/name$#', $route, $personNameMatch)) {
+        $identity = authenticatedIdentity($config);
+        $service = new HouseholdService(database($config));
+        $user = $service->bootstrap($identity);
+        $service->membership($user['id'], $personNameMatch[1]);
+        if ($method !== 'POST') {
+            header('Allow: POST, OPTIONS');
+            throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        }
+        respond(200, ['person' => $service->renameOwnPerson($user['id'], $personNameMatch[1], requiredName(requestBody(), 'display_name'))]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/name$#', $route, $nameMatch)) {
         $identity = authenticatedIdentity($config);
         $service = new HouseholdService(database($config));

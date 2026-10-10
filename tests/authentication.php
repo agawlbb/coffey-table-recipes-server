@@ -85,6 +85,22 @@ try {
     check(count($service->people($bob['id'], $a['id'])) === 2, 'Member cannot read their own household.');
     rejected(static fn() => $service->addPerson($bob['id'], $a['id'], 'Not allowed'), 403);
     rejected(static fn() => $service->rename($bob['id'], $a['id'], 'Not allowed'), 403);
+    rejected(static fn() => $service->renameOwnPerson($alice['id'], $b['id'], 'Intruder'), 404);
+    rejected(static fn() => $service->renameOwnPerson($bob['id'], $a['id'], 'Missing person'), 404);
+    rejected(static fn() => $service->renameOwnPerson($alice['id'], $a['id'], '  '), 400);
+    rejected(static fn() => $service->renameOwnPerson($alice['id'], $a['id'], str_repeat('x', 201)), 400);
+    $ownerPerson = $service->people($alice['id'], $a['id'])[0];
+    $renamed = $service->renameOwnPerson($alice['id'], $a['id'], '  Alice at the table  ');
+    check($renamed['id'] === $ownerPerson['id'], 'Rename replaced the original person.');
+    check($renamed['display_name'] === 'Alice at the table', 'Rename did not trim the name.');
+    check($service->people($alice['id'], $a['id'])[0]['display_name'] === 'Alice at the table', 'Table name was not persisted.');
+    check($service->bootstrap(['uid' => 'alice', 'name' => 'Account Alice'])['display_name'] === 'Account Alice', 'Account name changed unexpectedly.');
+    check($service->people($alice['id'], $a['id'])[0]['display_name'] === 'Alice at the table', 'Account bootstrap overwrote table name.');
+    check($service->people($alice['id'], $a['id'])[1]['display_name'] === 'A child', 'Rename changed another person.');
+    $statement = $pdo->prepare('INSERT INTO household_people (household_id, user_id, display_name) VALUES (?, ?, ?)');
+    $statement->execute([$a['id'], $bob['id'], 'Member Bob']);
+    check($service->renameOwnPerson($bob['id'], $a['id'], 'Bobby')['display_name'] === 'Bobby', 'Ordinary member cannot rename their own person.');
+    check($service->people($bob['id'], $b['id'])[0]['display_name'] === 'Bob', 'Rename leaked to another household.');
     try {
         $statement = $pdo->prepare('INSERT INTO household_people (household_id, user_id, display_name) VALUES (?, ?, ?)');
         $statement->execute([$b['id'], $alice['id'], 'Wrong household']);
