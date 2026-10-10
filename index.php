@@ -28,18 +28,20 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
-    } elseif ($route === '/admin/users' || preg_match('#^/admin/(users|people)/([1-9][0-9]{0,18})/delete$#', $route, $adminMatch)) {
+    } elseif ($route === '/admin/users' || preg_match('#^/admin/(users|people|firebase)/([A-Za-z0-9_-]{1,128})/delete$#', $route, $adminMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
         $directory = new FirebaseAccountDirectory($config);
         $user = (new HouseholdService($pdo, [$directory, 'requireAccount']))->bootstrap($identity);
-        $service = new AdministrationService($pdo, [$directory, 'delete']);
+        $service = new AdministrationService($pdo, [$directory, 'delete'], [$directory, 'all']);
         if ($route === '/admin/users' && $method === 'GET') {
             respond(200, ['users' => $service->users($user['id']), 'people' => $service->people($user['id'])]);
         } elseif (isset($adminMatch[1]) && $method === 'POST') {
             $body = requestBody();
             if ($adminMatch[1] === 'people') {
                 $service->deletePerson($user['id'], $adminMatch[2], ($body['confirm'] ?? false) === true);
+            } elseif ($adminMatch[1] === 'firebase') {
+                $service->deleteFirebaseOnly($user['id'], $adminMatch[2], ($body['confirm'] ?? false) === true);
             } else {
                 $service->delete($user['id'], $adminMatch[2], ($body['confirm'] ?? false) === true);
             }

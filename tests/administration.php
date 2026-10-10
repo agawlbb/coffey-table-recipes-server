@@ -49,6 +49,20 @@ try {
     rejectAdmin(static fn() => $service->delete($actor['id'], '999999', true), 404);
     checkAdmin($calls === [], 'Rejected request reached Firebase');
     checkAdmin(count($service->users($actor['id'])) === 3, 'User listing incomplete');
+    $inventory = new AdministrationService($pdo, static function ($uid) use (&$calls): void { $calls[] = $uid; }, static fn() => [
+        ['uid' => 'target', 'email' => 'target@example.test', 'display_name' => 'Target', 'email_verified' => true, 'disabled' => false],
+        ['uid' => 'orphan', 'email' => 'orphan@example.test', 'display_name' => 'Orphan', 'email_verified' => false, 'disabled' => false],
+    ]);
+    rejectAdmin(static fn() => $inventory->users($other['id']), 403);
+    $rows = $inventory->users($actor['id']);
+    checkAdmin(count($rows) === 4, 'Firebase inventory missing or duplicates SQL accounts');
+    checkAdmin($rows[3]['id'] === 'firebase:orphan' && $rows[3]['firebase_only'] === true, 'Orphan identity incorrect');
+    rejectAdmin(static fn() => $inventory->deleteFirebaseOnly($other['id'], 'orphan', true), 403);
+    rejectAdmin(static fn() => $inventory->deleteFirebaseOnly($actor['id'], 'orphan', false), 422);
+    $inventory->deleteFirebaseOnly($actor['id'], 'orphan', true);
+    checkAdmin($calls === ['orphan'], 'Orphan did not reach Firebase deletion');
+    checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 3, 'Orphan deletion touched registered users');
+    $calls = [];
     $fail = true;
     rejectAdmin(static fn() => $service->delete($actor['id'], $target['id'], true), 503);
     checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 3, 'Remote failure deleted SQL user');

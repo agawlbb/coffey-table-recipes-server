@@ -32,6 +32,20 @@ final class FirebaseAccountDirectory
         }
     }
 
+    public function all(): array
+    {
+        $rows = []; $page = '';
+        do {
+            $url = 'https://identitytoolkit.googleapis.com/v1/projects/' . rawurlencode($this->config['firebase_project_id']) . '/accounts:batchGet?' . http_build_query(['maxResults' => 1000, 'nextPageToken' => $page]);
+            $data = $this->post($url, '', ['Authorization: Bearer ' . $this->accessToken()], false);
+            foreach ($data['users'] ?? [] as $user) {
+                $rows[] = ['uid' => $user['localId'], 'email' => $user['email'] ?? '', 'display_name' => $user['displayName'] ?? ($user['email'] ?? 'Account'), 'email_verified' => !empty($user['emailVerified']), 'disabled' => !empty($user['disabled'])];
+            }
+            $page = $data['nextPageToken'] ?? '';
+        } while ($page !== '');
+        return $rows;
+    }
+
     private function accessToken(): string
     {
         if ($this->token !== null) return $this->token;
@@ -69,12 +83,13 @@ final class FirebaseAccountDirectory
         return ['uid' => $user['localId'], 'disabled' => !empty($user['disabled'])];
     }
 
-    private function post(string $url, string $body, array $headers): array
+    private function post(string $url, string $body, array $headers, bool $isPost = true): array
     {
         $curl = curl_init($url);
-        curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body,
+        curl_setopt_array($curl, [CURLOPT_POST => $isPost,
             CURLOPT_HTTPHEADER => $headers, CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 12, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS]);
+        if ($isPost) curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
         $response = curl_exec($curl);
         $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
