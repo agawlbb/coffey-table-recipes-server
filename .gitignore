@@ -10,6 +10,7 @@
 !/storage/.htaccess
 !/storage/.gitkeep
 /config/*.local.json
+/config/*.local.php
 /media/recipe-illustrations/*.jpg
 /media/recipe-photos/*.jpg
 /media/recipe-photos/*.png

@@ -7,13 +7,13 @@ final class HouseholdService
 
     public function bootstrap(array $identity): array
     {
-        $statement = $this->pdo->prepare('INSERT INTO users (firebase_uid, display_name) VALUES (?, ?) ON DUPLICATE KEY UPDATE display_name = IF(disabled = 0, VALUES(display_name), display_name)');
-        $statement->execute([$identity['uid'], $identity['name']]);
-        $statement = $this->pdo->prepare('SELECT id, display_name, disabled FROM users WHERE firebase_uid = ?');
+        $statement = $this->pdo->prepare('INSERT INTO users (firebase_uid, display_name, email, email_verified) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name = IF(disabled = 0, VALUES(display_name), display_name), email = IF(disabled = 0, VALUES(email), email), email_verified = IF(disabled = 0, VALUES(email_verified), email_verified)');
+        $statement->execute([$identity['uid'], $identity['name'], $identity['email'] ?? null, !empty($identity['email_verified']) ? 1 : 0]);
+        $statement = $this->pdo->prepare('SELECT id, display_name, email, email_verified, disabled FROM users WHERE firebase_uid = ?');
         $statement->execute([$identity['uid']]);
         $user = $statement->fetch(PDO::FETCH_ASSOC);
         if ($user['disabled']) throw new HttpError(403, 'account_disabled', 'This account cannot access the recipe service.');
-        return ['id' => (string) $user['id'], 'display_name' => $user['display_name']];
+        return ['id' => (string) $user['id'], 'display_name' => $user['display_name'], 'email' => $user['email'], 'email_verified' => (bool) $user['email_verified']];
     }
 
     public function households(string $userId): array
@@ -75,7 +75,7 @@ final class HouseholdService
     public function people(string $userId, string $householdId): array
     {
         $this->membership($userId, $householdId);
-        $statement = $this->pdo->prepare('SELECT id, display_name, user_id FROM household_people WHERE household_id = ? ORDER BY id');
+        $statement = $this->pdo->prepare("SELECT p.id, p.display_name, p.user_id, i.email AS invitation_email FROM household_people p LEFT JOIN household_invitations i ON i.person_id = p.id AND i.status = 'pending' AND i.expires_at > UTC_TIMESTAMP(6) WHERE p.household_id = ? ORDER BY p.id");
         $statement->execute([$householdId]);
         return array_map(static function (array $row): array {
             $row['id'] = (string) $row['id'];
