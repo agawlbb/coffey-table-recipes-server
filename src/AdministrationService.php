@@ -18,19 +18,53 @@ final class AdministrationService
     public function users(string $actorId): array
     {
         $this->authorize($actorId);
-        $rows = $this->pdo->query('SELECT id, display_name, email, account_role, disabled FROM users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $this->pdo->query('SELECT id, display_name, email, email_verified, account_role, disabled FROM users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
         return array_map(static function (array $row): array {
             $row['id'] = (string) $row['id'];
             $row['disabled'] = (bool) $row['disabled'];
+            $row['email_verified'] = (bool) $row['email_verified'];
             return $row;
         }, $rows);
+    }
+
+    public function people(string $actorId): array
+    {
+        $this->authorize($actorId);
+        $rows = $this->pdo->query('SELECT p.id, p.display_name, p.household_id, h.name AS household_name FROM household_people p JOIN households h ON h.id = p.household_id WHERE p.user_id IS NULL ORDER BY h.name, p.id')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['id'] = (string) $row['id'];
+            $row['household_id'] = (string) $row['household_id'];
+        }
+        return $rows;
+    }
+
+    public function deletePerson(string $actorId, string $personId, bool $confirmed): void
+    {
+        $this->authorize($actorId);
+        if (!$confirmed) throw new HttpError(422, 'confirmation_required', 'Confirm permanent deletion first.');
+        $this->pdo->beginTransaction();
+        try {
+            $q = $this->pdo->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE');
+            $q->execute([$actorId]);
+            $this->authorize($actorId);
+            $q = $this->pdo->prepare('SELECT user_id FROM household_people WHERE id = ? FOR UPDATE');
+            $q->execute([$personId]);
+            $person = $q->fetch(PDO::FETCH_ASSOC);
+            if (!$person) throw new HttpError(404, 'person_not_found', 'Person not found.');
+            if ($person['user_id'] !== null) throw new HttpError(409, 'person_linked', 'This person now has a linked account. Refresh and delete that account instead.');
+            $this->pdo->prepare('DELETE FROM household_invitations WHERE person_id = ?')->execute([$personId]);
+            $this->pdo->prepare('DELETE FROM household_people WHERE id = ?')->execute([$personId]);
+            $this->pdo->commit();
+        } catch (Throwable $error) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $error;
+        }
     }
 
     public function delete(string $actorId, string $targetId, bool $confirmed): void
     {
         $this->authorize($actorId);
         if (!$confirmed) throw new HttpError(422, 'confirmation_required', 'Confirm permanent deletion first.');
-        if ($actorId === $targetId) throw new HttpError(409, 'self_delete', 'You cannot delete your own administrator account.');
         $this->pdo->beginTransaction();
         try {
             // Lock the actor as well so account permission changes cannot race deletion.

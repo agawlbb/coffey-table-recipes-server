@@ -46,7 +46,6 @@ try {
     rejectAdmin(static fn() => $service->users($other['id']), 403);
     rejectAdmin(static fn() => $service->delete($other['id'], $target['id'], true), 403);
     rejectAdmin(static fn() => $service->delete($actor['id'], $target['id'], false), 422);
-    rejectAdmin(static fn() => $service->delete($actor['id'], $actor['id'], true), 409);
     rejectAdmin(static fn() => $service->delete($actor['id'], '999999', true), 404);
     checkAdmin($calls === [], 'Rejected request reached Firebase');
     checkAdmin(count($service->users($actor['id'])) === 3, 'User listing incomplete');
@@ -89,7 +88,26 @@ try {
     $service->delete($actor['id'], $accepted['id'], true);
     checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM household_people WHERE id = ' . (int) $acceptedPerson['id'])->fetchColumn() === 0, 'Add-invite-accept-delete left table person');
     checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM household_people WHERE id = ' . (int) $person['id'])->fetchColumn() === 1, 'Deleting inviter removed unrelated guest');
+    rejectAdmin(static fn() => $service->people($other['id']), 403);
+    rejectAdmin(static fn() => $service->deletePerson($other['id'], $sameName['id'], true), 403);
+    rejectAdmin(static fn() => $service->deletePerson($actor['id'], $sameName['id'], false), 422);
+    rejectAdmin(static fn() => $service->deletePerson($actor['id'], '999999', true), 404);
+    $linkedId = $pdo->query('SELECT id FROM household_people WHERE user_id = ' . (int) $actor['id'])->fetchColumn();
+    rejectAdmin(static fn() => $service->deletePerson($actor['id'], (string) $linkedId, true), 409);
+    $beforeCalls = count($calls);
+    checkAdmin(count($service->people($actor['id'])) === 2, 'Unlinked people missing from administration');
+    $pdo->prepare("INSERT INTO household_invitations (household_id, person_id, invited_by_user_id, email, expires_at) VALUES (?, ?, ?, 'unlinked@example.test', UTC_TIMESTAMP() + INTERVAL 1 DAY)")->execute([$ownerTable['id'], $sameName['id'], $actor['id']]);
+    $service->deletePerson($actor['id'], $sameName['id'], true);
+    checkAdmin(count($calls) === $beforeCalls, 'Unlinked person deletion called Firebase');
+    checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM household_people WHERE id = ' . (int) $sameName['id'])->fetchColumn() === 0, 'Unlinked person not deleted');
+    checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM household_invitations WHERE person_id = ' . (int) $sameName['id'])->fetchColumn() === 0, 'Unlinked person invitation remains');
+    $pdo->prepare("UPDATE users SET email_verified = 0 WHERE id = ?")->execute([$other['id']]);
+    $service->delete($actor['id'], $other['id'], true);
+    checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM users WHERE id = ' . (int) $other['id'])->fetchColumn() === 0, 'Unverified account not deleted');
     $pdo->prepare('UPDATE users SET disabled = 1 WHERE id = ?')->execute([$actor['id']]);
     rejectAdmin(static fn() => $service->users($actor['id']), 403);
+    $pdo->prepare('UPDATE users SET disabled = 0 WHERE id = ?')->execute([$actor['id']]);
+    $service->delete($actor['id'], $actor['id'], true);
+    checkAdmin((int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0, 'Self deletion failed');
     echo "$checks administrator checks passed.\n";
 } finally { $root->exec("DROP DATABASE `$name`"); }
