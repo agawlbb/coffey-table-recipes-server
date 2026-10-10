@@ -28,17 +28,21 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
-    } elseif ($route === '/admin/users' || preg_match('#^/admin/users/([1-9][0-9]{0,18})/delete$#', $route, $adminMatch)) {
+    } elseif ($route === '/admin/users' || preg_match('#^/admin/(users|people)/([1-9][0-9]{0,18})/delete$#', $route, $adminMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
         $directory = new FirebaseAccountDirectory($config);
         $user = (new HouseholdService($pdo, [$directory, 'requireAccount']))->bootstrap($identity);
         $service = new AdministrationService($pdo, [$directory, 'delete']);
         if ($route === '/admin/users' && $method === 'GET') {
-            respond(200, ['users' => $service->users($user['id'])]);
+            respond(200, ['users' => $service->users($user['id']), 'people' => $service->people($user['id'])]);
         } elseif (isset($adminMatch[1]) && $method === 'POST') {
             $body = requestBody();
-            $service->delete($user['id'], $adminMatch[1], ($body['confirm'] ?? false) === true);
+            if ($adminMatch[1] === 'people') {
+                $service->deletePerson($user['id'], $adminMatch[2], ($body['confirm'] ?? false) === true);
+            } else {
+                $service->delete($user['id'], $adminMatch[2], ($body['confirm'] ?? false) === true);
+            }
             respond(200, ['deleted' => true]);
         } else {
             throw new HttpError(405, 'method_not_allowed', 'Unsupported request method.');
