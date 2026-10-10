@@ -4,6 +4,9 @@ require_once __DIR__ . '/HttpError.php';
 require_once __DIR__ . '/FirebaseIdentity.php';
 require_once __DIR__ . '/HouseholdService.php';
 require_once __DIR__ . '/RecipeService.php';
+require_once __DIR__ . '/InvitationMail.php';
+require_once __DIR__ . '/FirebaseAccountDirectory.php';
+require_once __DIR__ . '/InvitationService.php';
 $autoload = dirname(__DIR__) . '/vendor/autoload.php';
 if (is_file($autoload)) require_once $autoload;
 
@@ -11,17 +14,27 @@ function configuration(): array
 {
     $defaults = require dirname(__DIR__) . '/config/example.php';
     $local = dirname(__DIR__) . '/config/local.php';
-    return is_file($local) ? array_replace_recursive($defaults, require $local) : $defaults;
+    $config = is_file($local) ? array_replace_recursive($defaults, require $local) : $defaults;
+    $smtpFile = dirname(__DIR__) . '/config/smtp.local.json';
+    if (is_file($smtpFile)) $config['smtp'] = array_replace($config['smtp'], json_decode(file_get_contents($smtpFile), true, 16, JSON_THROW_ON_ERROR));
+    return $config;
+}
+
+function invitationService(PDO $pdo, HouseholdService $households, array $config): InvitationService
+{
+    return new InvitationService($pdo, $households, [new FirebaseAccountDirectory($config), 'lookup'], [new InvitationMail($config), 'send'], $config['app_url']);
 }
 
 function database(array $config): PDO
 {
     $db = $config['database'];
-    return new PDO(
+    $pdo = new PDO(
         sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $db['host'], $db['port'], $db['name']),
         $db['user'], $db['password'],
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
     );
+    $pdo->exec("SET time_zone = '+00:00'");
+    return $pdo;
 }
 
 function respond(int $status, array $body): void

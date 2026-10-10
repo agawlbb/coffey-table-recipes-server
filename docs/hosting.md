@@ -32,3 +32,23 @@ The user selected continued testing on coffeybean.com. The app backend URL remai
 Household creation now locks the account row and rejects accounts with any existing household membership with HTTP 409. The database still allows multiple memberships, and existing memberships are retained. Household lists are ordered by ID so the one-household UI consistently uses the oldest household, including after renaming.
 
 Local validation: 39 authentication/household checks and 55 recipe schema checks passed against disposable databases; PHP syntax checks passed. The hosted API has not been updated as part of this source change.
+
+## Invitation setup (2026-10-10, deployment pending)
+
+The user retained coffeybean.com. The mailbox `coffeytablerecipies@coffeybean.com` was created, and authenticated SMTP over TLS to `mail.coffeybean.com:465` passed without sending email. SMTP credentials are in ignored `config/smtp.local.json`.
+
+The dedicated `household-invite-lookup` service account has the project custom role `householdInvitationLookup`, containing only `firebaseauth.users.get`. Its JSON credential is in ignored `config/firebase-admin.local.json`; a live account lookup succeeded. See [invitation setup](household-invitations.md).
+
+Local verification passed 32 invitation checks and the existing 39 authentication/household and 55 recipe checks. The Flutter app passed analysis and 23 tests, was rebuilt for localhost, and its email dialog was inspected in Chrome.
+
+Hosted database migration and code/credential deployment remain pending. cPanel Terminal could not establish its WebSocket connection. phpMyAdmin export of `hosting_account_recipes` was blocked by Chrome with `ERR_BLOCKED_BY_CLIENT`; no hosted schema change was made. Secure a hosted backup before applying migration 007 and updating the backend. The hosted web app also needs the current build so invitation email links reach the acceptance UI.
+
+## Invitation deployment (2026-10-10)
+
+Deployment completed through the built-in browser. Before migration, phpMyAdmin exported a 134,146-byte backup containing 19 table definitions, 14 data INSERT statements, and the final COMMIT. The backup remains outside Git in `storage/hosted-before-invitations-20261010.sql.dump`. Migration 007 completed successfully with all three statements, including its checksum entry in `schema_migrations`.
+
+Updated backend files, Composer dependencies, and the current Flutter web build were extracted to the verified application directory. Existing hosted `config/local.php` was preserved. SMTP and Firebase credentials were deployed with permissions 0600; both credential URLs returned 403. The upload archive was moved to recoverable cPanel Trash outside the public web root.
+
+Hosted health returned 200 with status `ok`; localhost CORS preflight returned 204 with the expected allow-origin header. The hosted app loaded its sign-in screen without console errors. A guarded one-time CLI diagnostic, invoked using cPanel Cron Jobs because Terminal's WebSocket remained unavailable, passed SMTP TLS authentication and Firebase email lookup without sending email. The temporary cron entry was removed, and cPanel showed no cron jobs afterward.
+
+cPanel Email Deliverability reported properly configured SPF, DKIM, DMARC, and PTR for coffeybean.com. These authorize domain mail but do not guarantee recipient inbox delivery. A real email delivery test and authenticated hosted invitation UI verification remain pending the user's sign-in and choice of test invitee. Local automated validation remains as recorded above; no live invitations were created during deployment.

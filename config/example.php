@@ -14,4 +14,12 @@ return [
         'password' => '',
     ],
     'firebase_project_id' => '',
+    'firebase_service_account_file' => dirname(__DIR__) . '/config/firebase-admin.local.json',
+    'app_url' => 'https://coffeybean.com/CoffeyTableRecipes/app/',
+    'smtp' => [
+        'host' => '', 'port' => 465, 'encryption' => 'ssl',
+        'username' => '', 'password' => '',
+        'from_email' => 'CoffeyTableRecipies@coffeybean.com',
+        'from_name' => 'Coffey Table Recipes',
+    ],
 ];

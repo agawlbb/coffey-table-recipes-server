@@ -52,6 +52,26 @@ try {
             if (!is_string($scope) || !is_string($tree) || !in_array($tree, ['0', '1'], true)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
             respond(200, $recipes->browse($user['id'], $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1'));
         }
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/([1-9][0-9]{0,18})/invitations$#', $route, $inviteMatch)
+        || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {
+        $identity = authenticatedIdentity($config);
+        $pdo = database($config);
+        $households = new HouseholdService($pdo);
+        $user = $households->bootstrap($identity);
+        if ($method !== 'POST') {
+            header('Allow: POST, OPTIONS');
+            throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        }
+        $invitations = invitationService($pdo, $households, $config);
+        if (isset($inviteMatch[1])) {
+            $body = requestBody();
+            if (!is_string($body['email'] ?? null)) throw new HttpError(422, 'invalid_email', 'Enter a valid email address.');
+            respond(201, ['invitation' => $invitations->invite($user, $inviteMatch[1], $inviteMatch[2], $body['email'])]);
+        } else {
+            $body = requestBody();
+            if (!is_string($body['decision'] ?? null)) throw new HttpError(422, 'invalid_decision', 'Choose accept or decline.');
+            respond(200, ['invitation' => $invitations->respond($user, $respondMatch[1], $body['decision'])]);
+        }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/name$#', $route, $nameMatch)) {
         $identity = authenticatedIdentity($config);
         $service = new HouseholdService(database($config));
@@ -64,10 +84,13 @@ try {
         respond(200, ['household' => $service->rename($user['id'], $nameMatch[1], requiredName(requestBody(), 'name'))]);
     } elseif ($route === '/me' || $route === '/households' || preg_match('#^/households/([1-9][0-9]{0,18})/people$#', $route, $match)) {
         $identity = authenticatedIdentity($config);
-        $service = new HouseholdService(database($config));
+        $pdo = database($config);
+        $service = new HouseholdService($pdo);
         $user = $service->bootstrap($identity);
         if ($route === '/me' && $method === 'GET') {
-            respond(200, ['user' => $user, 'households' => $service->households($user['id'])]);
+            $pending = invitationService($pdo, $service, $config)->pending($user);
+            respond(200, ['user' => $user, 'households' => $service->households($user['id']),
+                'invitations' => $pending['invitations'], 'invitation_verification_required' => $pending['verification_required']]);
         } elseif ($route === '/households' && $method === 'GET') {
             respond(200, ['households' => $service->households($user['id'])]);
         } elseif ($route === '/households' && $method === 'POST') {
