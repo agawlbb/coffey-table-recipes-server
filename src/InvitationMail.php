@@ -7,7 +7,7 @@ final class InvitationMail
 {
     public function __construct(private array $config) {}
 
-    public static function text(string $inviter, string $household, bool $existingAccount, string $appUrl): string
+    public static function text(string $inviter, string $household, bool $existingAccount, string $appUrl, string $email = ''): string
     {
         $text = "$inviter has invited you to join the $household household on Coffey Table Recipes.\n\n";
         if ($existingAccount) {
@@ -15,6 +15,7 @@ final class InvitationMail
         } else {
             $text .= "Coffey Table Recipes helps a household keep its recipes together, browse meals, and track each person's favorite recipes.\n\nCreate an account using this email address, verify your email, and log in to accept or decline the invitation.\n";
         }
+        $appUrl .= (str_contains($appUrl, '?') ? '&' : '?') . http_build_query(['account' => $existingAccount ? 'signin' : 'create', 'email' => $email]);
         return $text . "\n$appUrl\n\nThis invitation expires in 14 days. No household access is granted unless you accept.\nThis address is used for outgoing invitations; replies are not monitored.\n";
     }
 

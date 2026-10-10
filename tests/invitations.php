@@ -45,6 +45,7 @@ try {
     $invite = $service->invite($owner, $h['id'], $person['id'], ' NEW@example.test ');
     expectInvite($invite['status'] === 'pending', 'Invite not pending after email.');
     expectInvite($messages[0][0] === 'new@example.test' && str_contains($messages[0][1], 'Create an account'), 'New-account email or normalization wrong.');
+    expectInvite(str_contains($messages[0][1], '?account=create&email=new%40example.test'), 'New invite does not open prefilled signup.');
     expectInvite(str_contains($messages[0][1], 'Owner has invited you') && str_contains($messages[0][1], 'Our table'), 'Inviter/household absent from email.');
     expectInvite($households->people($owner['id'], $h['id'])[1]['user_id'] === null, 'Sending invitation created membership.');
     rejectInvite(static fn() => $service->invite($owner, $h['id'], $person['id'], 'another@example.test'), 409);
@@ -74,6 +75,7 @@ try {
     $p2 = $households->addPerson($owner['id'], $h['id'], 'Existing guest');
     $i2 = $service->invite($owner, $h['id'], $p2['id'], 'existing@example.test');
     expectInvite(str_contains(end($messages)[1], 'Log in with this email address') && !str_contains(end($messages)[1], 'Create an account'), 'Existing-account email wrong.');
+    expectInvite(str_contains(end($messages)[1], '?account=signin&email=existing%40example.test'), 'Existing invite does not open prefilled sign-in.');
     $service->respond($existing, $i2['id'], 'decline');
     expectInvite($households->households($existing['id']) === [], 'Declining created membership.');
     expectInvite($households->people($owner['id'], $h['id'])[2]['user_id'] === null, 'Declining changed person.');
