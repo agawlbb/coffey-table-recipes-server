@@ -32,3 +32,13 @@ The user selected continued testing on coffeybean.com. The app backend URL remai
 Household creation now locks the account row and rejects accounts with any existing household membership with HTTP 409. The database still allows multiple memberships, and existing memberships are retained. Household lists are ordered by ID so the one-household UI consistently uses the oldest household, including after renaming.
 
 Local validation: 39 authentication/household checks and 55 recipe schema checks passed against disposable databases; PHP syntax checks passed. The hosted API has not been updated as part of this source change.
+
+## Invitation setup (2026-10-10, deployment pending)
+
+The user retained coffeybean.com. The mailbox `coffeytablerecipies@coffeybean.com` was created, and authenticated SMTP over TLS to `mail.coffeybean.com:465` passed without sending email. SMTP credentials are in ignored `config/smtp.local.json`.
+
+The dedicated `household-invite-lookup` service account has the project custom role `householdInvitationLookup`, containing only `firebaseauth.users.get`. Its JSON credential is in ignored `config/firebase-admin.local.json`; a live account lookup succeeded. See [invitation setup](household-invitations.md).
+
+Local verification passed 32 invitation checks and the existing 39 authentication/household and 55 recipe checks. The Flutter app passed analysis and 23 tests, was rebuilt for localhost, and its email dialog was inspected in Chrome.
+
+Hosted database migration and code/credential deployment remain pending. cPanel Terminal could not establish its WebSocket connection. phpMyAdmin export of `hosting_account_recipes` was blocked by Chrome with `ERR_BLOCKED_BY_CLIENT`; no hosted schema change was made. Secure a hosted backup before applying migration 007 and updating the backend. The hosted web app also needs the current build so invitation email links reach the acceptance UI.
