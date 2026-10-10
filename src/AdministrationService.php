@@ -42,6 +42,17 @@ final class AdministrationService
             $query->execute([$targetId]);
             $target = $query->fetch(PDO::FETCH_ASSOC);
             if (!$target) throw new HttpError(404, 'user_not_found', 'User not found.');
+            // Resolve invitation-associated people before deleting the evidence that
+            // associates an unlinked table entry with this account. Never match names
+            // or remove an entry already linked to a different account.
+            $people = $this->pdo->prepare('SELECT DISTINCT p.id FROM household_people p LEFT JOIN household_invitations i ON i.household_id = p.household_id AND i.person_id = p.id WHERE p.user_id = ? OR (p.user_id IS NULL AND (i.email = ? OR (i.status = \'accepted\' AND i.responded_by_user_id = ?)))');
+            $people->execute([$targetId, $target['email'], $targetId]);
+            $personIds = $people->fetchAll(PDO::FETCH_COLUMN);
+            if ($personIds !== []) {
+                $placeholders = implode(',', array_fill(0, count($personIds), '?'));
+                $this->pdo->prepare("DELETE FROM household_invitations WHERE person_id IN ($placeholders)")->execute($personIds);
+                $this->pdo->prepare("DELETE FROM household_people WHERE id IN ($placeholders)")->execute($personIds);
+            }
             // Keep shared recipes and history, removing account attribution and linked people.
             foreach ([
                 ['DELETE i FROM household_invitations i LEFT JOIN household_people p ON p.id = i.person_id WHERE i.invited_by_user_id = ? OR i.responded_by_user_id = ? OR p.user_id = ? OR i.email = ?', [$targetId, $targetId, $targetId, $target['email']]],
