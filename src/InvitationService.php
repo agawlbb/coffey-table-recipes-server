@@ -66,7 +66,7 @@ final class InvitationService
         $q->execute([$householdId]);
         $name = $q->fetchColumn();
         try {
-            ($this->send)($email, InvitationMail::text($inviter['display_name'] ?? 'A household administrator', $name, $account !== null, $this->appUrl));
+            ($this->send)($email, InvitationMail::text($inviter['display_name'] ?? 'A household administrator', $name, $account !== null, $this->appUrl, $email));
         } catch (Throwable $error) {
             $this->pdo->prepare("UPDATE household_invitations SET status = 'failed' WHERE id = ? AND status = 'sending'")->execute([$id]);
             if ($error instanceof HttpError) throw $error;
