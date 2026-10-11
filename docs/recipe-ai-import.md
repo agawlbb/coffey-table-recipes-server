@@ -63,4 +63,14 @@ Validation on October 11, 2026: 21 offline preprocessing checks and 35 recipe
 edit/create checks passed. The user explicitly authorized the latter's disposable
 local database after automatic approval review initially rejected it. PHP syntax
 and Git whitespace checks passed. The Flutter repository passed analysis and all
-84 tests. No live AI calls, hosted writes or deployment were performed.
+84 tests. No live AI calls, hosted writes or deployment were performed during
+the initial implementation validation.
+
+Hosted setup validation on October 11, 2026: with explicit user authorization,
+installed the API key in the protected server configuration, verified private
+readback and public HTTP 403, and removed the temporary GitHub Actions secret.
+The account's available model is `gpt-6-luna`. Fixed JSON-mode input wording and
+verified a live sample through the local Flutter web app using the hosted backend:
+the review screen showed Test Lemon Rice with five ingredients and five steps.
+Discarded the sample without saving a database record. The 21 offline checks and
+seven setup-script tests passed; backend changes were committed and deployed.
