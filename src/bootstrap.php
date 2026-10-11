@@ -4,6 +4,7 @@ require_once __DIR__ . '/HttpError.php';
 require_once __DIR__ . '/FirebaseIdentity.php';
 require_once __DIR__ . '/HouseholdService.php';
 require_once __DIR__ . '/RecipeService.php';
+require_once __DIR__ . '/RecipeEditorService.php';
 require_once __DIR__ . '/InvitationMail.php';
 require_once __DIR__ . '/VerificationMail.php';
 require_once __DIR__ . '/VerificationService.php';
@@ -49,13 +50,13 @@ function respond(int $status, array $body): void
     echo json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 }
 
-function requestBody(): array
+function requestBody(int $maximumBytes = 16384): array
 {
     if (!str_starts_with(strtolower($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
         throw new HttpError(415, 'unsupported_media_type', 'Use application/json.');
     }
-    $body = file_get_contents('php://input', false, null, 0, 16385);
-    if (strlen($body) > 16384) throw new HttpError(413, 'request_too_large', 'Request is too large.');
+    $body = file_get_contents('php://input', false, null, 0, $maximumBytes + 1);
+    if (strlen($body) > $maximumBytes) throw new HttpError(413, 'request_too_large', 'Request is too large.');
     try { $data = json_decode($body, true, 16, JSON_THROW_ON_ERROR); }
     catch (JsonException $error) { throw new HttpError(400, 'invalid_json', 'Invalid JSON request.'); }
     if (!is_array($data) || !str_starts_with(ltrim($body), '{')) {
