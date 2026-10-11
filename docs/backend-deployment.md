@@ -63,10 +63,23 @@ MySQL itself remains installed for unrelated projects and disposable tests.
 The hosted database was not changed. Restore the backup only into an explicitly
 chosen recovery database; never import it over the current hosted data.
 
-Local validation: nine deployment packaging/failure-path tests, 15 invitation
+Local validation: ten deployment packaging/failure-path tests, 15 invitation
 email checks and 14 verification checks passed. Tracked PHP files passed syntax
 checks. Mail checks use fixtures and send no email. Live deployment validation
 will be recorded after repository secrets are configured and the first run passes.
 The pushed workflow's GitHub runs passed syntax, locked Composer installation,
 mail checks, deployment tests and the unauthenticated cPanel TLS preflight. Initial
 publishing attempts stopped because deployment secrets had not both been saved.
+
+After both secrets were saved, a read-only diagnostic on the isolated
+`codex/backend-auth-check` branch returned HTTP 401 and confirmed that CPANEL_USER
+did not equal the hosting account name `hosting_account`. Correct that secret and rerun
+the diagnostic before declaring credentials verified. This diagnostic never
+uploads files; its deploy job is skipped on the diagnostic branch.
+
+The user declined pushing main while recipe editing/public-page work continues.
+Do not rerun the older main deployment during that work, since it could overwrite
+newer hosted runtime files. The local deployment diagnostic fixes are committed,
+but the pending main commits must be published only after the user authorizes
+that work. Database retirement is complete; automated live deployment remains
+unverified until the credential check and an authorized current-main run pass.
