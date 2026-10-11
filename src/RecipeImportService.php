@@ -183,8 +183,20 @@ PROMPT;
         $ch = curl_init('https://api.openai.com/v1/responses');
         curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>75,
             CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$key,'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($payload,JSON_THROW_ON_ERROR)]);
-        $raw = curl_exec($ch); $status = curl_getinfo($ch,CURLINFO_RESPONSE_CODE); curl_close($ch);
-        if ($raw === false || $status !== 200) throw new HttpError(502,'ai_unavailable','Recipe AI could not respond. Your input has not been saved; try again.');
+        $raw = curl_exec($ch); $status = curl_getinfo($ch,CURLINFO_RESPONSE_CODE); $curlError = curl_errno($ch); curl_close($ch);
+        if ($raw === false || $status !== 200) {
+            $failure = $raw === false ? [] : (json_decode($raw,true)['error'] ?? []);
+            $code = $failure['code'] ?? '';
+            if (!is_string($code) || !preg_match('/^[a-z_]{1,80}$/', $code)) $code = 'unknown';
+            error_log('Recipe AI failure: HTTP '.$status.', transport '.$curlError.', code '.$code);
+            $message = $raw === false ? 'The hosting server could not connect to recipe AI (connection '.$curlError.').'
+                : ($code === 'insufficient_quota' ? 'The recipe AI account needs API credits before imports can continue.'
+                : ($status === 429 ? 'Recipe AI is temporarily busy. Please wait and try again.'
+                : ($status === 401 ? 'The server recipe AI key was rejected.'
+                : ($status === 404 ? 'The configured recipe AI model is unavailable to this account.'
+                : 'Recipe AI rejected this request (HTTP '.$status.').'))));
+            throw new HttpError(502,'ai_unavailable',$message.' Your input has not been saved.');
+        }
         $response = json_decode($raw,true); $reply = '';
         if (($response['status'] ?? '') !== 'completed') throw new HttpError(502,'invalid_ai_reply','AI could not finish this recipe. Try a shorter input.');
         foreach ($response['output'] ?? [] as $item) foreach ($item['content'] ?? [] as $part) if (($part['type'] ?? '')==='output_text') $reply .= $part['text'];
