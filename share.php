@@ -15,16 +15,13 @@ try {
         throw new HttpError(405, 'method_not_allowed', 'Use GET.');
     }
     $config = configuration();
-    $token = $_GET['token'] ?? '';
-    if (!is_string($token)) throw new HttpError(404, 'share_not_found', 'This recipe link is unavailable.');
-    [$user, $household, $recipe] = (new RecipeShare($config['recipe_share_key']))->resolve($token);
-    $pdo = database($config);
-    $data = (new RecipeService($pdo, new HouseholdService($pdo)))->detail($user, $household, $recipe);
+    $id = RecipeShare::recipeId($_GET['id'] ?? null);
+    $data = RecipeShare::load(database($config), $id);
     if ($_SERVER['REQUEST_METHOD'] !== 'HEAD') echo recipeSharePage($data);
 } catch (Throwable $error) {
     $status = $error instanceof HttpError ? $error->status : 500;
     if ($status === 403) $status = 404;
     http_response_code($status);
     if (!$error instanceof HttpError) error_log((string) $error);
-    if ($_SERVER['REQUEST_METHOD'] !== 'HEAD') echo recipeSharePage(['title' => 'Recipe unavailable', 'description' => 'This recipe link is unavailable. Please ask the sender for a new link.']);
+    if ($_SERVER['REQUEST_METHOD'] !== 'HEAD') echo recipeSharePage(['title' => $status === 404 ? 'Recipe not found' : 'Recipe unavailable', 'description' => $status === 404 ? 'We could not find this recipe. It may have been removed, or the link may be incorrect. Please check the link or ask the sender to share it again.' : 'We could not load this recipe right now. Please try again later.']);
 }

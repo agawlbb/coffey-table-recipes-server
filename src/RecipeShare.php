@@ -1,26 +1,32 @@
 <?php
 declare(strict_types=1);
 
-/** Signed capability restricted to one recipe. IDs alone cannot grant access. */
+/** Public, read-only recipe display using the database recipe ID. */
 final class RecipeShare
 {
-    public function __construct(private string $key) {
-        if (strlen($key) < 32) throw new HttpError(503, 'sharing_unavailable', 'Recipe sharing is not configured yet.');
+    public static function recipeId($value): string {
+        if (!is_string($value) || !preg_match('/^[1-9][0-9]{0,18}$/D', $value)) throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
+        return $value;
     }
 
-    public function token(string $user, string $household, string $recipe): string {
-        $payload = bin2hex(json_encode([$user, $household, $recipe], JSON_THROW_ON_ERROR));
-        return $payload . '.' . hash_hmac('sha256', $payload, $this->key);
-    }
-
-    public function resolve(string $token): array {
-        if (strlen($token) > 512 || !preg_match('/^([a-f0-9]+)\.([a-f0-9]{64})$/D', $token, $m)
-            || !hash_equals(hash_hmac('sha256', $m[1], $this->key), $m[2])) {
-            throw new HttpError(404, 'share_not_found', 'This recipe link is unavailable.');
-        }
-        $ids = json_decode(hex2bin($m[1]), true);
-        if (!is_array($ids) || count($ids) !== 3) throw new HttpError(404, 'share_not_found', 'This recipe link is unavailable.');
-        foreach ($ids as $id) if (!is_string($id) || !preg_match('/^[1-9][0-9]{0,18}$/D', $id)) throw new HttpError(404, 'share_not_found', 'This recipe link is unavailable.');
-        return $ids;
+    public static function load(PDO $pdo, string $id): array {
+        $read = static function(string $sql, array $parameters) use ($pdo): array {
+            $statement = $pdo->prepare($sql); $statement->execute($parameters);
+            return array_map(static function(array $row): array {
+                foreach ($row as $key => $value) if ($value !== null && ($key === 'id' || str_ends_with($key, '_id'))) $row[$key] = (string)$value;
+                return $row;
+            }, $statement->fetchAll(PDO::FETCH_ASSOC));
+        };
+        $recipe = $read('SELECT id,household_id,title,description,original_language,servings,yield_text,prep_minutes,cook_minutes,total_minutes,notes,revision,parent_recipe_id,source_title,source_author,source_url,source_reference FROM recipes WHERE id=?', [$id])[0] ?? null;
+        if (!$recipe) throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
+        $household = $recipe['household_id'];
+        foreach (['ingredients'=>'recipe_ingredients','groups'=>'recipe_ingredient_groups','steps'=>'recipe_steps','photos'=>'recipe_photos'] as $key=>$table) $recipe[$key] = $read("SELECT * FROM $table WHERE household_id=? AND recipe_id=? ORDER BY position,id", [$household,$id]);
+        $recipe['tags'] = $read('SELECT kind,label FROM recipe_tags WHERE household_id=? AND recipe_id=? ORDER BY kind,label', [$household,$id]);
+        $recipe['nutrition'] = $read('SELECT * FROM recipe_nutrition WHERE household_id=? AND recipe_id=?', [$household,$id])[0] ?? null;
+        if ($recipe['nutrition'] !== null) $recipe['nutrition']['stale'] = (string)$recipe['nutrition']['recipe_revision'] !== (string)$recipe['revision'];
+        $parent=$recipe['parent_recipe_id'];
+        $recipe['related'] = $read('SELECT id,title FROM recipes WHERE household_id=? AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$household,$id,$parent ?? $id,$parent,$parent,$parent]);
+        $recipe['pairings'] = $read('SELECT r.id,r.title FROM recipe_pairings p JOIN recipes r ON r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END AND r.household_id=p.household_id WHERE p.household_id=? AND (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$id,$household,$id,$id]);
+        return $recipe;
     }
 }

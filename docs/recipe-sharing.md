@@ -1,16 +1,16 @@
 # Public recipe links
 
-Authenticated `GET /api/v1/households/{household}/recipes/{recipe}/share` checks membership and recipe existence and returns a signed URL under the configured `app_url` root: `share.php?token=…`.
+Recipe pages use `share.php?id={database recipe ID}`. No signing key, token, expiry, household ID, or sender identity is needed. Anyone can read an existing recipe by its ID. The page is read-only and does not expose raw imports, household members, edit options, or step actions. The authenticated `/households/{household}/recipes/{recipe}/share` route remains compatible and returns the same ID-based URL.
 
-Set `recipe_share_key` in private `config/local.php` to a cryptographically random value of at least 32 characters (for example the output of `php -r "echo bin2hex(random_bytes(32));"`). Never commit it. Sharing returns 503 until configured. Key rotation invalidates all existing links. No schema change is required.
+Missing, malformed, or nonexistent IDs return HTTP 404 with a useful branded error in the app's cream, green, and brown colors. Operational failures return 500 with a retry message. The page uses the existing `assets/email/coffey_table.jpg` branding image. Recipe photo backgrounds are transparent, matching the page background; tags remain visible but action chips are omitted.
 
-The public handler verifies the HMAC before reading data, then rechecks the sender's membership and recipe existence. The capability grants access to one recipe. Anyone with a link can view its current contents without authentication; links have no expiry. Other recipe titles appear without links. Import bookkeeping, raw import text, household member data and edit options are not rendered. Pages disallow indexing, use no-store and no-referrer headers, escape all recipe text and allow only HTTP(S) images.
+## Simplified sharing deployment - 2026-10-11
 
-Deploy the API route, config default, share.php and both RecipeShare classes together.
+Deployed the public reader, renderer, handler, configuration default and isolated sharing route update to the verified coffeybean.com recipe directory. Existing hosted router features were preserved. Backups are protected under `storage/before-simple-sharing-20261011-125154`; the guarded temporary installer removed itself (verified 404). No database changes or Flutter hosted-app deployment were made. The earlier private signing key is unused.
 
-Validation: `php tests/recipe_sharing.php` tests signed link round trips, tampering, key rotation, missing configuration, renderer escaping, selected recipe sections and private-field omission. It does not change database data.
+Validation: 26 backend checks and PHP lint passed. Four deployed file hashes matched local sources. Live Mint Chip Ice Cream (`share.php?id=9`) returned 200 and was visually checked in the built-in browser: branding loads, photo surround matches the page, and action chips are absent. Missing, malformed and array IDs returned branded 404 pages. API health returned 200; the authenticated sharing route returned 401 anonymously; the branding image returned 200; private configuration returned 403. The app's 10 targeted tests and focused analysis passed.
 
-Implementation verification: all 22 checks passed, along with lint of the public handler, API router and both new classes. Built-in browser preview timed out against localhost; hosted integration and visual verification remain pending deployment.
+## Previous signed-link deployment (superseded)
 
 ## Hosted deployment — 2026-10-11
 
