@@ -7,6 +7,7 @@ final class RecipePhotoService {
     public function __construct(private array $config, private string $storage, ?callable $transport = null) { $this->transport = $transport; }
 
     public static function prompt(array $recipe): string {
+        if (($recipe['photos'] ?? null)!==[]) throw new HttpError(409,'photo_exists','AI generation is available only when this recipe has no photos.');
         $title = $recipe['title'] ?? '';
         if (!is_string($title) || trim($title)==='' || strlen($title)>1200) throw new HttpError(422,'invalid_recipe','Enter a recipe name before generating a photo.');
         $data = ['title'=>$title];
