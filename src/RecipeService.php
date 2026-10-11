@@ -75,10 +75,15 @@ final class RecipeService
         $recipe['related'] = $this->rows('SELECT id,title,parent_recipe_id FROM recipes WHERE household_id=? AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$householdId, $recipeId, $parent ?? $recipeId, $parent, $parent, $parent]);
         $recipe['pairings'] = $this->rows('SELECT r.id,r.title,p.notes FROM recipe_pairings p JOIN recipes r ON r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END AND r.household_id=p.household_id WHERE p.household_id=? AND (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$recipeId, $householdId, $recipeId, $recipeId]);
         $recipe['category_assignments'] = $this->rows('SELECT category_id FROM recipe_category_assignments WHERE household_id=? AND recipe_id=? ORDER BY category_id', [$householdId, $recipeId]);
-        $recipe['edit_options'] = [
+        $recipe['edit_options'] = $this->editOptions($userId, $householdId, $recipeId);
+        return $recipe;
+    }
+
+    public function editOptions(string $userId, string $householdId, string $recipeId = '0'): array {
+        $this->households->membership($userId, $householdId);
+        return [
             'categories' => $this->rows('SELECT c.id,c.label,p.label AS parent_label FROM recipe_categories c LEFT JOIN recipe_categories p ON p.id=c.parent_id ORDER BY COALESCE(p.position,c.position),c.position,c.label', []),
             'recipes' => $this->rows('SELECT id,title FROM recipes WHERE household_id=? AND id<>? ORDER BY title,id', [$householdId,$recipeId]),
         ];
-        return $recipe;
     }
 }

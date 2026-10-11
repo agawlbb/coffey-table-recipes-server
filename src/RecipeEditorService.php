@@ -60,8 +60,15 @@ final class RecipeEditorService
     public function save(string $userId, string $householdId, string $recipeId, array $body): array {
         $this->households->membership($userId, $householdId);
         $createdFiles = [];
+        $creating = $recipeId === '';
         $this->pdo->beginTransaction();
         try {
+            if ($recipeId === '') {
+                $source = $this->fields($body, ['source_text'=>'60000','import_key'=>'191']);
+                if ($source['import_key'] !== null && !preg_match('/^[a-f0-9]{64}$/', $source['import_key'])) $this->invalid('Invalid import identifier.');
+                $recipeId = $this->insert('recipes', ['household_id'=>$householdId,'title'=>'New recipe','created_by_user_id'=>$userId,'updated_by_user_id'=>$userId] + $source);
+                $body['revision'] = 1;
+            }
             $q = $this->pdo->prepare('SELECT revision FROM recipes WHERE household_id=? AND id=? FOR UPDATE');
             $q->execute([$householdId, $recipeId]);
             $revision = $q->fetchColumn();
@@ -195,6 +202,7 @@ final class RecipeEditorService
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
             foreach ($createdFiles as $file) if (is_file($file)) unlink($file);
+            if ($creating && $error instanceof PDOException && (int)($error->errorInfo[1] ?? 0) === 1062) throw new HttpError(409, 'recipe_already_imported', 'This import has already been saved. Find it in Recipes before trying again.');
             if ($error instanceof PDOException && in_array($error->getCode(),['23000','22003','22001'],true)) $this->invalid('Some recipe values are invalid or too large. Please check your entries.');
             throw $error;
         }
