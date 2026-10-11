@@ -65,6 +65,20 @@ try {
         (new RecipeService($pdo, $households))->detail($user['id'], $shareMatch[1], $shareMatch[2]);
         $root = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/');
         respond(200, ['url' => $root . '/share.php?id=' . $shareMatch[2]]);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-photo$#', $route, $photoMatch)) {
+        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        $identity = authenticatedIdentity($config); $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $households->membership($user['id'], $photoMatch[1]);
+        $body = requestBody(100000); $recipe = $body['recipe'] ?? null;
+        if (!is_array($recipe)) throw new HttpError(422,'invalid_recipe','Choose a recipe.');
+        if (isset($recipe['id'])) {
+            if (!is_string($recipe['id']) || !preg_match('/^[1-9][0-9]{0,18}$/',$recipe['id'])) throw new HttpError(422,'invalid_recipe','Invalid recipe.');
+            $stored = (new RecipeService($pdo,$households))->detail($user['id'],$photoMatch[1],$recipe['id']);
+            if ($stored['photos']!==[]) throw new HttpError(409,'photo_exists','This recipe already has photos.');
+        }
+        respond(200,(new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'))->generate($recipe,$user['id'],$photoMatch[1]));
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-import$#', $route, $importMatch)) {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);

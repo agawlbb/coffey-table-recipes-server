@@ -19,6 +19,7 @@ return [
     'recipe_ai' => [
         'api_key' => '', // Set only in ignored config/local.php or OPENAI_API_KEY.
         'model' => 'gpt-6-luna',
+        'image_model' => 'gpt-image-2.5-flare', // Low-quality 816x816 draft photos.
         'pdftotext' => '', // Optional absolute Poppler pdftotext executable path.
         'tesseract' => '', // Optional absolute Tesseract executable path.
     ],
