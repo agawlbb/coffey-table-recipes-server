@@ -48,7 +48,8 @@ and no redirects. Recipe JSON-LD is preferred; page text is the fallback.
 The AI prompt preserves source language and uncertain quantities, silently corrects
 obvious spelling mistakes, asks for unresolved cooking ambiguity, and treats sources
 as data. Missing yield, servings, prep and cook times are estimated from the recipe;
-supplied values are preserved and estimates and assumptions are identified in notes.
+supplied values are preserved. Notes contain practical cooking tips only; estimation
+commentary is omitted and no notes is valid.
 These missing fields do not trigger clarification questions. AI has no database tools.
 Draft normalization accepts nested step actions and category labels, discards
 AI-supplied identifiers, and assigns each action to its normalized step. Explicit
@@ -97,7 +98,7 @@ internal doneness temperatures still require a numeric target and unit.
 
 Import output now uses a strict Responses JSON Schema to constrain action enums,
 field types and array limits. Incomplete or unknown scalar action types become
-reviewable reminders with a note rather than failing the whole import; irrelevant
+reviewable reminders with a separate import warning rather than failing the whole import; irrelevant
 time/temperature fields are cleared. No time or temperature is invented and no
 extra AI repair call is made. Malformed nested content and excessive lists remain
 rejected. Refused and incomplete responses give actionable messages.
@@ -106,7 +107,7 @@ Validation: 35 offline import checks and 41 disposable database save checks pass
 
 Quantity prefills normalize equivalent decimal/fraction duplicates to one valid
 representation and remove empty/zero fraction placeholders when a valid decimal
-exists. Conflicting amounts retain the displayed ingredient and a review note
+exists. Conflicting amounts retain the displayed ingredient and a separate import warning
 without guessing an amount. Structured amount precision and positive servings
 are bounded for storage. Ingredient display lines correct obvious spelling while
 source_text preserves the input. Save errors identify the ingredient or action.
@@ -126,3 +127,14 @@ Validation: the supplied title-less key lime pie source produced a factual
 description, 12 ingredient entries, 10 steps, Pies under Desserts, and 120/1200
 second cooking timers in a live import. Redundant parent assignments are removed
 locally. Personal sample source and draft are ignored; no hosted recipe was saved.
+
+Text import distinguishes Pasted text and Written description of a dish through
+explicit UI selection; uploaded text/PDF/images, camera photos and website links
+also have readable source labels, preserved through clarification. Legacy AI source
+labels display in plain language. Import warnings are shown during review and
+are excluded from stored cooking Notes.
+
+Live validation of the supplied cracker/marshmallow/date-roll recipe returned five
+ingredients, six steps, no questions, Pasted text as its source, and notes containing
+the plastic-bag/rolling-pin method, scissors/regular-marshmallow advice, pre-chopped
+dates and reserved coating crumbs. No estimation commentary was added.

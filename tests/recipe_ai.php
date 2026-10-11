@@ -31,7 +31,7 @@ $heatAction=RecipeImportService::draft($heat)['recipe']['actions'][0];
 aiExpect($heatAction['action_type']==='reminder' && $heatAction['temperature_unit']===null && $heatAction['label']==='Simmer over low heat','Qualitative heat did not become a reminder.');
 $bad = $timed; $bad['recipe']['steps'][0]['actions'][0]['duration_seconds']=0;
 $recovered=RecipeImportService::draft($bad)['recipe'];
-aiExpect($recovered['actions'][0]['action_type']==='reminder' && $recovered['actions'][0]['duration_seconds']===null && str_contains($recovered['notes'],'Review step 1'),'Incomplete timer should remain reviewable without guessing.');
+aiExpect($recovered['actions'][0]['action_type']==='reminder' && $recovered['actions'][0]['duration_seconds']===null && str_contains($recovered['import_warnings'][0],'Review step 1') && !str_contains($recovered['notes'] ?? '', 'Review step'),'Incomplete timer should remain reviewable without guessing.');
 $bad['recipe']['steps'][0]['actions'][0]['action_type']='simmer';
 aiExpect(RecipeImportService::draft($bad)['recipe']['actions'][0]['action_type']==='reminder','Unknown action lost instead of preserved.');
 $bad=$timed; $bad['recipe']['steps'][0]['actions'][0]['temperature_unit']='F';
@@ -58,4 +58,9 @@ aiExpect($q['quantity_decimal']===null && $q['quantity_numerator']===1 && $q['qu
 $quantities['recipe']['ingredients'][0]['quantity_denominator']=0;
 $q=RecipeImportService::draft($quantities)['recipe']['ingredients'][0];
 aiExpect($q['quantity_decimal']==='0.5' && $q['quantity_numerator']===null && $q['quantity_denominator']===null,'Placeholder fraction broke decimal.');
+aiExpect(RecipeImportService::sourceType('text',[])==='Pasted text','Pasted source mislabeled.');
+aiExpect(RecipeImportService::sourceType('text',['input_source'=>'written_description'])==='Written description of a dish','Written description mislabeled.');
+aiExpect(RecipeImportService::sourceType('file',[],true)==='Uploaded PDF','PDF source mislabeled.');
+aiExpect(RecipeImportService::sourceType('file',[])==='Uploaded image','Image source mislabeled.');
+aiExpect(RecipeImportService::sourceType('answers',['recipe'=>['source_type'=>'Camera photo']])==='Camera photo','Clarification lost original source.');
 echo "$checks recipe AI preprocessing and validation checks passed.\n";
