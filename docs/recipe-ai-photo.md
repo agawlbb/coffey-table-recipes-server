@@ -7,7 +7,9 @@ before generating. The authenticated `POST /households/{id}/recipe-photo` route
 verifies membership, recipe ownership and that persisted photos are absent.
 
 The route uses the existing server-only `recipe_ai.api_key`, with configurable
-`recipe_ai.image_model` (default `gpt-image-2.5-flare`). It sends only the dish
+`recipe_ai.image_model` (default `gpt-image-2.5-flare`). The Responses API uses
+`gpt-5.4-mini` to invoke that image renderer through a forced image-generation
+tool call. Both models require project access. It sends only the dish
 title, ingredient lines and instructions, bounded to 16 KB. Source text, notes,
 credentials and existing image files are excluded. Recipe content is treated as
 untrusted data. One image is requested at fixed 816x816, low quality, JPEG with
@@ -40,3 +42,9 @@ can be verified. No live image, database record or uploaded media was created.
 Official request and size contract:
 https://developers.openai.com/api/docs/guides/image-generation
 https://developers.openai.com/api/reference/resources/images/methods/generate
+
+Model migration: imports, follow-up answers and photo orchestration use
+`gpt-5.4-mini`. Offline tests verify the Responses payload and completed image
+output. Live validation awaits project authorization; no paid generation was
+performed during migration.
+https://developers.openai.com/api/docs/guides/tools-image-generation
