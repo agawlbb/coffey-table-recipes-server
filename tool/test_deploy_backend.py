@@ -47,6 +47,12 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, '^Upload failed; response details omitted$'):
             deploy.require_success(response, 'Upload')
 
+    def test_http_failure_reports_only_operation_and_status(self):
+        response = Mock(status_code=401)
+        response.raise_for_status.side_effect = deploy.requests.exceptions.HTTPError('private request details')
+        with self.assertRaisesRegex(RuntimeError, '^Upload failed with HTTP 401; response details omitted$'):
+            deploy.require_success(response, 'Upload')
+
     def test_symlink_rejected(self):
         with patch.object(deploy.subprocess, 'check_output', return_value=b'index.php'), \
                 patch.object(Path, 'is_file', return_value=True), \
