@@ -65,6 +65,16 @@ try {
         (new RecipeService($pdo, $households))->detail($user['id'], $shareMatch[1], $shareMatch[2]);
         $root = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/');
         respond(200, ['url' => $root . '/share.php?id=' . $shareMatch[2]]);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/category-image$#', $route, $categoryMatch)) {
+        if ($method !== 'POST') throw new HttpError(405,'method_not_allowed','Use POST.');
+        $identity=authenticatedIdentity($config); $pdo=database($config);
+        $households=new HouseholdService($pdo); $user=$households->bootstrap($identity);
+        $households->membership($user['id'],$categoryMatch[1]);
+        $body=requestBody(); $id=$body['category_id'] ?? '';
+        if (!is_string($id) || !preg_match('/^[1-9][0-9]{0,18}$/',$id)) throw new HttpError(422,'invalid_category','Choose a category.');
+        $mediaUrl=rtrim(preg_replace('#/app/?$#','',$config['app_url']),'/').'/media/recipes';
+        $images=new CategoryImageService($pdo,new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'),__DIR__.'/media/recipes',$mediaUrl);
+        respond(200,['image_url'=>$images->ensure($id,$user['id'],$categoryMatch[1])]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-photo$#', $route, $photoMatch)) {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config); $pdo = database($config);
@@ -76,7 +86,6 @@ try {
         if (isset($recipe['id'])) {
             if (!is_string($recipe['id']) || !preg_match('/^[1-9][0-9]{0,18}$/',$recipe['id'])) throw new HttpError(422,'invalid_recipe','Invalid recipe.');
             $stored = (new RecipeService($pdo,$households))->detail($user['id'],$photoMatch[1],$recipe['id']);
-            if ($stored['photos']!==[]) throw new HttpError(409,'photo_exists','This recipe already has photos.');
         }
         respond(200,(new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'))->generate($recipe,$user['id'],$photoMatch[1]));
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-import$#', $route, $importMatch)) {

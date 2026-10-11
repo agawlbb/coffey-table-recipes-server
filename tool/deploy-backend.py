@@ -91,6 +91,9 @@ def deploy():
     for name in ('config/local.php', 'vendor/autoload.php', 'storage/' + output.name):
         if public.get(PUBLIC + name, timeout=60).status_code != 403:
             raise RuntimeError('Hosted internal-path protection check failed')
+    media = public.get(PUBLIC + 'media/recipes/', headers={'Origin': 'http://localhost'}, timeout=60)
+    if media.headers.get('Access-Control-Allow-Origin') != '*':
+        raise RuntimeError('Hosted public image CORS check failed')
     # Publish the receipt only after runtime checks pass. Contains no credentials.
     require_success(session.post(HOST + '/execute/Fileman/upload_files',
         data={'dir': DIRECTORY, 'overwrite': '1'}, files={

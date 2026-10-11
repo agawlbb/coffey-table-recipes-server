@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class RecipeService
 {
-    public function __construct(private PDO $pdo, private HouseholdService $households) {}
+    public function __construct(private PDO $pdo, private HouseholdService $households, private string $mediaUrl = 'https://coffeybean.com/CoffeyTableRecipes/media/recipes') {}
 
     private function rows(string $sql, array $parameters): array {
         $statement = $this->pdo->prepare($sql);
@@ -35,6 +35,10 @@ final class RecipeService
                 LEFT JOIN recipe_category_assignments a ON (a.category_id=c.id OR a.category_id=child.id) AND a.household_id=?
                 WHERE c.parent_id <=> ? GROUP BY c.id,c.parent_id,c.slug,c.label,c.image_key,c.position
                 HAVING c.parent_id IS NULL OR COUNT(DISTINCT a.recipe_id)>0 ORDER BY c.position,c.label,c.id', [$householdId, $scope === '' ? null : $scope]);
+            foreach ($nodes as &$categoryNode) {
+                $categoryNode['image_url']=str_starts_with($categoryNode['image_key'],'ai-') ? rtrim($this->mediaUrl,'/').'/category-'.$categoryNode['id'].'.jpg' : null;
+                $categoryNode['needs_ai_image']=str_starts_with($categoryNode['slug'],'import-') && $categoryNode['image_url']===null;
+            } unset($categoryNode);
             return ['recipes' => [], 'category_nodes' => $nodes, 'view' => 'categories', 'next_offset' => null];
         }
         if ($category !== '') {
@@ -48,8 +52,13 @@ final class RecipeService
             array_push($parameters, $like, $like, $like, $like, $like, $like);
         }
         $items = $this->rows("SELECT r.id,r.title,r.description,r.original_language,r.servings,r.yield_text,r.prep_minutes,r.cook_minutes,r.total_minutes,r.parent_recipe_id,
-            (SELECT source_url FROM recipe_photos p WHERE p.recipe_id=r.id ORDER BY p.is_cover DESC,p.position LIMIT 1) AS photo_url
+            (SELECT source_url FROM recipe_photos p WHERE p.recipe_id=r.id ORDER BY p.is_cover DESC,p.position LIMIT 1) AS photo_url,
+            (SELECT storage_key FROM recipe_photos p WHERE p.recipe_id=r.id ORDER BY p.is_cover DESC,p.position LIMIT 1) AS photo_storage_key
             FROM recipes r WHERE $where ORDER BY r.title,r.id LIMIT 31 OFFSET $offset", $parameters);
+        foreach ($items as &$item) {
+            if (preg_match('#^media/recipes/([a-f0-9]{48}\.(?:jpg|png|webp))$#',(string)($item['photo_storage_key'] ?? ''),$match)) $item['photo_url']=rtrim($this->mediaUrl,'/').'/'.$match[1];
+            unset($item['photo_storage_key']);
+        } unset($item);
         $hasMore = count($items) > 30;
         if ($hasMore) array_pop($items);
         $categories = $this->rows("SELECT DISTINCT label FROM recipe_tags WHERE household_id=? AND kind='category' ORDER BY label", [$householdId]);
@@ -66,6 +75,10 @@ final class RecipeService
         foreach (['ingredients' => 'recipe_ingredients', 'groups' => 'recipe_ingredient_groups', 'steps' => 'recipe_steps', 'photos' => 'recipe_photos'] as $key => $table) {
             $recipe[$key] = $this->rows("SELECT * FROM $table WHERE household_id=? AND recipe_id=? ORDER BY position,id", [$householdId, $recipeId]);
         }
+        foreach ($recipe['photos'] as &$photo) {
+            $storage=$photo['storage_key'] ?? '';
+            if (preg_match('#^media/recipes/([a-f0-9]{48}\.(?:jpg|png|webp))$#',$storage,$match)) $photo['source_url']=rtrim($this->mediaUrl,'/').'/'.$match[1];
+        } unset($photo);
         $recipe['actions'] = $this->rows('SELECT * FROM recipe_step_actions WHERE household_id=? AND recipe_id=? ORDER BY step_id,position,id', [$householdId, $recipeId]);
         $recipe['tags'] = $this->rows('SELECT kind,label FROM recipe_tags WHERE household_id=? AND recipe_id=? ORDER BY kind,label', [$householdId, $recipeId]);
         $nutrition = $this->rows('SELECT * FROM recipe_nutrition WHERE household_id=? AND recipe_id=?', [$householdId, $recipeId]);
