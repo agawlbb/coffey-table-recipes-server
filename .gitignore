@@ -16,3 +16,6 @@
 /media/recipe-photos/*.png
 /media/recipe-photos/*.webp
 /media/recipe-photos/*.gif
+/media/recipes/*.jpg
+/media/recipes/*.png
+/media/recipes/*.webp

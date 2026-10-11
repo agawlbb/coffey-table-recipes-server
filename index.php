@@ -63,22 +63,23 @@ try {
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
         (new RecipeService($pdo, $households))->detail($user['id'], $shareMatch[1], $shareMatch[2]);
-        require_once __DIR__ . '/src/RecipeShare.php';
-        $token = (new RecipeShare($config['recipe_share_key']))->token($user['id'], $shareMatch[1], $shareMatch[2]);
         $root = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/');
-        respond(200, ['url' => $root . '/share.php?token=' . $token]);
+        respond(200, ['url' => $root . '/share.php?id=' . $shareMatch[2]]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
         $households->membership($user['id'], $recipeMatch[1]);
-        if ($method !== 'GET') {
-            header('Allow: GET, OPTIONS');
-            throw new HttpError(405, 'method_not_allowed', 'Use GET.');
-        }
         $recipes = new RecipeService($pdo, $households);
-        if (isset($recipeMatch[2])) {
+        if ($method === 'POST' && isset($recipeMatch[2])) {
+            $mediaUrl = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/') . '/media/recipes';
+            $editor = new RecipeEditorService($pdo, $households, __DIR__.'/media/recipes', $mediaUrl);
+            respond(200, ['recipe' => $editor->save($user['id'], $recipeMatch[1], $recipeMatch[2], requestBody(30*1024*1024))]);
+        } elseif ($method !== 'GET') {
+            header('Allow: GET, POST, OPTIONS');
+            throw new HttpError(405, 'method_not_allowed', 'Use GET or POST for a recipe.');
+        } elseif (isset($recipeMatch[2])) {
             respond(200, ['recipe' => $recipes->detail($user['id'], $recipeMatch[1], $recipeMatch[2])]);
         } else {
             $query = $_GET['q'] ?? '';

@@ -1,0 +1,203 @@
+<?php
+declare(strict_types=1);
+
+/** Atomic, revision-checked editing of a household recipe. */
+final class RecipeEditorService
+{
+    public function __construct(private PDO $pdo, private HouseholdService $households, private string $mediaDirectory, private string $mediaUrl) {}
+
+    private function invalid(string $message): void { throw new HttpError(422, 'invalid_recipe', $message); }
+    private function fields(array $row, array $spec): array {
+        $result = [];
+        foreach ($spec as $key => $rule) {
+            $value = $row[$key] ?? null;
+            if ($value === '') $value = null;
+            if ($rule === 'bool') {
+                if (!in_array($value, [null, true, false, 0, 1, '0', '1'], true)) $this->invalid("Invalid $key.");
+                $result[$key] = (int) ($value ?? 0); continue;
+            }
+            if ($value === null) {
+                if (str_starts_with($rule, '!')) $this->invalid("Please enter $key.");
+                $result[$key] = null; continue;
+            }
+            $rule = ltrim($rule, '!');
+            if (str_starts_with($rule, 'enum:')) {
+                if (!is_string($value) || !in_array($value, explode(',', substr($rule, 5)), true)) $this->invalid("Invalid $key.");
+            } elseif (in_array($rule, ['number', 'positive', 'nonnegative', 'integer'], true)) {
+                if ((!is_string($value) && !is_int($value) && !is_float($value)) || !is_numeric($value) || !is_finite((float) $value)
+                    || abs((float) $value) > 1000000000 || ($rule === 'positive' && (float) $value <= 0)
+                    || (in_array($rule, ['nonnegative', 'integer'], true) && (float) $value < 0)
+                    || ($rule === 'integer' && !preg_match('/^\d+$/', (string) $value))) $this->invalid("Invalid $key.");
+            } else {
+                if (!is_string($value) || mb_strlen($value) > (int) $rule || (str_starts_with($spec[$key], '!') && trim($value) === '')) $this->invalid("Invalid $key.");
+                $value = trim($value);
+            }
+            $result[$key] = $value;
+        }
+        return $result;
+    }
+    private function list(array $body, string $key, int $maximum = 300): array {
+        $rows = $body[$key] ?? null;
+        if (!is_array($rows) || array_values($rows) !== $rows || count($rows) > $maximum) $this->invalid("Invalid $key list.");
+        foreach ($rows as $row) if (!is_array($row)) $this->invalid("Invalid $key entry.");
+        return $rows;
+    }
+    private function insert(string $table, array $values): string {
+        $keys = array_keys($values);
+        $statement = $this->pdo->prepare('INSERT INTO '.$table.' ('.implode(',', $keys).') VALUES ('.implode(',', array_fill(0, count($keys), '?')).')');
+        $statement->execute(array_values($values));
+        return isset($values['id']) ? (string) $values['id'] : $this->pdo->lastInsertId();
+    }
+    private function ownedId(array $row, array $existing, array &$seen): array {
+        $id = (string) ($row['id'] ?? '');
+        if ($id === '') $this->invalid('Missing item identifier.');
+        if (isset($seen[$id])) $this->invalid('Duplicate item identifier.');
+        $seen[$id] = true;
+        if (str_starts_with($id, 'new-')) return [];
+        if (!isset($existing[$id])) $this->invalid('An item no longer belongs to this recipe. Reload and try again.');
+        return ['id' => $id];
+    }
+    public function save(string $userId, string $householdId, string $recipeId, array $body): array {
+        $this->households->membership($userId, $householdId);
+        $createdFiles = [];
+        $this->pdo->beginTransaction();
+        try {
+            $q = $this->pdo->prepare('SELECT revision FROM recipes WHERE household_id=? AND id=? FOR UPDATE');
+            $q->execute([$householdId, $recipeId]);
+            $revision = $q->fetchColumn();
+            if ($revision === false) throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
+            if ((string) ($body['revision'] ?? '') !== (string) $revision) throw new HttpError(409, 'recipe_changed', 'This recipe was changed by someone else. Close the editor, reload the recipe, and try again.');
+            $recipe = $this->fields($body, [
+                'title'=>'!300','description'=>'60000','original_language'=>'!35','measurement_system'=>'!enum:metric,us,mixed,unspecified',
+                'source_type'=>'40','source_url'=>'4000','source_title'=>'500','source_author'=>'300','source_reference'=>'60000',
+                'yield_text'=>'200','servings'=>'positive','prep_minutes'=>'integer','cook_minutes'=>'integer','total_minutes'=>'integer','notes'=>'60000',
+            ]);
+            if ($recipe['source_url'] !== null && !preg_match('#^https?://[^\s]+$#i', $recipe['source_url'])) $this->invalid('Source URL must start with http:// or https://.');
+            $parent = $body['parent_recipe_id'] ?? null;
+            if ($parent === '') $parent = null;
+            if ($parent !== null) {
+                // Walk ancestors to prevent cycles and cross-household relationships.
+                $ancestor = (string) $parent; $visited = [$recipeId => true];
+                while ($ancestor !== '') {
+                    if (isset($visited[$ancestor])) $this->invalid('The original recipe cannot form a circular relationship.');
+                    $visited[$ancestor] = true;
+                    $q = $this->pdo->prepare('SELECT parent_recipe_id FROM recipes WHERE household_id=? AND id=?');
+                    $q->execute([$householdId, $ancestor]); $r = $q->fetch(PDO::FETCH_ASSOC);
+                    if (!$r) $this->invalid('Choose an original recipe from this household.');
+                    $ancestor = (string) ($r['parent_recipe_id'] ?? '');
+                }
+            }
+            $recipe['parent_recipe_id'] = $parent;
+            $existing = [];
+            foreach (['groups'=>'recipe_ingredient_groups','ingredients'=>'recipe_ingredients','steps'=>'recipe_steps','actions'=>'recipe_step_actions','photos'=>'recipe_photos'] as $key=>$table) {
+                $q = $this->pdo->prepare("SELECT * FROM $table WHERE household_id=? AND recipe_id=?"); $q->execute([$householdId,$recipeId]);
+                $existing[$key] = array_column($q->fetchAll(PDO::FETCH_ASSOC), null, 'id');
+            }
+            $lists = [];
+            foreach (['groups','ingredients','steps','actions','photos','tags','category_assignments','pairings'] as $key) $lists[$key] = $this->list($body, $key, $key === 'photos' ? 20 : 300);
+            foreach (['recipe_step_actions','recipe_ingredients','recipe_ingredient_groups','recipe_steps','recipe_photos','recipe_tags','recipe_category_assignments','recipe_nutrition'] as $table) {
+                $this->pdo->prepare("DELETE FROM $table WHERE household_id=? AND recipe_id=?")->execute([$householdId,$recipeId]);
+            }
+            $base = ['household_id'=>$householdId,'recipe_id'=>$recipeId];
+            $groups = []; $steps = [];
+            foreach (['groups','steps'] as $key) {
+                $seen = [];
+                foreach ($lists[$key] as $position=>$row) {
+                    $values = $this->fields($row, $key === 'groups' ? ['title'=>'!200'] : ['section_title'=>'200','instruction'=>'!60000']);
+                    $id = $this->insert($key === 'groups' ? 'recipe_ingredient_groups' : 'recipe_steps', $base + $this->ownedId($row,$existing[$key],$seen) + ['position'=>$position+1] + $values);
+                    if ($key === 'groups') $groups[(string)$row['id']] = $id; else $steps[(string)$row['id']] = $id;
+                }
+            }
+            $seen = [];
+            foreach ($lists['ingredients'] as $position=>$row) {
+                $values = $this->fields($row, ['original_text'=>'!60000','ingredient_name'=>'!300','quantity_text'=>'120','quantity_decimal'=>'nonnegative',
+                    'quantity_numerator'=>'integer','quantity_denominator'=>'integer','quantity_max_decimal'=>'nonnegative','original_unit'=>'80','unit_code'=>'40',
+                    'preparation'=>'300','is_optional'=>'bool','is_main_ingredient'=>'bool','scale_quantity'=>'bool']);
+                $n = $values['quantity_numerator']; $d = $values['quantity_denominator'];
+                if (($n === null) !== ($d === null) || ($d !== null && ((float)$d <= 0 || $values['quantity_decimal'] !== null))) $this->invalid('Use either a decimal quantity or a fraction with a positive denominator.');
+                if ($values['quantity_max_decimal'] !== null && ($values['quantity_decimal'] === null || (float)$values['quantity_max_decimal'] < (float)$values['quantity_decimal'])) $this->invalid('The maximum quantity must be at least the decimal quantity.');
+                $group = $row['group_id'] ?? null;
+                if ($group !== null && $group !== '' && !isset($groups[(string)$group])) $this->invalid('Invalid ingredient group.');
+                $this->insert('recipe_ingredients', $base + $this->ownedId($row,$existing['ingredients'],$seen) + ['position'=>$position+1,'group_id'=>$groups[(string)$group] ?? null] + $values);
+            }
+            $seen = []; $positions = [];
+            foreach ($lists['actions'] as $row) {
+                $step = $steps[(string)($row['step_id'] ?? '')] ?? null;
+                if ($step === null) $this->invalid('Every action must belong to a step.');
+                $values = $this->fields($row, ['action_type'=>'!enum:timer,appliance_temperature,internal_temperature,rest,reminder','label'=>'300','duration_seconds'=>'integer','temperature_value'=>'number','temperature_unit'=>'enum:C,F','appliance'=>'80']);
+                if (in_array($values['action_type'], ['timer','rest'], true) && (int)($values['duration_seconds'] ?? 0) <= 0) $this->invalid('Timers and rests need a positive duration.');
+                if (($values['temperature_value'] === null) !== ($values['temperature_unit'] === null) || (in_array($values['action_type'], ['appliance_temperature','internal_temperature'], true) && $values['temperature_value'] === null)) $this->invalid('Temperature actions need a temperature and unit.');
+                $positions[$step] = ($positions[$step] ?? 0)+1;
+                $this->insert('recipe_step_actions', $base + $this->ownedId($row,$existing['actions'],$seen) + ['step_id'=>$step,'position'=>$positions[$step]] + $values);
+            }
+            $seen = []; $covers = 0; $uploadBytes = 0;
+            foreach ($lists['photos'] as $position=>$row) {
+                $id = $this->ownedId($row,$existing['photos'],$seen);
+                $values = $this->fields($row, ['caption'=>'60000','attribution'=>'60000','is_cover'=>'bool']);
+                if (($covers += $values['is_cover']) > 1) $this->invalid('Choose only one cover photo.');
+                if (isset($row['image_base64'])) {
+                    if (!is_string($row['image_base64']) || strlen($row['image_base64']) > 7000000) $this->invalid('Each photo must be at most 5 MB.');
+                    $bytes = base64_decode($row['image_base64'], true);
+                    $info = $bytes === false ? false : @getimagesizefromstring($bytes);
+                    $extensions = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+                    if (!$info || !isset($extensions[$info['mime']]) || strlen($bytes) > 5*1024*1024 || $info[0]*$info[1] > 24000000) $this->invalid('Choose a JPEG, PNG, or WebP image up to 5 MB and 24 megapixels.');
+                    $uploadBytes += strlen($bytes);
+                    if ($uploadBytes > 20*1024*1024) $this->invalid('Upload at most 20 MB of photos per save.');
+                    if (!is_dir($this->mediaDirectory) && !mkdir($this->mediaDirectory,0755,true)) throw new RuntimeException('Cannot create media directory.');
+                    $filename = bin2hex(random_bytes(24)).'.'.$extensions[$info['mime']];
+                    $file = $this->mediaDirectory.'/'.$filename; $createdFiles[] = $file;
+                    if (file_put_contents($file,$bytes,LOCK_EX) !== strlen($bytes)) throw new RuntimeException('Cannot save photo.');
+                    $values += ['source_url'=>rtrim($this->mediaUrl,'/').'/'.$filename,'storage_key'=>'media/recipes/'.$filename,'mime_type'=>$info['mime'],'width_pixels'=>$info[0],'height_pixels'=>$info[1]];
+                } elseif (isset($id['id'])) {
+                    // Existing storage metadata is never accepted from the client.
+                    $old = $existing['photos'][$id['id']];
+                    foreach (['source_url','storage_key','mime_type','width_pixels','height_pixels','created_at'] as $field) $values[$field] = $old[$field];
+                } else $this->invalid('New photos need an uploaded image.');
+                $this->insert('recipe_photos',$base + $id + ['position'=>$position+1] + $values);
+            }
+            $seen = [];
+            foreach ($lists['tags'] as $row) {
+                $values = $this->fields($row,['kind'=>'!enum:cuisine,category,technique,equipment','label'=>'!120']);
+                $key = $values['kind'].'|'.$values['label'];
+                if (isset($seen[$key])) $this->invalid('Remove duplicate tags.'); $seen[$key] = true;
+                $this->insert('recipe_tags',$base + $values);
+            }
+            $seen = [];
+            foreach ($lists['category_assignments'] as $row) {
+                $id = (string)($row['category_id'] ?? '');
+                $q = $this->pdo->prepare('SELECT id FROM recipe_categories WHERE id=?'); $q->execute([$id]);
+                if (!$q->fetchColumn() || isset($seen[$id])) $this->invalid('Invalid or duplicate category.'); $seen[$id] = true;
+                $this->insert('recipe_category_assignments',$base + ['category_id'=>$id]);
+            }
+            $this->pdo->prepare('DELETE FROM recipe_pairings WHERE household_id=? AND (recipe_id=? OR paired_recipe_id=?)')->execute([$householdId,$recipeId,$recipeId]);
+            $seen = [];
+            foreach ($lists['pairings'] as $row) {
+                $id = (string)($row['id'] ?? '');
+                $q = $this->pdo->prepare('SELECT id FROM recipes WHERE household_id=? AND id=?'); $q->execute([$householdId,$id]);
+                if ($id === $recipeId || !$q->fetchColumn() || isset($seen[$id])) $this->invalid('Invalid or duplicate pairing.'); $seen[$id] = true;
+                $values = $this->fields($row,['notes'=>'60000']);
+                $this->insert('recipe_pairings',['household_id'=>$householdId,'recipe_id'=>min((int)$recipeId,(int)$id),'paired_recipe_id'=>max((int)$recipeId,(int)$id)] + $values);
+            }
+            $nutrition = $body['nutrition'] ?? null;
+            if ($nutrition !== null) {
+                if (!is_array($nutrition)) $this->invalid('Invalid nutrition.');
+                $spec = ['basis'=>'!enum:per_serving,whole_recipe','method'=>'!100','source_reference'=>'60000','is_estimate'=>'bool'];
+                foreach (['calories_kcal','protein_g','carbohydrate_g','fat_g','saturated_fat_g','fiber_g','sugar_g','sodium_mg'] as $field) $spec[$field] = 'nonnegative';
+                $values = $this->fields($nutrition,$spec);
+                // Preserve stale status when nutrition was not updated for the edited ingredients.
+                $nutritionRevision = ($body['nutrition_confirmed'] ?? false) === true ? (int)$revision+1 : min((int)($nutrition['recipe_revision'] ?? $revision),(int)$revision);
+                $this->insert('recipe_nutrition',$base + ['recipe_revision'=>$nutritionRevision] + $values);
+            }
+            $recipe['revision'] = (int)$revision+1; $recipe['updated_by_user_id'] = $userId;
+            $q = $this->pdo->prepare('UPDATE recipes SET '.implode(',',array_map(static fn($key)=>"$key=?",array_keys($recipe))).' WHERE household_id=? AND id=?');
+            $q->execute([...array_values($recipe),$householdId,$recipeId]);
+            $this->pdo->commit();
+        } catch (Throwable $error) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            foreach ($createdFiles as $file) if (is_file($file)) unlink($file);
+            if ($error instanceof PDOException && in_array($error->getCode(),['23000','22003','22001'],true)) $this->invalid('Some recipe values are invalid or too large. Please check your entries.');
+            throw $error;
+        }
+        return (new RecipeService($this->pdo,$this->households))->detail($userId,$householdId,$recipeId);
+    }
+}

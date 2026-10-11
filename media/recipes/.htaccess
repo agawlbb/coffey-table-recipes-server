@@ -1,0 +1,5 @@
+Options -Indexes -ExecCGI
+<FilesMatch "\.(?!jpg$|png$|webp$)[^.]+$">
+    Require all denied
+</FilesMatch>
+Header set X-Content-Type-Options nosniff
