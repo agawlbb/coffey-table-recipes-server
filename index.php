@@ -28,7 +28,14 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
-    } elseif ($route === '/admin/users' || preg_match('#^/admin/(users|people|firebase)/([A-Za-z0-9_-]{1,128})/delete$#', $route, $adminMatch)) {
+    } elseif ($route === '/me/verification-email') {
+        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        $identity = authenticatedIdentity($config);
+        requestBody();
+        $directory = new FirebaseAccountDirectory($config);
+        (new VerificationService([$directory, 'verificationLink'], [new VerificationMail($config), 'send']))->send($identity);
+        respond(200, ['sent' => true]);
+    } elseif ($route === '/admin/users'  || preg_match('#^/admin/(users|people|firebase)/([A-Za-z0-9_-]{1,128})/delete$#', $route, $adminMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
         $directory = new FirebaseAccountDirectory($config);

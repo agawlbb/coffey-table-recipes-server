@@ -5,6 +5,8 @@ require_once __DIR__ . '/FirebaseIdentity.php';
 require_once __DIR__ . '/HouseholdService.php';
 require_once __DIR__ . '/RecipeService.php';
 require_once __DIR__ . '/InvitationMail.php';
+require_once __DIR__ . '/VerificationMail.php';
+require_once __DIR__ . '/VerificationService.php';
 require_once __DIR__ . '/FirebaseAccountDirectory.php';
 require_once __DIR__ . '/InvitationService.php';
 require_once __DIR__ . '/AdministrationService.php';
