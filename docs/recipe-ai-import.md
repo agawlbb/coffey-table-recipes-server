@@ -27,6 +27,14 @@ the defaults without modifying database or mail credentials. Never put this
 file under `app/`, in Flutter configuration, or in Git. The existing configuration
 directory denies HTTP access and backend deployment preserves private files.
 
+The manual `Configure recipe AI key` workflow uses the existing cPanel deployment
+secrets plus `RECIPE_AI_API_KEY`. It verifies OpenAI model access, uploads only
+`config/recipe-ai.local.json` to the verified recipe directory, compares private
+readback, and requires public HTTP 403. No model tokens or database writes are
+used by these checks. Secret values and server response details are never logged.
+When provisioning from a local key, obtain approval for storing the temporary
+encrypted GitHub Actions secret, and remove that secret after setup completes.
+
 Optional free preprocessing tools: installed tools are discovered on PATH, or set `recipe_ai.pdftotext` and
 `recipe_ai.tesseract` to absolute executable paths available on the hosting server.
 Do not assume cPanel has them installed. PHP needs cURL, DOM and process execution
