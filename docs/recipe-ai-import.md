@@ -45,8 +45,11 @@ bound 24 megapixels, and extracted text bound 60 KB. Website reads have a 2 MB b
 20 second timeout, verified TLS, public DNS validation, pinned resolution, no proxy,
 and no redirects. Recipe JSON-LD is preferred; page text is the fallback.
 
-The AI prompt preserves source language and uncertain quantities, asks for missing
-cooking details, and treats sources as data. AI has no database tools. Server
+The AI prompt preserves source language and uncertain quantities, silently corrects
+obvious spelling mistakes, asks for unresolved cooking ambiguity, and treats sources
+as data. Missing yield, servings, prep and cook times are estimated from the recipe;
+supplied values are preserved and estimates and assumptions are identified in notes.
+These missing fields do not trigger clarification questions. AI has no database tools. Server
 normalization removes untrusted IDs and relationships; final editor save applies
 all existing schema and household validation. Users can correct the draft and
 omit unknown details. OCR and AI can misread sources, so review is required.
