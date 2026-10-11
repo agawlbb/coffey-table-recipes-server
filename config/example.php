@@ -4,6 +4,8 @@ declare(strict_types=1);
 // Copy to local.php. Never commit local.php or server credentials.
 return [
     'environment' => 'development',
+    // Private random key, at least 32 characters. Rotating invalidates all shared links.
+    'recipe_share_key' => '',
     'base_path' => '/CoffeyTableRecipes',
     'allowed_origins' => ['http://localhost:8080'],
     'database' => [

@@ -56,6 +56,17 @@ try {
         } else {
             throw new HttpError(405, 'method_not_allowed', 'Unsupported request method.');
         }
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/share$#', $route, $shareMatch)) {
+        if ($method !== 'GET') throw new HttpError(405, 'method_not_allowed', 'Use GET.');
+        $identity = authenticatedIdentity($config);
+        $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        (new RecipeService($pdo, $households))->detail($user['id'], $shareMatch[1], $shareMatch[2]);
+        require_once __DIR__ . '/src/RecipeShare.php';
+        $token = (new RecipeShare($config['recipe_share_key']))->token($user['id'], $shareMatch[1], $shareMatch[2]);
+        $root = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/');
+        respond(200, ['url' => $root . '/share.php?token=' . $token]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
