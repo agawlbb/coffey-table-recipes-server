@@ -29,7 +29,7 @@ aiExpect(!isset($draft['recipe']['household_id']) && !isset($draft['recipe']['nu
 aiExpect($draft['questions']===['How much water?'] && $draft['recipe']['measurement_system']==='unspecified','Questions or defaults lost.');
 $bad = $input; $bad['questions']=[['not a question']]; aiReject(fn()=>RecipeImportService::draft($bad),502);
 $bad = $input; $bad['recipe']['steps']=['unexpected'=>'value']; aiReject(fn()=>RecipeImportService::draft($bad),502);
-$service = new RecipeImportService(['api_key'=>'','model'=>'gpt-4.1-mini'],sys_get_temp_dir());
+$service = new RecipeImportService(['api_key'=>'','model'=>'gpt-5.4-mini'],sys_get_temp_dir());
 aiReject(fn()=>$service->analyze(['kind'=>'file','file_base64'=>base64_encode('<?php bad();')],'1'),422);
 aiReject(fn()=>$service->analyze(['kind'=>'text','text'=>''],'1'),422);
 aiReject(fn()=>$service->analyze(['kind'=>'website','url'=>'http://127.0.0.1'],'1'),422);

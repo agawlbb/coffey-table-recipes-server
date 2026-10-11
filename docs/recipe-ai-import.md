@@ -13,8 +13,8 @@ and all content in one transaction, retain source text and importing account,
 and reject duplicate import keys with HTTP 409. No migration is needed.
 
 Configure `recipe_ai.api_key` only in ignored `config/local.php`, or use
-`OPENAI_API_KEY`. The default model is `gpt-6-luna`; configure an image/PDF-capable
-Responses API model if changing it. Requests use JSON output, `store:false`, an
+`OPENAI_API_KEY`. The app model is `gpt-5.4-mini`, selected by version-controlled defaults.
+Private configuration cannot override it, including older key files. Requests use JSON output, `store:false`, an
 output-token bound, 75 second upstream timeout and a per-account limit of 20 calls
 per hour stored under protected `storage/recipe-ai/`. No credentials or source
 uploads are logged or committed. The source input is sent to OpenAI when the user
@@ -22,7 +22,7 @@ continues; the UI discloses that. Setup remains required on hosted coffeybean.co
 
 For independent key installation, save a protected, ignored
 `config/recipe-ai.local.json` on the hosted backend containing `api_key` and
-optionally `model`, `pdftotext`, and `tesseract`. Configuration merges this over
+optionally `pdftotext` and `tesseract`. Configuration merges this over
 the defaults without modifying database or mail credentials. Never put this
 file under `app/`, in Flutter configuration, or in Git. The existing configuration
 directory denies HTTP access and backend deployment preserves private files.

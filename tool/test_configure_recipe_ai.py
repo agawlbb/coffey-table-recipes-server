@@ -40,7 +40,7 @@ class KeySetupTests(unittest.TestCase):
         session.post.return_value = Mock(status_code=200)
         session.post.return_value.json.return_value = {'status':1}
         session.get.return_value = Mock(status_code=200)
-        session.get.return_value.json.return_value = {'status':1,'data':{'content':json.dumps(readback or {'api_key':'sk-fixture','model':'gpt-6-luna'})}}
+        session.get.return_value.json.return_value = {'status':1,'data':{'content':json.dumps(readback or {'api_key':'sk-fixture','model':'gpt-5.4-mini'})}}
         public = Mock(side_effect=[Mock(status_code=model), Mock(status_code=protection)])
         with patch.dict(os.environ, {'CPANEL_USER':'hosting_account','CPANEL_API_TOKEN':'hosting-fixture','RECIPE_AI_API_KEY':'sk-fixture'}, clear=True), \
                 patch.object(setup.requests,'get',public), patch.object(setup.requests,'Session',return_value=session):

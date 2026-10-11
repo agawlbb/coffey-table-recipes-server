@@ -29,8 +29,9 @@ final class RecipePhotoService {
         $prompt=self::prompt($recipe);
         $key=($this->config['api_key'] ?? '') ?: getenv('OPENAI_API_KEY');
         if (!is_string($key) || $key==='') throw new HttpError(503,'ai_not_configured','Recipe AI is not configured.');
-        $model=$this->config['image_model'] ?? 'gpt-image-2.5-flare';
-        $fingerprint=hash('sha256',$householdId.'|'.$model.'|'.$prompt);
+        $model=$this->config['model'] ?? 'gpt-5.4-mini';
+        $imageModel=$this->config['image_model'] ?? 'gpt-image-2.5-flare';
+        $fingerprint=hash('sha256',$householdId.'|'.$model.'|'.$imageModel.'|responses-v1|'.$prompt);
         if (!is_dir($this->storage) && !mkdir($this->storage,0700,true)) throw new RuntimeException('Cannot create private photo cache.');
         $path=$this->storage.'/photo-ai-'.hash('sha256',$userId).'.json';
         $lock=fopen($path.'.lock','c+');
@@ -43,16 +44,20 @@ final class RecipePhotoService {
             if ($state['count']>=5) throw new HttpError(429,'photo_limit','The daily limit of five AI photo attempts has been reached. Try again tomorrow.');
             $state['count']++;
             $this->writeState($path,$state);
-            $payload=['model'=>$model,'prompt'=>$prompt,'n'=>1,'size'=>'816x816','quality'=>'low','output_format'=>'jpeg','output_compression'=>80];
+            $payload=['model'=>$model,'store'=>false,'input'=>$prompt,
+                'tools'=>[['type'=>'image_generation','model'=>$imageModel,'action'=>'generate','size'=>'816x816','quality'=>'low','output_format'=>'jpeg','output_compression'=>80]],
+                'tool_choice'=>['type'=>'image_generation'],'parallel_tool_calls'=>false];
             $reply=$this->transport ? ($this->transport)($payload) : $this->request($payload,$key);
             if (($reply['status'] ?? 0)!==200) {
                 $code=json_decode($reply['body'] ?? '',true)['error']['code'] ?? '';
                 $message=$code==='insufficient_quota' ? 'The recipe AI account needs API credits.'
-                    : (in_array($reply['status'] ?? 0,[403,404],true) ? 'This API project does not have access to the configured image model.'
+                    : (in_array($reply['status'] ?? 0,[403,404],true) ? 'This API project does not have access to the configured recipe or image model.'
                     : (($reply['status'] ?? 0)===429 ? 'Image generation is busy. Please wait and try again.' : 'AI could not generate a photo. Please try again.'));
                 throw new HttpError(502,'photo_ai_unavailable',$message);
             }
-            $encoded=json_decode($reply['body'],true)['data'][0]['b64_json'] ?? null;
+            $response=json_decode($reply['body'],true);
+            $images=array_values(array_filter($response['output'] ?? [],static fn($item)=>is_array($item) && ($item['type'] ?? '')==='image_generation_call'));
+            $encoded=($response['status'] ?? '')==='completed' && count($images)===1 && ($images[0]['status'] ?? '')==='completed' ? ($images[0]['result'] ?? null) : null;
             $bytes=is_string($encoded) && strlen($encoded)<=7000000 ? base64_decode($encoded,true) : false;
             $info=$bytes===false ? false : @getimagesizefromstring($bytes);
             if (!$info || strlen($bytes)>1024*1024 || $info['mime']!=='image/jpeg' || $info[0]>816 || $info[1]>816) throw new HttpError(502,'invalid_ai_photo','AI returned an invalid photo.');
@@ -67,7 +72,7 @@ final class RecipePhotoService {
         if (file_put_contents($path,json_encode($state,JSON_THROW_ON_ERROR),LOCK_EX)===false) throw new RuntimeException('Cannot save photo cache.');
     }
     private function request(array $payload,string $key): array {
-        $curl=curl_init('https://api.openai.com/v1/images/generations'); $raw='';
+        $curl=curl_init('https://api.openai.com/v1/responses'); $raw='';
         curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>150,
             CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$key,'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($payload,JSON_THROW_ON_ERROR),
             CURLOPT_WRITEFUNCTION=>static function($ch,string $chunk) use (&$raw): int { if (strlen($raw)+strlen($chunk)>8000000) return 0; $raw.=$chunk; return strlen($chunk); }]);

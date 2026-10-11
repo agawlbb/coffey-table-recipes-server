@@ -11,9 +11,11 @@ $directory=sys_get_temp_dir().'/coffey-photo-test-'.bin2hex(random_bytes(6));
 $calls=0;
 $transport=function(array $payload) use (&$calls,$jpeg): array {
     $calls++;
-    photoExpect($payload['n']===1 && $payload['size']==='816x816' && $payload['quality']==='low' && $payload['output_format']==='jpeg','Cost controls lost.');
-    photoExpect(str_contains($payload['prompt'],'2 cups water') && !str_contains($payload['prompt'],'private note'),'Prompt content incorrect.');
-    return ['status'=>200,'body'=>json_encode(['data'=>[['b64_json'=>$jpeg]]])];
+    photoExpect($payload['model']==='gpt-5.4-mini' && $payload['store']===false && $payload['tool_choice']===['type'=>'image_generation'] && $payload['parallel_tool_calls']===false,'Recipe model or tool selection incorrect.');
+    $tool=$payload['tools'][0];
+    photoExpect(count($payload['tools'])===1 && $tool['model']==='gpt-image-2.5-flare' && $tool['size']==='816x816' && $tool['quality']==='low' && $tool['output_format']==='jpeg','Cost controls lost.');
+    photoExpect(str_contains($payload['input'],'2 cups water') && !str_contains($payload['input'],'private note'),'Prompt content incorrect.');
+    return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['type'=>'image_generation_call','status'=>'completed','result'=>$jpeg]]])];
 };
 try {
     $service=new RecipePhotoService(['api_key'=>'test-only'],$directory,$transport);
@@ -30,7 +32,7 @@ try {
     photoExpect($calls===5,'Daily limit incurred extra call.');
     $failure=new RecipePhotoService(['api_key'=>'test-only'],$directory,fn($p)=>['status'=>404,'body'=>'{}']);
     photoReject(fn()=>$failure->generate($recipe,'other','household'),502);
-    $invalid=new RecipePhotoService(['api_key'=>'test-only'],$directory,fn($p)=>['status'=>200,'body'=>json_encode(['data'=>[['b64_json'=>base64_encode('not an image')]]])]);
+    $invalid=new RecipePhotoService(['api_key'=>'test-only'],$directory,fn($p)=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['type'=>'image_generation_call','status'=>'completed','result'=>base64_encode('not an image')]]])]);
     photoReject(fn()=>$invalid->generate($recipe,'invalid','household'),502);
     echo "$checks recipe photo checks passed.\n";
 } finally {
