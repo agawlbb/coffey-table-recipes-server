@@ -49,8 +49,17 @@ The AI prompt preserves source language and uncertain quantities, silently corre
 obvious spelling mistakes, asks for unresolved cooking ambiguity, and treats sources
 as data. Missing yield, servings, prep and cook times are estimated from the recipe;
 supplied values are preserved and estimates and assumptions are identified in notes.
-These missing fields do not trigger clarification questions. AI has no database tools. Server
-normalization removes untrusted IDs and relationships; final editor save applies
+These missing fields do not trigger clarification questions. AI has no database tools.
+Draft normalization accepts nested step actions and category labels, discards
+AI-supplied identifiers, and assigns each action to its normalized step. Explicit
+timed cooking/resting and appliance/internal temperatures produce cooking actions.
+Existing category labels are supplied as reference data in the same AI request.
+Missing subcategories (e.g. Cookies under Desserts) are reviewable proposals;
+atomic recipe save reuses matching categories or creates the child under a verified
+existing root. Canceling import creates no categories. Failed saves roll back new
+categories. No database migration is required.
+
+Server normalization removes untrusted IDs and relationships; final editor save applies
 all existing schema and household validation. Users can correct the draft and
 omit unknown details. OCR and AI can misread sources, so review is required.
 
@@ -77,3 +86,5 @@ verified a live sample through the local Flutter web app using the hosted backen
 the review screen showed Test Lemon Rice with five ingredients and five steps.
 Discarded the sample without saving a database record. The 21 offline checks and
 seven setup-script tests passed; backend changes were committed and deployed.
+
+Action/category follow-up validation (October 11, 2026): 25 offline AI checks, 40 disposable database checks, 14 Flutter editor/import tests and analysis passed. A live sample generated a 120-second simmer timer, 350 F oven action, 720-second bake timer, 300-second rest and Cookies under Desserts. No live recipe or category was saved during this sample check.

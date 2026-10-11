@@ -72,8 +72,9 @@ try {
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
         $households->membership($user['id'], $importMatch[1]);
-        $draft = (new RecipeImportService($config['recipe_ai'], __DIR__.'/storage'))->analyze(requestBody(8*1024*1024), $user['id']);
-        $draft['recipe']['edit_options'] = (new RecipeService($pdo, $households))->editOptions($user['id'], $importMatch[1]);
+        $options = (new RecipeService($pdo, $households))->editOptions($user['id'], $importMatch[1]);
+        $draft = (new RecipeImportService($config['recipe_ai'], __DIR__.'/storage'))->analyze(requestBody(8*1024*1024), $user['id'], $options['categories']);
+        $draft['recipe']['edit_options'] = $options;
         respond(200, $draft);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $identity = authenticatedIdentity($config);
