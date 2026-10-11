@@ -172,6 +172,24 @@ final class RecipeEditorService
             $seen = [];
             foreach ($lists['category_assignments'] as $row) {
                 $id = (string)($row['category_id'] ?? '');
+                if ($id === '' && isset($row['label'])) {
+                    $labels = $this->fields($row,['label'=>'!120','parent_label'=>'120']);
+                    $parent = null;
+                    if ($labels['parent_label'] !== null) {
+                        $q = $this->pdo->prepare('SELECT id,image_key FROM recipe_categories WHERE parent_id IS NULL AND label=?');
+                        $q->execute([$labels['parent_label']]); $parent = $q->fetch(PDO::FETCH_ASSOC);
+                        if (!$parent) $this->invalid('Choose an existing parent category.');
+                    }
+                    $q = $this->pdo->prepare('SELECT id FROM recipe_categories WHERE label=? AND parent_id <=> ?');
+                    $q->execute([$labels['label'],$parent['id'] ?? null]); $id = (string)($q->fetchColumn() ?: '');
+                    if ($id === '') {
+                        if (!$parent) $this->invalid('New categories need an existing parent category.');
+                        $slug = 'import-'.hash('sha256',$parent['id'].'|'.mb_strtolower($labels['label']));
+                        $q = $this->pdo->prepare('INSERT INTO recipe_categories (parent_id,slug,label,image_key,position) VALUES (?,?,?,?,100) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+                        $q->execute([$parent['id'],$slug,$labels['label'],$parent['image_key']]);
+                        $id = $this->pdo->lastInsertId();
+                    }
+                }
                 $q = $this->pdo->prepare('SELECT id FROM recipe_categories WHERE id=?'); $q->execute([$id]);
                 if (!$q->fetchColumn() || isset($seen[$id])) $this->invalid('Invalid or duplicate category.'); $seen[$id] = true;
                 $this->insert('recipe_category_assignments',$base + ['category_id'=>$id]);
