@@ -1,0 +1,22 @@
+name: Configure recipe AI key
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hosted-backend
+  cancel-in-progress: false
+jobs:
+  configure:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install requests==2.32.5
+      - name: Install key in protected hosted configuration
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+          RECIPE_AI_API_KEY: ${{ secrets.RECIPE_AI_API_KEY }}
+        run: python3 tool/configure-recipe-ai.py
