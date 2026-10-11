@@ -83,5 +83,21 @@ Do not rerun the older main deployment during that work, since it could overwrit
 newer hosted runtime files. The local deployment diagnostic fixes are committed,
 but the pending main commits must be published only after the user authorizes
 that work. Database retirement is complete; automated live deployment remains
-unverified until an authorized current-main run passes. Credentials are verified;
-no new deployment was performed during this diagnostic.
+unverified until an authorized current-main run passes. Credentials were verified;
+no new deployment was performed during that diagnostic.
+
+## Successful push deployment (2026-10-11)
+
+The user subsequently requested deployment. Pushed the current committed backend
+through `d0a2ae227e48ad70ea6c6e6fab0919eff4cbdf67`, including the recipe editor and
+current public-page rendering changes. GitHub Actions run 38142772752 completed
+successfully: PHP syntax, locked Composer installation, mail checks, all ten
+deployment tests, cPanel TLS, upload/extraction, API health, localhost CORS,
+protected-path checks and deployment receipt verification passed.
+
+Independent public requests verified the exact hosted receipt commit, healthy
+API JSON, and the existing Mint Chip Ice Cream public recipe page (HTTP 200).
+No database migration or data import was performed; credentials, uploaded media
+and the hosted Flutter app were preserved. Authenticated recipe save behavior
+still requires its own feature verification; these deployment checks do not
+perform production saves. Backend pushes to main now deploy automatically.
