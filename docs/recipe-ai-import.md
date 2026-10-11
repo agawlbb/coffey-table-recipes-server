@@ -20,6 +20,13 @@ per hour stored under protected `storage/recipe-ai/`. No credentials or source
 uploads are logged or committed. The source input is sent to OpenAI when the user
 continues; the UI discloses that. Setup remains required on hosted coffeybean.com.
 
+For independent key installation, save a protected, ignored
+`config/recipe-ai.local.json` on the hosted backend containing `api_key` and
+optionally `model`, `pdftotext`, and `tesseract`. Configuration merges this over
+the defaults without modifying database or mail credentials. Never put this
+file under `app/`, in Flutter configuration, or in Git. The existing configuration
+directory denies HTTP access and backend deployment preserves private files.
+
 Optional free preprocessing tools: installed tools are discovered on PATH, or set `recipe_ai.pdftotext` and
 `recipe_ai.tesseract` to absolute executable paths available on the hosting server.
 Do not assume cPanel has them installed. PHP needs cURL, DOM and process execution
