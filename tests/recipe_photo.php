@@ -23,13 +23,13 @@ try {
     $first=$service->generate($recipe,'user','household');
     photoExpect($first['photo']['is_cover']===1 && str_contains($first['photo']['attribution'],'AI-generated'),'Generated origin or cover missing.');
     photoExpect($service->generate($recipe,'user','household')===$first && $calls===2,'Another generation request was not allowed.');
-    $bad=$recipe; $bad['photos']=[['source_url'=>'existing']]; $service->generate($bad,'user','household');
-    photoExpect($calls===3,'Existing photo prevented generation.');
+    $bad=$recipe; $bad['photos']=[['source_url'=>'existing']]; photoReject(fn()=>$service->generate($bad,'user','household'),409);
+    photoExpect($calls===2,'Existing photo incurred an AI call.');
     $bad=$recipe; $bad['ingredients']=[]; photoReject(fn()=>$service->generate($bad,'user','household'),422);
     $bad=$recipe; $bad['steps'][0]['instruction']=str_repeat('x',17000); photoReject(fn()=>$service->generate($bad,'user','household'),422);
     for ($i=0;$i<4;$i++) { $next=$recipe; $next['title']='Soup '.$i; $service->generate($next,'user','household'); }
     $next['title']='Sixth'; $service->generate($next,'user','household');
-    photoExpect($calls===8,'Daily limit still blocks generation.');
+    photoExpect($calls===7,'Daily limit still blocks generation.');
     $failure=new RecipePhotoService(['api_key'=>'test-only'],$directory,fn($p)=>['status'=>404,'body'=>'{}']);
     photoReject(fn()=>$failure->generate($recipe,'other','household'),502);
     $invalid=new RecipePhotoService(['api_key'=>'test-only'],$directory,fn($p)=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['type'=>'image_generation_call','status'=>'completed','result'=>base64_encode('not an image')]]])]);

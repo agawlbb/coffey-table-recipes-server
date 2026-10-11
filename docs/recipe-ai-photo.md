@@ -1,7 +1,8 @@
 # AI images
 
-Generate an image with AI is available even when a recipe has photos. New images
-join the draft without replacing the cover. The daily attempt cap is removed;
+Generate an image with AI is available only when neither the draft nor the saved
+recipe has photos. Generated or uploaded pictures hide the option. Deleting saved
+photos requires saving and reopening before generation. The daily attempt cap is removed;
 explicit repeated requests produce new images. Concurrent requests by the same
 account are serialized. Normal Save persists photos; Cancel leaves drafts unsaved.
 The renderer remains low-quality 816x816 JPEG to reduce cost and transfer size.
@@ -20,6 +21,6 @@ are explicitly world-readable files under the existing public media directory;
 private configuration and source storage remain protected.
 
 Validation: offline image tests verify repeated generation beyond the old daily
-cap and generation with existing photos. Disposable database tests verify category
+cap and rejection before AI usage when photos already exist. Disposable database tests verify category
 image persistence, reuse, and household isolation. Editor tests cover multiple
 images and save behavior.
