@@ -63,7 +63,10 @@ MySQL itself remains installed for unrelated projects and disposable tests.
 The hosted database was not changed. Restore the backup only into an explicitly
 chosen recovery database; never import it over the current hosted data.
 
-Local validation: eight deployment packaging/failure-path tests, 15 invitation
+Local validation: nine deployment packaging/failure-path tests, 15 invitation
 email checks and 14 verification checks passed. Tracked PHP files passed syntax
 checks. Mail checks use fixtures and send no email. Live deployment validation
 will be recorded after repository secrets are configured and the first run passes.
+The pushed workflow's GitHub runs passed syntax, locked Composer installation,
+mail checks, deployment tests and the unauthenticated cPanel TLS preflight. Initial
+publishing attempts stopped because deployment secrets had not both been saved.
