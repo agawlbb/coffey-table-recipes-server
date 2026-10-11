@@ -13,7 +13,7 @@ and all content in one transaction, retain source text and importing account,
 and reject duplicate import keys with HTTP 409. No migration is needed.
 
 Configure `recipe_ai.api_key` only in ignored `config/local.php`, or use
-`OPENAI_API_KEY`. The default model is `gpt-4.1-mini`; configure an image/PDF-capable
+`OPENAI_API_KEY`. The default model is `gpt-6-luna`; configure an image/PDF-capable
 Responses API model if changing it. Requests use JSON output, `store:false`, an
 output-token bound, 75 second upstream timeout and a per-account limit of 20 calls
 per hour stored under protected `storage/recipe-ai/`. No credentials or source
