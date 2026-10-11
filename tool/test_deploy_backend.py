@@ -12,6 +12,12 @@ spec.loader.exec_module(deploy)
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_missing_secrets_stop_before_packaging_or_network(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(deploy, 'runtime_files') as package:
+            with self.assertRaisesRegex(RuntimeError, 'repository secrets'):
+                deploy.deploy()
+            package.assert_not_called()
+
     def test_package_excludes_credentials_media_and_frontend(self):
         original = Path.cwd()
         with tempfile.TemporaryDirectory() as directory:
