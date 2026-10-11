@@ -18,7 +18,7 @@ return [
     'app_url' => 'https://coffeybean.com/CoffeyTableRecipes/app/',
     'recipe_ai' => [
         'api_key' => '', // Set only in ignored config/local.php or OPENAI_API_KEY.
-        'model' => 'gpt-4.1-mini',
+        'model' => 'gpt-6-luna',
         'pdftotext' => '', // Optional absolute Poppler pdftotext executable path.
         'tesseract' => '', // Optional absolute Tesseract executable path.
     ],

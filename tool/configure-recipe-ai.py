@@ -26,11 +26,11 @@ def configure():
     if user != 'hosting_account' or not token or not key.startswith('sk-'):
         raise RuntimeError('Required secure setup credentials are unavailable')
     # Validate the key without modifying OpenAI resources or consuming model tokens.
-    response = requests.get('https://api.openai.com/v1/models/gpt-4.1-mini',
+    response = requests.get('https://api.openai.com/v1/models/gpt-6-luna',
                             headers={'Authorization': 'Bearer ' + key}, timeout=30)
     if response.status_code != 200:
         raise RuntimeError(f'OpenAI model access failed with HTTP {response.status_code}; details omitted')
-    payload = {'api_key': key, 'model': 'gpt-4.1-mini'}
+    payload = {'api_key': key, 'model': 'gpt-6-luna'}
     session = requests.Session()
     session.headers['Authorization'] = f'cpanel {user}:{token}'
     require_success(session.post(HOST + '/execute/Fileman/upload_files',
