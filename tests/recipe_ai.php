@@ -14,6 +14,7 @@ aiExpect(str_contains($text,'Soup') && str_contains($text,'2 cups water') && !st
 aiExpect(RecipeImportService::websiteText('<nav>Noise</nav><article>Recipe instructions</article><script>tracking()</script>') === 'Recipe instructions','Fallback retained page noise.');
 aiExpect(RecipeImportService::cleanText("  mix\x00   well\n\n\nserve  ") === "mix well\n\nserve",'Text cleanup failed.');
 foreach (['127.0.0.1','10.0.0.1','192.168.1.5','169.254.169.254','::1','::ffff:127.0.0.1','100.64.0.1','224.0.0.1','198.18.0.1','ff02::1'] as $ip) aiReject(fn()=>RecipeImportService::publicAddresses($ip),422);
+aiExpect(RecipeImportService::cleanText('&#x20;1/3 cup &amp; lime')==='1/3 cup & lime','Pasted HTML entities were not decoded.');
 $input = ['recipe'=>['title'=>'Soup','ingredients'=>[['original_text'=>'Water','ingredient_name'=>'water','id'=>'999','scale_quantity'=>1]],'steps'=>[['instruction'=>'Boil']],'household_id'=>'another','nutrition'=>['calories'=>99]],'questions'=>['How much water?']];
 $draft = RecipeImportService::draft($input);
 $timed = $input;
@@ -22,6 +23,8 @@ $timed['recipe']['categories'] = [['label'=>'Cookies','parent_label'=>'Desserts'
 $prepared = RecipeImportService::draft($timed)['recipe'];
 aiExpect($prepared['actions'][0]['duration_seconds']===120 && $prepared['actions'][0]['step_id']==='new-steps-0' && $prepared['actions'][0]['id']==='new-actions-0','Timed action not associated with normalized step.');
 aiExpect($prepared['category_assignments']===[['label'=>'Cookies','parent_label'=>'Desserts']],'Category proposal accepted untrusted ID.');
+$pie=$input; $pie['recipe']['categories']=[['label'=>'Desserts','parent_label'=>''],['label'=>'Pies','parent_label'=>'Desserts']];
+aiExpect(RecipeImportService::draft($pie)['recipe']['category_assignments']===[['label'=>'Pies','parent_label'=>'Desserts']],'Redundant parent category assignment remained.');
 $heat=$input;
 $heat['recipe']['steps'][0]['actions']=[['action_type'=>'appliance_temperature','label'=>'Simmer over low heat','temperature_value'=>null,'temperature_unit'=>'F']];
 $heatAction=RecipeImportService::draft($heat)['recipe']['actions'][0];
@@ -37,6 +40,7 @@ $format=RecipeImportService::responseFormat();
 aiExpect($format['strict']===true && $format['type']==='json_schema','Strict response format missing.');
 function checkObjects(array $schema): void { if (($schema['type'] ?? '')==='object') aiExpect($schema['additionalProperties']===false && $schema['required']===array_keys($schema['properties']),'Object is not strict.'); foreach ($schema['properties'] ?? [] as $child) checkObjects($child); if (isset($schema['items'])) checkObjects($schema['items']); }
 checkObjects($format['schema']);
+aiExpect($format['schema']['properties']['recipe']['properties']['description']['type']==='string','Missing descriptions remain nullable.');
 $bad = $timed; $bad['recipe']['categories'][0]['label']=['bad']; aiReject(fn()=>RecipeImportService::draft($bad),502);
 aiExpect($draft['recipe']['ingredients'][0]['id']==='new-ingredients-0','AI supplied a database ID.');
 aiExpect(!isset($draft['recipe']['household_id']) && !isset($draft['recipe']['nutrition']),'Untrusted database fields were accepted.');

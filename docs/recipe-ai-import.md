@@ -116,3 +116,13 @@ and saved in an isolated disposable database, including nine ingredients, nine
 or ten sequential stages, a 120-second simmer timer, heat reminders, Cookies
 under Desserts, and estimated yield/servings/times. The final display corrected
 the butter typo. Personal source text and AI drafts remain ignored, outside Git.
+
+Imports decode pasted HTML entities locally. Missing descriptions are generated
+from recipe ingredients and method, without unsupported claims. Categorization
+uses dish form and preparation even when the source has no title: a filled pie
+shell with meringue proposes Pies under Desserts rather than only Desserts.
+
+Validation: the supplied title-less key lime pie source produced a factual
+description, 12 ingredient entries, 10 steps, Pies under Desserts, and 120/1200
+second cooking timers in a live import. Redundant parent assignments are removed
+locally. Personal sample source and draft are ignored; no hosted recipe was saved.
