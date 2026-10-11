@@ -103,3 +103,16 @@ extra AI repair call is made. Malformed nested content and excessive lists remai
 rejected. Refused and incomplete responses give actionable messages.
 
 Validation: 35 offline import checks and 41 disposable database save checks passed. A live public cookie sample passed strict-schema import, timer extraction and Cookies-under-Desserts classification using gpt-5.4-mini; no production recipe was saved.
+
+Quantity prefills normalize equivalent decimal/fraction duplicates to one valid
+representation and remove empty/zero fraction placeholders when a valid decimal
+exists. Conflicting amounts retain the displayed ingredient and a review note
+without guessing an amount. Structured amount precision and positive servings
+are bounded for storage. Ingredient display lines correct obvious spelling while
+source_text preserves the input. Save errors identify the ingredient or action.
+
+Validation: the user-provided chocolate oat cookie text was imported twice live
+and saved in an isolated disposable database, including nine ingredients, nine
+or ten sequential stages, a 120-second simmer timer, heat reminders, Cookies
+under Desserts, and estimated yield/servings/times. The final display corrected
+the butter typo. Personal source text and AI drafts remain ignored, outside Git.

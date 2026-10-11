@@ -6,30 +6,32 @@ final class RecipeEditorService
 {
     public function __construct(private PDO $pdo, private HouseholdService $households, private string $mediaDirectory, private string $mediaUrl) {}
 
-    private function invalid(string $message): void { throw new HttpError(422, 'invalid_recipe', $message); }
+    private string $validationContext = '';
+    private function invalid(string $message): void { throw new HttpError(422, 'invalid_recipe', $this->validationContext.$message); }
     private function fields(array $row, array $spec): array {
         $result = [];
         foreach ($spec as $key => $rule) {
+            $fieldLabel=str_replace("_"," ",$key);
             $value = $row[$key] ?? null;
             if ($value === '') $value = null;
             if ($rule === 'bool') {
-                if (!in_array($value, [null, true, false, 0, 1, '0', '1'], true)) $this->invalid("Invalid $key.");
+                if (!in_array($value, [null, true, false, 0, 1, '0', '1'], true)) $this->invalid("Check the $fieldLabel field.");
                 $result[$key] = (int) ($value ?? 0); continue;
             }
             if ($value === null) {
-                if (str_starts_with($rule, '!')) $this->invalid("Please enter $key.");
+                if (str_starts_with($rule, '!')) $this->invalid("Please enter $fieldLabel.");
                 $result[$key] = null; continue;
             }
             $rule = ltrim($rule, '!');
             if (str_starts_with($rule, 'enum:')) {
-                if (!is_string($value) || !in_array($value, explode(',', substr($rule, 5)), true)) $this->invalid("Invalid $key.");
+                if (!is_string($value) || !in_array($value, explode(',', substr($rule, 5)), true)) $this->invalid("Check the $fieldLabel field.");
             } elseif (in_array($rule, ['number', 'positive', 'nonnegative', 'integer'], true)) {
                 if ((!is_string($value) && !is_int($value) && !is_float($value)) || !is_numeric($value) || !is_finite((float) $value)
                     || abs((float) $value) > 1000000000 || ($rule === 'positive' && (float) $value <= 0)
                     || (in_array($rule, ['nonnegative', 'integer'], true) && (float) $value < 0)
-                    || ($rule === 'integer' && !preg_match('/^\d+$/', (string) $value))) $this->invalid("Invalid $key.");
+                    || ($rule === 'integer' && !preg_match('/^\d+$/', (string) $value))) $this->invalid("Check the $fieldLabel field.");
             } else {
-                if (!is_string($value) || mb_strlen($value) > (int) $rule || (str_starts_with($spec[$key], '!') && trim($value) === '')) $this->invalid("Invalid $key.");
+                if (!is_string($value) || mb_strlen($value) > (int) $rule || (str_starts_with($spec[$key], '!') && trim($value) === '')) $this->invalid("Check the $fieldLabel field.");
                 $value = trim($value);
             }
             $result[$key] = $value;
@@ -58,6 +60,7 @@ final class RecipeEditorService
         return ['id' => $id];
     }
     public function save(string $userId, string $householdId, string $recipeId, array $body): array {
+        $this->validationContext='';
         $this->households->membership($userId, $householdId);
         $createdFiles = [];
         $creating = $recipeId === '';
@@ -117,6 +120,7 @@ final class RecipeEditorService
             }
             $seen = [];
             foreach ($lists['ingredients'] as $position=>$row) {
+                $this->validationContext='Ingredient '.($position+1).' ('.mb_substr((string)($row['original_text'] ?? $row['ingredient_name'] ?? ''),0,100).'): ';
                 $values = $this->fields($row, ['original_text'=>'!60000','ingredient_name'=>'!300','quantity_text'=>'120','quantity_decimal'=>'nonnegative',
                     'quantity_numerator'=>'integer','quantity_denominator'=>'integer','quantity_max_decimal'=>'nonnegative','original_unit'=>'80','unit_code'=>'40',
                     'preparation'=>'300','is_optional'=>'bool','is_main_ingredient'=>'bool','scale_quantity'=>'bool']);
@@ -128,7 +132,9 @@ final class RecipeEditorService
                 $this->insert('recipe_ingredients', $base + $this->ownedId($row,$existing['ingredients'],$seen) + ['position'=>$position+1,'group_id'=>$groups[(string)$group] ?? null] + $values);
             }
             $seen = []; $positions = [];
-            foreach ($lists['actions'] as $row) {
+            $this->validationContext='';
+            foreach ($lists['actions'] as $actionPosition=>$row) {
+                $this->validationContext='Action '.($actionPosition+1).' ('.mb_substr((string)($row['label'] ?? ''),0,100).'): ';
                 $step = $steps[(string)($row['step_id'] ?? '')] ?? null;
                 if ($step === null) $this->invalid('Every action must belong to a step.');
                 $values = $this->fields($row, ['action_type'=>'!enum:timer,appliance_temperature,internal_temperature,rest,reminder','label'=>'300','duration_seconds'=>'integer','temperature_value'=>'number','temperature_unit'=>'enum:C,F','appliance'=>'80']);
@@ -142,6 +148,7 @@ final class RecipeEditorService
                 $positions[$step] = ($positions[$step] ?? 0)+1;
                 $this->insert('recipe_step_actions', $base + $this->ownedId($row,$existing['actions'],$seen) + ['step_id'=>$step,'position'=>$positions[$step]] + $values);
             }
+            $this->validationContext='';
             $seen = []; $covers = 0; $uploadBytes = 0;
             foreach ($lists['photos'] as $position=>$row) {
                 $id = $this->ownedId($row,$existing['photos'],$seen);
