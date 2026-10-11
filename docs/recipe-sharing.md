@@ -1,5 +1,11 @@
 # Public recipe links
 
+## Recipe heading cleanup - 2026-10-11
+
+The recipe title is now the first and largest heading, with compact Coffey Table Recipes branding beneath it. Section headings use green text and a subtle divider. Removed the visible language/measurement metadata and all category tags. The branding JPEG uses `mix-blend-mode: multiply` to blend its embedded white surround into the cream page without modifying the shared email image.
+
+Deployed only `src/RecipeSharePage.php`; its previous version is protected at `storage/before-sharing-layout-20261011-130528.php`. The deployed hash matched the local renderer, 31 backend checks and PHP lint passed, and built-in-browser visual inspection confirmed the title hierarchy and absence of white branding surround on Mint Chip Ice Cream. Live recipe and missing-recipe responses returned 200 and 404 respectively; the temporary installer removed itself and returned 404. No app build or database changes were needed.
+
 Recipe pages use `share.php?id={database recipe ID}`. No signing key, token, expiry, household ID, or sender identity is needed. Anyone can read an existing recipe by its ID. The page is read-only and does not expose raw imports, household members, edit options, or step actions. The authenticated `/households/{household}/recipes/{recipe}/share` route remains compatible and returns the same ID-based URL.
 
 Missing, malformed, or nonexistent IDs return HTTP 404 with a useful branded error in the app's cream, green, and brown colors. Operational failures return 500 with a retry message. The page uses the existing `assets/email/coffey_table.jpg` branding image. Recipe photo backgrounds are transparent, matching the page background; tags remain visible but action chips are omitted.

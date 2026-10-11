@@ -63,10 +63,41 @@ MySQL itself remains installed for unrelated projects and disposable tests.
 The hosted database was not changed. Restore the backup only into an explicitly
 chosen recovery database; never import it over the current hosted data.
 
-Local validation: nine deployment packaging/failure-path tests, 15 invitation
+Local validation: ten deployment packaging/failure-path tests, 15 invitation
 email checks and 14 verification checks passed. Tracked PHP files passed syntax
 checks. Mail checks use fixtures and send no email. Live deployment validation
 will be recorded after repository secrets are configured and the first run passes.
 The pushed workflow's GitHub runs passed syntax, locked Composer installation,
 mail checks, deployment tests and the unauthenticated cPanel TLS preflight. Initial
 publishing attempts stopped because deployment secrets had not both been saved.
+
+After both secrets were saved, a read-only diagnostic on the isolated
+`codex/backend-auth-check` branch returned HTTP 401 and confirmed that CPANEL_USER
+did not equal the hosting account name `hosting_account`. After the user corrected that
+secret, run 38141851141 attempt 2 passed on 2026-10-11: cPanel authenticated the
+token and allowed reading the verified recipe directory. This diagnostic never
+uploads files; its deploy job is skipped on the diagnostic branch.
+
+The user declined pushing main while recipe editing/public-page work continues.
+Do not rerun the older main deployment during that work, since it could overwrite
+newer hosted runtime files. The local deployment diagnostic fixes are committed,
+but the pending main commits must be published only after the user authorizes
+that work. Database retirement is complete; automated live deployment remains
+unverified until an authorized current-main run passes. Credentials were verified;
+no new deployment was performed during that diagnostic.
+
+## Successful push deployment (2026-10-11)
+
+The user subsequently requested deployment. Pushed the current committed backend
+through `d0a2ae227e48ad70ea6c6e6fab0919eff4cbdf67`, including the recipe editor and
+current public-page rendering changes. GitHub Actions run 38142772752 completed
+successfully: PHP syntax, locked Composer installation, mail checks, all ten
+deployment tests, cPanel TLS, upload/extraction, API health, localhost CORS,
+protected-path checks and deployment receipt verification passed.
+
+Independent public requests verified the exact hosted receipt commit, healthy
+API JSON, and the existing Mint Chip Ice Cream public recipe page (HTTP 200).
+No database migration or data import was performed; credentials, uploaded media
+and the hosted Flutter app were preserved. Authenticated recipe save behavior
+still requires its own feature verification; these deployment checks do not
+perform production saves. Backend pushes to main now deploy automatically.
