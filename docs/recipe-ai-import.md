@@ -14,7 +14,7 @@ and reject duplicate import keys with HTTP 409. No migration is needed.
 
 Configure `recipe_ai.api_key` only in ignored `config/local.php`, or use
 `OPENAI_API_KEY`. The app model is `gpt-5.4-mini`, selected by version-controlled defaults.
-Private configuration cannot override it, including older key files. Requests use JSON output, `store:false`, an
+Private configuration cannot override it, including older key files. Requests use strict JSON Schema output, `store:false`, an
 output-token bound, 75 second upstream timeout and a per-account limit of 20 calls
 per hour stored under protected `storage/recipe-ai/`. No credentials or source
 uploads are logged or committed. The source input is sent to OpenAI when the user
@@ -94,3 +94,12 @@ and doneness milestones, preserving order and related motions. Qualitative
 heat settings use reminder actions. Imports and saves convert labeled appliance
 actions without numeric temperatures to reminders, including existing drafts;
 internal doneness temperatures still require a numeric target and unit.
+
+Import output now uses a strict Responses JSON Schema to constrain action enums,
+field types and array limits. Incomplete or unknown scalar action types become
+reviewable reminders with a note rather than failing the whole import; irrelevant
+time/temperature fields are cleared. No time or temperature is invented and no
+extra AI repair call is made. Malformed nested content and excessive lists remain
+rejected. Refused and incomplete responses give actionable messages.
+
+Validation: 35 offline import checks and 41 disposable database save checks passed. A live public cookie sample passed strict-schema import, timer extraction and Cookies-under-Desserts classification using gpt-5.4-mini; no production recipe was saved.
