@@ -25,6 +25,19 @@ try {
     $q->execute([$h,'Pair',null,null]); $pair = $pdo->lastInsertId();
     $q->execute([$other,'Foreign',null,null]); $foreign = $pdo->lastInsertId();
     $read = new RecipeService($pdo,$households); $edit = new RecipeEditorService($pdo,$households,$media,'https://example.test/media/recipes');
+    $new = ['title'=>'Imported soup','original_language'=>'en','measurement_system'=>'unspecified','source_text'=>'My soup description','import_key'=>hash('sha256','test-import'),
+        'ingredients'=>[['id'=>'new-i','original_text'=>'Water','ingredient_name'=>'water','scale_quantity'=>1]],
+        'steps'=>[['id'=>'new-s','instruction'=>'Boil the water.']], 'groups'=>[], 'actions'=>[], 'photos'=>[], 'tags'=>[], 'category_assignments'=>[], 'pairings'=>[]];
+    $created = $edit->save($a['id'],$h,'',$new);
+    editExpect(count($read->editOptions($a['id'],$h)['categories'])>0,'New drafts lack category options.');
+    editExpect($created['title']==='Imported soup' && count($created['ingredients'])===1 && count($created['steps'])===1,'New import did not save its content.');
+    editExpect($pdo->query('SELECT source_text FROM recipes WHERE id='.(int)$created['id'])->fetchColumn()==='My soup description','Import provenance lost.');
+    editReject(fn()=>$edit->save($a['id'],$h,'',$new),409);
+    $before = $pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn();
+    $badNew = $new; $badNew['import_key']=hash('sha256','bad-import'); $badNew['title']='';
+    editReject(fn()=>$edit->save($a['id'],$h,'',$badNew),422);
+    editExpect($pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn()===$before,'Invalid import left a partial recipe.');
+    editReject(fn()=>$edit->save($b['id'],$h,'',$new),404);
     $draft = $read->detail($a['id'],$h,$id);
     $draft['title']='Edited'; $draft['servings']='4'; $draft['notes']='Useful notes';
     $draft['groups']=[['id'=>'new-g','title'=>'Sauce']];

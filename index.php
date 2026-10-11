@@ -65,6 +65,16 @@ try {
         (new RecipeService($pdo, $households))->detail($user['id'], $shareMatch[1], $shareMatch[2]);
         $root = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/');
         respond(200, ['url' => $root . '/share.php?id=' . $shareMatch[2]]);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-import$#', $route, $importMatch)) {
+        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        $identity = authenticatedIdentity($config);
+        $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $households->membership($user['id'], $importMatch[1]);
+        $draft = (new RecipeImportService($config['recipe_ai'], __DIR__.'/storage'))->analyze(requestBody(8*1024*1024), $user['id']);
+        $draft['recipe']['edit_options'] = (new RecipeService($pdo, $households))->editOptions($user['id'], $importMatch[1]);
+        respond(200, $draft);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
@@ -72,10 +82,10 @@ try {
         $user = $households->bootstrap($identity);
         $households->membership($user['id'], $recipeMatch[1]);
         $recipes = new RecipeService($pdo, $households);
-        if ($method === 'POST' && isset($recipeMatch[2])) {
+        if ($method === 'POST') {
             $mediaUrl = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/') . '/media/recipes';
             $editor = new RecipeEditorService($pdo, $households, __DIR__.'/media/recipes', $mediaUrl);
-            respond(200, ['recipe' => $editor->save($user['id'], $recipeMatch[1], $recipeMatch[2], requestBody(30*1024*1024))]);
+            respond(isset($recipeMatch[2]) ? 200 : 201, ['recipe' => $editor->save($user['id'], $recipeMatch[1], $recipeMatch[2] ?? '', requestBody(30*1024*1024))]);
         } elseif ($method !== 'GET') {
             header('Allow: GET, POST, OPTIONS');
             throw new HttpError(405, 'method_not_allowed', 'Use GET or POST for a recipe.');

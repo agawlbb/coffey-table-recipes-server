@@ -16,6 +16,12 @@ return [
     'firebase_project_id' => '',
     'firebase_service_account_file' => dirname(__DIR__) . '/config/firebase-admin.local.json',
     'app_url' => 'https://coffeybean.com/CoffeyTableRecipes/app/',
+    'recipe_ai' => [
+        'api_key' => '', // Set only in ignored config/local.php or OPENAI_API_KEY.
+        'model' => 'gpt-4.1-mini',
+        'pdftotext' => '', // Optional absolute Poppler pdftotext executable path.
+        'tesseract' => '', // Optional absolute Tesseract executable path.
+    ],
     'smtp' => [
         'host' => '', 'port' => 465, 'encryption' => 'ssl',
         'username' => '', 'password' => '',
