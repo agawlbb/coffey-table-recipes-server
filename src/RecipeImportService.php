@@ -123,7 +123,8 @@ final class RecipeImportService
         $number=['type'=>['number','null']];
         $ingredient=[];
         foreach (['original_text','ingredient_name','quantity_text','quantity_decimal','quantity_max_decimal','original_unit','unit_code','preparation'] as $field) $ingredient[$field]=$string;
-        $ingredient['original_text']=['type'=>'string'];
+        $ingredient['original_text']=['type'=>'string','description'=>'Display the full ingredient line with obvious spelling mistakes corrected. Preserve the raw source separately, not in this display field.'];
+        foreach (['quantity_decimal','quantity_max_decimal'] as $field) $ingredient[$field]=['type'=>['string','null'],'pattern'=>'^[0-9]{1,9}(\\.[0-9]{1,8})?$'];
         foreach (['quantity_numerator','quantity_denominator'] as $field) $ingredient[$field]=$integer;
         foreach (['is_optional','is_main_ingredient','scale_quantity'] as $field) $ingredient[$field]=['type'=>'integer','enum'=>[0,1]];
         $action=$object(['action_type'=>['type'=>'string','enum'=>['timer','rest','appliance_temperature','internal_temperature','reminder']],
@@ -133,7 +134,7 @@ final class RecipeImportService
         foreach (['title','description','original_language','yield_text','notes'] as $field) $recipe[$field]=$string;
         $recipe['title']=['type'=>'string'];
         $recipe['measurement_system']=['type'=>'string','enum'=>['metric','us','mixed','unspecified']];
-        $recipe['servings']=$number;
+        $recipe['servings']=['type'=>['number','null'],'exclusiveMinimum'=>0,'maximum'=>99999999];
         foreach (['prep_minutes','cook_minutes','total_minutes'] as $field) $recipe[$field]=$integer;
         $recipe['ingredients']=['type'=>'array','maxItems'=>300,'items'=>$object($ingredient)];
         $recipe['steps']=['type'=>'array','maxItems'=>300,'items'=>$object(['instruction'=>['type'=>'string'],'section_title'=>$string,'actions'=>['type'=>'array','maxItems'=>20,'items'=>$action]])];
@@ -154,7 +155,23 @@ final class RecipeImportService
                 $row = array_intersect_key($row, array_flip($fields));
                 foreach ($row as $value) if ($value !== null && !is_scalar($value)) throw new HttpError(502,'invalid_ai_reply','AI returned invalid recipe content.');
                 $row['id'] = 'new-'.$key.'-'.$i;
-                if ($key === 'ingredients') { $row['group_id'] = null; $row['scale_quantity'] ??= 1; }
+                if ($key === 'ingredients') {
+                    $row['group_id'] = null; $row['scale_quantity'] ??= 1;
+                    $row['ingredient_name'] = trim((string)($row['ingredient_name'] ?? '')) ?: ($row['original_text'] ?? '');
+                    $n=$row['quantity_numerator'] ?? null; $d=$row['quantity_denominator'] ?? null;
+                    $decimal=$row['quantity_decimal'] ?? null;
+                    $fraction=is_numeric($n) && is_numeric($d) && (float)$n>=0 && (float)$d>0 && floor((float)$n)==(float)$n && floor((float)$d)==(float)$d;
+                    if ($fraction && ($decimal===null || (is_numeric($decimal) && abs((float)$decimal-(float)$n/(float)$d)<0.000001))) {
+                        $row['quantity_decimal']=null;
+                    } elseif (is_numeric($decimal) && (float)$decimal>=0 && (!$fraction || $n===0 || $n==='0')) {
+                        $row['quantity_numerator']=null; $row['quantity_denominator']=null;
+                    } elseif ($n!==null || $d!==null) {
+                        $row['quantity_decimal']=null; $row['quantity_numerator']=null; $row['quantity_denominator']=null;
+                        $recipe['notes']=trim(($recipe['notes'] ?? '')."\nReview the quantity for ".($row['original_text'] ?? 'ingredient '.($i+1)).': conflicting exact values were left unstructured.');
+                    }
+                    $max=$row['quantity_max_decimal'] ?? null;
+                    if ($max!==null && (!is_numeric($max) || !is_numeric($row['quantity_decimal'] ?? null) || (float)$max<(float)$row['quantity_decimal'])) $row['quantity_max_decimal']=null;
+                }
             } unset($row);
         }
         foreach (['groups','actions','photos','tags','category_assignments','pairings'] as $key) $recipe[$key] = [];

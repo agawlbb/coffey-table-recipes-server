@@ -47,4 +47,11 @@ $service = new RecipeImportService(['api_key'=>'','model'=>'gpt-5.4-mini'],sys_g
 aiReject(fn()=>$service->analyze(['kind'=>'file','file_base64'=>base64_encode('<?php bad();')],'1'),422);
 aiReject(fn()=>$service->analyze(['kind'=>'text','text'=>''],'1'),422);
 aiReject(fn()=>$service->analyze(['kind'=>'website','url'=>'http://127.0.0.1'],'1'),422);
+$quantities=$input;
+$quantities['recipe']['ingredients'][0]+= ['quantity_decimal'=>'0.5','quantity_numerator'=>1,'quantity_denominator'=>2];
+$q=RecipeImportService::draft($quantities)['recipe']['ingredients'][0];
+aiExpect($q['quantity_decimal']===null && $q['quantity_numerator']===1 && $q['quantity_denominator']===2,'Duplicate fraction and decimal not normalized.');
+$quantities['recipe']['ingredients'][0]['quantity_denominator']=0;
+$q=RecipeImportService::draft($quantities)['recipe']['ingredients'][0];
+aiExpect($q['quantity_decimal']==='0.5' && $q['quantity_numerator']===null && $q['quantity_denominator']===null,'Placeholder fraction broke decimal.');
 echo "$checks recipe AI preprocessing and validation checks passed.\n";
