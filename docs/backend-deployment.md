@@ -73,8 +73,9 @@ publishing attempts stopped because deployment secrets had not both been saved.
 
 After both secrets were saved, a read-only diagnostic on the isolated
 `codex/backend-auth-check` branch returned HTTP 401 and confirmed that CPANEL_USER
-did not equal the hosting account name `hosting_account`. Correct that secret and rerun
-the diagnostic before declaring credentials verified. This diagnostic never
+did not equal the hosting account name `hosting_account`. After the user corrected that
+secret, run 38141851141 attempt 2 passed on 2026-10-11: cPanel authenticated the
+token and allowed reading the verified recipe directory. This diagnostic never
 uploads files; its deploy job is skipped on the diagnostic branch.
 
 The user declined pushing main while recipe editing/public-page work continues.
@@ -82,4 +83,5 @@ Do not rerun the older main deployment during that work, since it could overwrit
 newer hosted runtime files. The local deployment diagnostic fixes are committed,
 but the pending main commits must be published only after the user authorizes
 that work. Database retirement is complete; automated live deployment remains
-unverified until the credential check and an authorized current-main run pass.
+unverified until an authorized current-main run passes. Credentials are verified;
+no new deployment was performed during this diagnostic.
