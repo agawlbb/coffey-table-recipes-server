@@ -38,6 +38,8 @@ def require_success(response, operation):
 
 
 def deploy():
+    if not all(os.environ.get(name) for name in ('CPANEL_USER', 'CPANEL_API_TOKEN')):
+        raise RuntimeError('Configure CPANEL_USER and CPANEL_API_TOKEN repository secrets')
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
     if not re.fullmatch('[0-9a-f]{40}', commit):
         raise RuntimeError('Invalid source commit')
@@ -99,6 +101,8 @@ if __name__ == '__main__':
     try:
         deploy()
     except Exception as error:
-        detail = str(error) if type(error) is RuntimeError else type(error).__name__
+        # TLS errors contain the fixed server URL and certificate diagnostic,
+        # not request headers. Other HTTP errors stay redacted.
+        detail = str(error) if isinstance(error, (RuntimeError, requests.exceptions.SSLError)) else type(error).__name__
         print('Deployment failed: ' + detail + '. Credentials are not logged.', file=sys.stderr)
         sys.exit(1)
