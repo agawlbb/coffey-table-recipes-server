@@ -1,5 +1,10 @@
 # coffeybean.com hosted testing
 
+Current policy (2026-10-11): the persistent backend and MySQL database are hosted
+exclusively. The outdated local recipe database has been backed up and removed.
+See [backend Git-push deployment](backend-deployment.md) for the deployment
+workflow and its boundaries. Earlier local-database notes below are historical.
+
 Deployment target: `/home/hosting_account/coffeybean.com/CoffeyTableRecipes`.
 This is the addon domain's directory; the account's main `public_html` serves a different domain.
 
@@ -21,7 +26,7 @@ After deploying `.htaccess`, verify an OPTIONS request to `/CoffeyTableRecipes/a
 
 On 2026-10-09 the missing hosted headers were reproduced and the correction was deployed through the signed-in cPanel File Manager to the verified recipe directory. Hosted OPTIONS returned 204 with exactly one localhost allow-origin header; an unknown origin received none, and hosted health returned healthy JSON. The signed-in local web app successfully loaded the household recipe list in Chrome. Local XAMPP also passed allowed and disallowed origin preflight checks. No API routes, schema, database contents, or app backend selection were changed.
 
-Before future API or schema changes, explain the change and ask whether to return app builds to the local backend. Back up the hosted database before any future migration or replacement. Do not import a fresh local dump over the hosted database without reviewing changes made since this initial copy.
+Use the hosted backend for future API and schema work; local source remains available for development and isolated tests. Back up the hosted database before any future migration or replacement. Do not import a fresh local dump over the hosted database without reviewing changes made since this initial copy.
 
 ## Household management API (2026-10-10, prepared locally)
 

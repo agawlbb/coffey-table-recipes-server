@@ -1,0 +1,36 @@
+name: Deploy hosted backend
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hosted-backend
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, curl, mbstring, openssl
+          tools: composer:v2
+      - name: Validate PHP syntax
+        run: git ls-files -z '*.php' | xargs -0 -n1 php -l
+      - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - name: Validate mail and verification behavior
+        run: |
+          php tests/invitation-mail.php
+          php tests/verification.php
+      - run: python3 -m pip install requests==2.32.5
+      - run: python3 -m unittest discover -s tool -p 'test_*.py'
+      - name: Publish and verify backend
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/deploy-backend.py
