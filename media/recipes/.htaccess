@@ -3,3 +3,8 @@ Options -Indexes -ExecCGI
     Require all denied
 </FilesMatch>
 Header set X-Content-Type-Options nosniff
+
+# Public recipe and category images must load in the local Flutter web app.
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+</IfModule>

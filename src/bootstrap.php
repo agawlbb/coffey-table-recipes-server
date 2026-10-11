@@ -7,6 +7,7 @@ require_once __DIR__ . '/RecipeService.php';
 require_once __DIR__ . '/RecipeEditorService.php';
 require_once __DIR__ . '/RecipeImportService.php';
 require_once __DIR__ . '/RecipePhotoService.php';
+require_once __DIR__ . '/CategoryImageService.php';
 require_once __DIR__ . '/InvitationMail.php';
 require_once __DIR__ . '/VerificationMail.php';
 require_once __DIR__ . '/VerificationService.php';

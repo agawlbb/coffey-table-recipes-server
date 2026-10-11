@@ -92,7 +92,7 @@ class DeploymentTests(unittest.TestCase):
                 forbidden = Mock(status_code=403)
                 receipt = Mock()
                 receipt.json.side_effect = lambda: json.loads(private.post.call_args.kwargs['files']['file-1'][1])
-                public.get.side_effect = [health, forbidden, forbidden, forbidden, receipt]
+                public.get.side_effect = [health, forbidden, forbidden, forbidden, Mock(headers={'Access-Control-Allow-Origin': '*'}), receipt]
                 public.options.return_value = Mock(status_code=204,
                     headers={'Access-Control-Allow-Origin': 'http://localhost'})
                 with patch.dict(os.environ, CPANEL_USER='fixture', CPANEL_API_TOKEN='fixture-secret'), \
@@ -102,7 +102,7 @@ class DeploymentTests(unittest.TestCase):
                     if scenario == 'success':
                         deploy.deploy()
                         self.assertEqual(private.post.call_count, 3)
-                        self.assertEqual(public.get.call_count, 5)
+                        self.assertEqual(public.get.call_count, 6)
                         self.assertNotIn('Authorization', public.headers)
                         self.assertTrue(private.post.call_args_list[0].kwargs['data']['dir'].endswith('/storage'))
                     else:

@@ -104,7 +104,7 @@ final class RecipeEditorService
                 $existing[$key] = array_column($q->fetchAll(PDO::FETCH_ASSOC), null, 'id');
             }
             $lists = [];
-            foreach (['groups','ingredients','steps','actions','photos','tags','category_assignments','pairings'] as $key) $lists[$key] = $this->list($body, $key, $key === 'photos' ? 20 : 300);
+            foreach (['groups','ingredients','steps','actions','photos','tags','category_assignments','pairings'] as $key) $lists[$key] = $this->list($body, $key, 300);
             foreach (['recipe_step_actions','recipe_ingredients','recipe_ingredient_groups','recipe_steps','recipe_photos','recipe_tags','recipe_category_assignments','recipe_nutrition'] as $table) {
                 $this->pdo->prepare("DELETE FROM $table WHERE household_id=? AND recipe_id=?")->execute([$householdId,$recipeId]);
             }
@@ -161,11 +161,11 @@ final class RecipeEditorService
                     $extensions = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
                     if (!$info || !isset($extensions[$info['mime']]) || strlen($bytes) > 5*1024*1024 || $info[0]*$info[1] > 24000000) $this->invalid('Choose a JPEG, PNG, or WebP image up to 5 MB and 24 megapixels.');
                     $uploadBytes += strlen($bytes);
-                    if ($uploadBytes > 20*1024*1024) $this->invalid('Upload at most 20 MB of photos per save.');
                     if (!is_dir($this->mediaDirectory) && !mkdir($this->mediaDirectory,0755,true)) throw new RuntimeException('Cannot create media directory.');
                     $filename = bin2hex(random_bytes(24)).'.'.$extensions[$info['mime']];
                     $file = $this->mediaDirectory.'/'.$filename; $createdFiles[] = $file;
                     if (file_put_contents($file,$bytes,LOCK_EX) !== strlen($bytes)) throw new RuntimeException('Cannot save photo.');
+                    chmod($file,0644);
                     $values += ['source_url'=>rtrim($this->mediaUrl,'/').'/'.$filename,'storage_key'=>'media/recipes/'.$filename,'mime_type'=>$info['mime'],'width_pixels'=>$info[0],'height_pixels'=>$info[1]];
                 } elseif (isset($id['id'])) {
                     // Existing storage metadata is never accepted from the client.
