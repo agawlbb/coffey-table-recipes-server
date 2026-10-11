@@ -88,3 +88,9 @@ Discarded the sample without saving a database record. The 21 offline checks and
 seven setup-script tests passed; backend changes were committed and deployed.
 
 Action/category follow-up validation (October 11, 2026): 25 offline AI checks, 40 disposable database checks, 14 Flutter editor/import tests and analysis passed. A live sample generated a 120-second simmer timer, 350 F oven action, 720-second bake timer, 300-second rest and Cookies under Desserts. No live recipe or category was saved during this sample check.
+
+Cooking stages are split at ingredient additions, heat changes, timed phases
+and doneness milestones, preserving order and related motions. Qualitative
+heat settings use reminder actions. Imports and saves convert labeled appliance
+actions without numeric temperatures to reminders, including existing drafts;
+internal doneness temperatures still require a numeric target and unit.

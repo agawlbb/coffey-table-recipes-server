@@ -132,6 +132,11 @@ final class RecipeEditorService
                 $step = $steps[(string)($row['step_id'] ?? '')] ?? null;
                 if ($step === null) $this->invalid('Every action must belong to a step.');
                 $values = $this->fields($row, ['action_type'=>'!enum:timer,appliance_temperature,internal_temperature,rest,reminder','label'=>'300','duration_seconds'=>'integer','temperature_value'=>'number','temperature_unit'=>'enum:C,F','appliance'=>'80']);
+                // Also repair already reviewed imports that described heat without a numeric target.
+                if ($values['action_type']==='appliance_temperature' && $values['temperature_value']===null && trim((string)($values['label'] ?? ''))!=='') {
+                    $values['action_type']='reminder';
+                    $values['temperature_unit']=null;
+                }
                 if (in_array($values['action_type'], ['timer','rest'], true) && (int)($values['duration_seconds'] ?? 0) <= 0) $this->invalid('Timers and rests need a positive duration.');
                 if (($values['temperature_value'] === null) !== ($values['temperature_unit'] === null) || (in_array($values['action_type'], ['appliance_temperature','internal_temperature'], true) && $values['temperature_value'] === null)) $this->invalid('Temperature actions need a temperature and unit.');
                 $positions[$step] = ($positions[$step] ?? 0)+1;

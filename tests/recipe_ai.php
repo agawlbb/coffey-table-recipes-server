@@ -22,6 +22,10 @@ $timed['recipe']['categories'] = [['label'=>'Cookies','parent_label'=>'Desserts'
 $prepared = RecipeImportService::draft($timed)['recipe'];
 aiExpect($prepared['actions'][0]['duration_seconds']===120 && $prepared['actions'][0]['step_id']==='new-steps-0' && $prepared['actions'][0]['id']==='new-actions-0','Timed action not associated with normalized step.');
 aiExpect($prepared['category_assignments']===[['label'=>'Cookies','parent_label'=>'Desserts']],'Category proposal accepted untrusted ID.');
+$heat=$input;
+$heat['recipe']['steps'][0]['actions']=[['action_type'=>'appliance_temperature','label'=>'Simmer over low heat','temperature_value'=>null,'temperature_unit'=>'F']];
+$heatAction=RecipeImportService::draft($heat)['recipe']['actions'][0];
+aiExpect($heatAction['action_type']==='reminder' && $heatAction['temperature_unit']===null && $heatAction['label']==='Simmer over low heat','Qualitative heat did not become a reminder.');
 $bad = $timed; $bad['recipe']['steps'][0]['actions'][0]['duration_seconds']=0; aiReject(fn()=>RecipeImportService::draft($bad),502);
 $bad = $timed; $bad['recipe']['categories'][0]['label']=['bad']; aiReject(fn()=>RecipeImportService::draft($bad),502);
 aiExpect($draft['recipe']['ingredients'][0]['id']==='new-ingredients-0','AI supplied a database ID.');

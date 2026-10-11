@@ -38,6 +38,10 @@ try {
     editReject(fn()=>$edit->save($a['id'],$h,'',$badNew),422);
     editExpect($pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn()===$before,'Invalid import left a partial recipe.');
     editReject(fn()=>$edit->save($b['id'],$h,'',$new),404);
+    $heat=$new; $heat['import_key']=hash('sha256','qualitative-heat-import');
+    $heat['actions']=[['id'=>'new-heat','step_id'=>'new-s','action_type'=>'appliance_temperature','label'=>'Simmer over low heat','temperature_value'=>null,'temperature_unit'=>'F']];
+    $heatSaved=$edit->save($a['id'],$h,'',$heat);
+    editExpect($heatSaved['actions'][0]['action_type']==='reminder' && $heatSaved['actions'][0]['temperature_value']===null && $heatSaved['actions'][0]['temperature_unit']===null && $heatSaved['actions'][0]['label']==='Simmer over low heat','Qualitative heat failed to save as a reminder.');
     $cookie = $new; $cookie['import_key']=hash('sha256','cookie-import');
     $cookie['category_assignments']=[['label'=>'Cookies','parent_label'=>'Desserts']];
     $cookie['actions']=[['id'=>'new-timer','step_id'=>'new-s','action_type'=>'timer','label'=>'Simmer','duration_seconds'=>120]];
