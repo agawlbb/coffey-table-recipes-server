@@ -2,9 +2,9 @@
 
 PHP 8.0+ with PDO MySQL. Apache requires mod_rewrite and AllowOverride for the included .htaccess rules.
 
-## Local setup
+## Hosted backend and optional isolated local setup
 
-Copy config/example.php to config/local.php and set database credentials. Local configuration is ignored. The development database is coffey_table_recipes. Never deploy the local root credentials to public hosting.
+The persistent backend and MySQL database run exclusively on coffeybean.com. The outdated local coffey_table_recipes database was removed on 2026-10-11 after saving a private recovery backup. See docs/backend-deployment.md for Git-push deployment. For disposable local tests only, copy config/example.php to config/local.php and configure a dedicated test database. Local configuration is ignored. Never deploy local root credentials to public hosting.
 
 Run migrations from the command line:
 
