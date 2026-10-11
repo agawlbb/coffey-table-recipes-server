@@ -46,6 +46,28 @@ final class FirebaseAccountDirectory
         return $rows;
     }
 
+    public function verificationLink(string $uid, string $email): string
+    {
+        $account = $this->lookupBy(['localId' => [$uid]]);
+        if ($account === null || $account['disabled']) throw new HttpError(401, 'account_deleted', 'Please sign in again.');
+        if (strcasecmp($account['email'], $email) !== 0) throw new HttpError(409, 'email_changed', 'Your email changed. Sign in again before requesting verification.');
+        if ($account['email_verified']) throw new HttpError(409, 'already_verified', 'Your email is already verified. Return to the app.');
+        try {
+            $response = $this->post('https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode',
+                json_encode(['requestType' => 'VERIFY_EMAIL', 'email' => $account['email'], 'targetProjectId' => $this->config['firebase_project_id'], 'returnOobLink' => true, 'continueUrl' => $this->config['app_url'] . '?' . http_build_query(['account' => 'signin', 'email' => $account['email']])], JSON_THROW_ON_ERROR),
+                ['Content-Type: application/json', 'Authorization: Bearer ' . $this->accessToken()]);
+        } catch (HttpError $error) {
+            throw new HttpError(503, 'verification_link_unavailable', 'The verification link could not be generated. Please try again later.');
+        }
+        $link = $response['oobLink'] ?? '';
+        $expectedHost = $this->config['firebase_project_id'] . '.firebaseapp.com';
+        if (!is_string($link) || parse_url($link, PHP_URL_SCHEME) !== 'https' || parse_url($link, PHP_URL_HOST) !== $expectedHost) {
+            throw new HttpError(503, 'verification_link_unavailable', 'The verification link could not be generated. Please try again later.');
+        }
+        // The continuation runs only after Firebase redeems its one-time code.
+        return $link;
+    }
+
     private function accessToken(): string
     {
         if ($this->token !== null) return $this->token;
@@ -80,7 +102,7 @@ final class FirebaseAccountDirectory
         if ($users === []) return null;
         $user = $users[0];
         if (!is_string($user['localId'] ?? null)) throw new HttpError(503, 'account_lookup_unavailable', 'Account lookup is temporarily unavailable.');
-        return ['uid' => $user['localId'], 'disabled' => !empty($user['disabled'])];
+        return ['uid' => $user['localId'], 'disabled' => !empty($user['disabled']), 'email' => $user['email'] ?? '', 'email_verified' => !empty($user['emailVerified'])];
     }
 
     private function post(string $url, string $body, array $headers, bool $isPost = true): array
