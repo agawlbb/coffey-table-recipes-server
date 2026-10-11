@@ -19,7 +19,7 @@ def runtime_files():
     tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
     allowed = {'.htaccess', 'index.php', 'share.php', 'composer.json', 'composer.lock',
                'config/example.php', 'config/.htaccess', 'storage/.htaccess',
-               'media/recipe-photos/.htaccess'}
+               'media/recipe-photos/.htaccess', 'media/recipes/.htaccess'}
     files = [Path(name) for name in tracked if name in allowed or
              name.startswith(('src/', 'assets/email/', 'database/migrations/', 'bin/'))]
     files.extend(path for path in Path('vendor').rglob('*') if path.is_file())
@@ -31,10 +31,17 @@ def runtime_files():
 
 
 def require_success(response, operation):
-    response.raise_for_status()
+    require_http(response, operation)
     result = response.json()
     if result.get('status', result.get('result', {}).get('status')) != 1:
         raise RuntimeError(operation + ' failed; response details omitted')
+
+
+def require_http(response, operation):
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError:
+        raise RuntimeError(f'{operation} failed with HTTP {response.status_code}; response details omitted') from None
 
 
 def deploy():
@@ -63,7 +70,7 @@ def deploy():
         'cpanel_jsonapi_module': 'Fileman', 'cpanel_jsonapi_func': 'fileop',
         'op': 'extract', 'sourcefiles': DIRECTORY + '/storage/' + output.name,
         'destfiles': DIRECTORY, 'doubledecode': '1'}, timeout=180)
-    response.raise_for_status()
+    require_http(response, 'Extraction')
     result = response.json()['cpanelresult']
     items = result.get('data', [])
     if result.get('event', {}).get('result') != 1 or not items or any(
