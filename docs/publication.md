@@ -49,3 +49,17 @@ bundles and 53 workflow log archives plus 28 artifact archives are verified.
 
 Backend deployment remains automatic. Checksum and public source-link behavior
 are included in CI validation. AI access and public recipe sharing are unchanged.
+
+## Remaining publication and deployment gates
+
+Old Actions runs and artifacts remain private, not deleted. Automatic approval
+review rejected their permanent deletion because the user authorized Git history
+rewriting but had not separately authorized deletion of those build records.
+Their ZIP backups, including logs from three earlier rerun attempts, are verified.
+
+Deployment run 38264678428 was blocked before any step ran: GitHub reported recent
+payment failure or an insufficient spending limit. The existing hosted backend
+was not modified. A direct hosting session requires a fresh login. Automatic main
+deployment remains enabled, but billing access must be restored before it can run.
+Both repositories remain private while cached original personal-data commits are
+still accessible. Publishing fresh sanitized repositories avoids those caches.
