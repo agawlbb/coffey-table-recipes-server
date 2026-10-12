@@ -70,9 +70,10 @@ final class RecipeImportTools
     }
 
     /** Pin DNS per request; manually validate every redirect. Bytes are memory-only. */
-    public static function verifyImage(string $url): array
+    public static function verifyImage(string $url, bool $includeBytes=false, int $timeout=20): array
     {
         $original=$url;
+        $deadline=microtime(true)+$timeout;
         for($hop=0;$hop<5;$hop++) {
             if(self::resolveUrl($url,$url)!==$url) throw new RuntimeException('Invalid HTTP image URL');
             $p=parse_url($url); $host=$p['host']; $plain=trim($host,'[]');
@@ -80,18 +81,18 @@ final class RecipeImportTools
             if(!$ips) throw new RuntimeException('DNS lookup failed');
             foreach($ips as $ip) if(!self::publicIp($ip)) throw new RuntimeException('Non-public image destination rejected');
             $port=$p['port']??($p['scheme']==='https'?443:80);
-            $body=''; $location=null; $headerBytes=0; $started=microtime(true);
+            $body=''; $location=null; $headerBytes=0;
             $curl=curl_init($url);
             curl_setopt_array($curl,[CURLOPT_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,CURLOPT_FOLLOWLOCATION=>false,
-                CURLOPT_PROXY=>'',CURLOPT_CONNECTTIMEOUT=>8,CURLOPT_TIMEOUT=>20,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,
+                CURLOPT_PROXY=>'',CURLOPT_CONNECTTIMEOUT=>min(8,$timeout),CURLOPT_TIMEOUT=>max(1,(int)ceil($deadline-microtime(true))),CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,
                 CURLOPT_USERAGENT=>'CoffeyTableRecipes/1.0 source-image-verification',CURLOPT_HTTPHEADER=>['Accept: image/*'],
                 CURLOPT_RESOLVE=>[$plain.':'.$port.':'.(str_contains($ips[0],':')?'['.$ips[0].']':$ips[0])],
                 CURLOPT_HEADERFUNCTION=>static function($c,string $header) use (&$location,&$headerBytes): int {
                     $headerBytes+=strlen($header); if($headerBytes>65536)return 0;
                     if(stripos($header,'location:')===0)$location=trim(substr($header,9)); return strlen($header);
                 },
-                CURLOPT_WRITEFUNCTION=>static function($c,string $chunk) use (&$body,$started): int {
-                    if(strlen($body)+strlen($chunk)>8*1024*1024 || microtime(true)-$started>20)return 0;
+                CURLOPT_WRITEFUNCTION=>static function($c,string $chunk) use (&$body,$deadline): int {
+                    if(strlen($body)+strlen($chunk)>8*1024*1024 || microtime(true)>$deadline)return 0;
                     $body.=$chunk; return strlen($chunk);
                 }]);
             $ok=curl_exec($curl); $status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
@@ -103,7 +104,7 @@ final class RecipeImportTools
             if($status!==200 || !str_starts_with($type,'image/'))throw new RuntimeException('Image unavailable (HTTP '.$status.', '.$type.')');
             $info=@getimagesizefromstring($body);
             if(!$info || ($info['mime']??null)!==$type || !in_array($type,['image/jpeg','image/png','image/webp','image/gif'],true)) throw new RuntimeException('Invalid or unsupported image bytes');
-            return ['source_url'=>$original,'verified_final_url'=>$url,'mime_type'=>$type,'width_pixels'=>$info[0],'height_pixels'=>$info[1],'verified_at_utc'=>gmdate('c')];
+            return ['source_url'=>$original,'verified_final_url'=>$url,'mime_type'=>$type,'width_pixels'=>$info[0],'height_pixels'=>$info[1],'verified_at_utc'=>gmdate('c')]+($includeBytes ? ['bytes'=>$body] : []);
         }
         throw new RuntimeException('Too many image redirects');
     }

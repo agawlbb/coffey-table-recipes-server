@@ -97,6 +97,20 @@ Legacy recipe variants are also constrained in the structured response schema.
 Source evidence tolerates HTTP/HTTPS, www and trailing-slash differences, while
 retaining the actual returned source URL and rejecting different recipes/domains.
 
+Website pictures: Recipe.image JSON-LD (including arrays/ImageObject/relative
+URLs) is preferred, with Open Graph/Twitter picture metadata as a fallback.
+Cached website lookup may return an exact existing main-picture URL; it must not
+invent one. At most two candidates are fetched using public-IP checks, pinned
+DNS, verified TLS and bounded redirects/bytes/time. JPEG/PNG/WebP up to 5 MB and
+24 megapixels are added to the draft as its cover, with website credit. No image
+generation or separate image-analysis call is made. The user can edit/remove the
+picture before Save. Failed pictures keep the recipe import usable and show an
+import warning, not a cooking note. Source images blocked by a publisher's CDN
+remain unavailable; the importer does not bypass those restrictions.
+Validation: 19 website import checks, 8 website picture checks, 77 AI checks and
+10 source-picture checks pass. Live Food Network lookup returned an image URL,
+but that CDN denied its download in the local test; the recipe remained intact.
+
 The AI prompt preserves source language and uncertain quantities, silently corrects
 obvious spelling mistakes, asks for unresolved cooking ambiguity, and treats sources
 as data. Missing yield, servings, prep and cook times are estimated from the recipe;

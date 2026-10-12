@@ -24,6 +24,16 @@ $service=new RecipeImportService($config,sys_get_temp_dir(),function($payload) u
 });
 $draft=$service->analyze(['kind'=>'website','url'=>'http://93.184.216.34/old'],'fixture');
 webExpect(count($calls)===2 && $draft['recipe']['source_url']===$base.'/final' && $aiCalls===1,'Redirect did not preserve final provenance');
+$png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP4z8DAAMIM/4EAAB/uBfsL2WiLAAAAAElFTkSuQmCC');
+$service=new RecipeImportService($config,sys_get_temp_dir(),fn()=>$answer($reply),fn()=>[
+    'status'=>200,'type'=>'text/html','html'=>'<script type="application/ld+json">{"@type":"Recipe","name":"Fixture soup","image":"/soup.png","recipeIngredient":["1 cup water"],"recipeInstructions":["Simmer 2 minutes"]}</script>'
+],fn()=>['bytes'=>$png]);
+$withPhoto=$service->analyze(['kind'=>'website','url'=>$base.'/recipe3.html'],'fixture');
+webExpect(count($withPhoto['recipe']['photos'])===1 && $withPhoto['recipe']['photos'][0]['is_cover']===1,'Website photo not added to review draft');
+$pictured=$reply; $pictured['website_image_url']=$base.'/soup.png';
+$service=new RecipeImportService($config,sys_get_temp_dir(),fn()=>$answer($pictured,[$source]),fn()=>['status'=>403],fn()=>['bytes'=>$png]);
+$withPhoto=$service->analyze(['kind'=>'website','url'=>$base.'/recipe3.html'],'fixture');
+webExpect(count($withPhoto['recipe']['photos'])===1,'Cached website image not added to draft');
 $service=new RecipeImportService($config,sys_get_temp_dir(),fn()=>throw new RuntimeException('AI must not run'),fn()=>['status'=>302,'redirect'=>'http://127.0.0.1/secret']);
 webReject(fn()=>$service->analyze(['kind'=>'website','url'=>$base.'/old'],'fixture'));
 $blocked=static fn()=>['status'=>403,'type'=>'text/html','html'=>'Access denied'];
