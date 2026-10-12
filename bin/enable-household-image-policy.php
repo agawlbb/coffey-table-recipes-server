@@ -85,7 +85,13 @@ try {
     }
 } catch (Throwable $error) {
     $result = ['status' => 'error', 'stage' => $stage, 'type' => get_class($error)];
-    if ($error instanceof PDOException) $result['database_error'] = (int) ($error->errorInfo[1] ?? 0);
+    if ($error instanceof PDOException) {
+        $result['database_error'] = (int) ($error->errorInfo[1] ?? 0);
+        if ($stage === 'migration' && $result['database_error'] === 1142) {
+            // Protected cPanel-only receipt; never include this identity in logs.
+            $result['database_user'] = $config['database']['user'];
+        }
+    }
 }
 file_put_contents($receipt, json_encode($result, JSON_THROW_ON_ERROR), LOCK_EX);
 chmod($receipt, 0600);
