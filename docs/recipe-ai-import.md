@@ -20,6 +20,15 @@ idempotent completion marker, and is removed afterward. No new public API exists
 Validation: 50 import normalization/schema checks and 10 source picture checks
 pass; changed PHP files pass syntax checks. Hosted results are recorded after run.
 
+Hosted execution completed October 11, 2026 (01:02 UTC October 12), workflow
+38190286927, backend commit fcd22ed. Removed 18 unwanted actions and converted
+12 explicit-duration rests into timers across 12 recipes. The post-cleanup dry
+run found zero disallowed actions and zero unconverted rests. Protected backup:
+`storage/action-cleanup-20261012-010205-c4cd6ab65774.json`, SHA-256
+`b08c63470d71cb60f86b47ebb1702ec650544d813667376f2e454b56dc9f6abb`.
+The temporary handler was removed. Deployment and cleanup workflow succeeded;
+17 Python deployment/configuration tests also passed. No local database was used.
+
 
 POST `/households/{id}/recipe-import` requires Firebase authentication and household
 membership. It analyzes input without changing recipe data. Body: `kind` is
