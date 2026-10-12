@@ -2,7 +2,7 @@
   "name": "coffeytable/recipes-api",
   "description": "Household recipe and meal planning service",
   "type": "project",
-  "license": "proprietary",
+  "license": "AGPL-3.0-only",
   "require": {
     "php": ">=8.0",
     "ext-pdo": "*",

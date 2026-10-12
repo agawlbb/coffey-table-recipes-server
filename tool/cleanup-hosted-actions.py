@@ -7,10 +7,10 @@ import sys
 import requests
 
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
-DIRECTORY = '/home/hosting_account/coffeybean.com/CoffeyTableRecipes'
+DIRECTORY = '/home/' + os.environ.get('CPANEL_USER', 'hosting_account') + '/coffeybean.com/CoffeyTableRecipes'
 PUBLIC = 'https://coffeybean.com/CoffeyTableRecipes/'
 credentials = {'user': os.environ['CPANEL_USER'], 'token': os.environ['CPANEL_API_TOKEN']}
-if credentials['user'] != 'hosting_account':
+if not credentials['user'] or not credentials['user'].replace('_', '').isalnum():
     raise RuntimeError('Verified hosting account required')
 session = requests.Session()
 session.headers['Authorization'] = f"cpanel {credentials['user']}:{credentials['token']}"

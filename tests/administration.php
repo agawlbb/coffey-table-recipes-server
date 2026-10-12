@@ -29,7 +29,13 @@ try {
     $unverified = $h->bootstrap($ident('admin', 'admin@example.test', false));
     checkAdmin($unverified['account_role'] === 'user', 'Unverified email granted administration');
     $actor = $h->bootstrap($ident('admin', 'admin@example.test'));
-    checkAdmin($actor['account_role'] === 'administrator', 'Administrator missing');
+    checkAdmin($actor['account_role'] === 'user', 'Verified email unexpectedly granted administration');
+    $pdo->prepare("UPDATE users SET account_role = 'administrator' WHERE firebase_uid = ?")->execute(['admin']);
+    $actor = $h->bootstrap($ident('admin', 'changed-address@example.test'));
+    checkAdmin($actor['account_role'] === 'administrator', 'Firebase UID did not retain assigned administration');
+    $impostor = $h->bootstrap($ident('impostor', 'admin@example.test'));
+    checkAdmin($impostor['account_role'] === 'user', 'Same email granted a different UID administration');
+    $pdo->prepare('DELETE FROM users WHERE firebase_uid = ?')->execute(['impostor']);
     $target = $h->bootstrap($ident('target', 'target@example.test'));
     $other = $h->bootstrap($ident('other', 'other@example.test'));
     $table = $h->create($target['id'], 'Shared table', 'Target');

@@ -11,13 +11,13 @@ import zipfile
 import requests
 
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
-DIRECTORY = '/home/hosting_account/coffeybean.com/CoffeyTableRecipes'
+DIRECTORY = '/home/' + os.environ.get('CPANEL_USER', 'hosting_account') + '/coffeybean.com/CoffeyTableRecipes'
 PUBLIC = 'https://coffeybean.com/CoffeyTableRecipes/'
 
 
 def runtime_files():
     tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
-    allowed = {'.htaccess', 'index.php', 'share.php', 'composer.json', 'composer.lock',
+    allowed = {'LICENSE', 'NOTICE.md', '.htaccess', 'index.php', 'share.php', 'composer.json', 'composer.lock',
                'config/example.php', 'config/.htaccess', 'storage/.htaccess',
                'media/recipe-photos/.htaccess', 'media/recipes/.htaccess'}
     files = [Path(name) for name in tracked if name in allowed or

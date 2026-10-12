@@ -28,3 +28,22 @@ Firebase Authentication verification and household provisioning are implemented 
 
 The root address redirects to app/, containing the compiled Flutter web client. Build and publish it with the Flutter project's tool/publish-local-web.ps1 script. API routes remain under api/v1.
 
+
+## Open-source use
+
+This project is licensed under GNU AGPL-3.0-only. See LICENSE and NOTICE.md for
+source, network-service, artwork, and dependency notices. Source repositories:
+[Flutter app](https://github.com/agawlbb/coffey_table_recipes) and
+[PHP backend](https://github.com/agawlbb/coffey_table_recipes_server).
+
+Use your own Firebase project, database, hosting, email and optional AI credentials
+for independent installations. Local configuration, signing material, uploaded
+media, personal imports and generated packages must stay outside version control.
+The default coffeybean.com endpoint is the project deployment, not a free backend
+for unrelated installations. AI access and existing public recipe sharing remain
+unchanged by publication.
+
+History was sanitized before publication. Existing contributors must make a fresh
+clone rather than merging old history back. Earlier validation commit hashes and
+Actions links in release notes refer to private, retired pre-publication records;
+version labels and factual validation results are retained.

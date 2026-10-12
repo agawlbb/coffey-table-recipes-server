@@ -5,7 +5,7 @@ final class RecipeActionCleanup {
     public const REMOVE = "NOT (COALESCE((action_type IN ('timer','rest') AND duration_seconds > 0),0) OR (action_type = 'appliance_temperature' AND temperature_value IS NOT NULL AND temperature_unit IN ('C','F')))";
 
     public static function run(PDO $pdo, string $storage, bool $apply): array {
-        if ($pdo->query('SELECT DATABASE()')->fetchColumn() !== 'hosting_account_recipes') throw new RuntimeException('Hosted recipe database required.');
+        if ($pdo->query('SELECT DATABASE()')->fetchColumn() !== configuration()['database']['name']) throw new RuntimeException('Hosted recipe database required.');
         $pdo->beginTransaction();
         try {
             // Lock recipes first, matching the normal editor's lock ordering.
