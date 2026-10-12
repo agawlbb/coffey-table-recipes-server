@@ -1,5 +1,28 @@
 # Public recipe links
 
+## Structured recipe data - 2026-10-12
+
+Rendered recipe pages include a Schema.org Recipe JSON-LD block generated from
+the database without AI. It includes name/description, language, ingredient
+lines, ordered HowToStep/HowToSection instructions, valid photo URLs, yield,
+ISO 8601 prep/cook/total durations, credited source author and current nutrition
+with units and serving basis. Missing values and stale nutrition are omitted.
+Error pages have no Recipe block. JSON uses HTML-safe escaping to prevent a
+recipe's text from closing the script element. Raw imports, household/person IDs,
+edit options and action records are not embedded. Existing noindex/nofollow and
+read-only access remain in place; this change does not enable search indexing.
+
+Validation: 43 rendering/sharing checks pass, including JSON parsing, field
+mapping, sections/order, time/nutrition units, malicious script text, private-field
+exclusion and error pages. PHP syntax validation passes. No schema migration or
+Flutter build is needed. Specification: https://schema.org/Recipe.
+
+Hosted verification: deployment d6115a1 succeeded. The existing Mint Chip Ice
+Cream page (`share.php?id=9`) returned 200 with valid Recipe JSON-LD containing
+seven ingredient lines, 25 instruction entries and one picture. The noindex
+setting was retained, and private/edit fields were absent from the structured
+data. Verification made no database writes.
+
 ## Recipe heading cleanup - 2026-10-11
 
 The recipe title is now the first and largest heading, with compact Coffey Table Recipes branding beneath it. Section headings use green text and a subtle divider. Removed the visible language/measurement metadata and all category tags. The branding JPEG uses `mix-blend-mode: multiply` to blend its embedded white surround into the cream page without modifying the shared email image.

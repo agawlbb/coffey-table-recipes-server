@@ -24,6 +24,26 @@ $recipe=['title'=>'Crêpes <script>alert(1)</script>','description'=>'Family fav
     'notes'=>'Rest the batter','source_text'=>'PRIVATE IMPORT','edit_options'=>['recipes'=>[['title'=>'PRIVATE RECIPE']]],
 ];
 $html=recipeSharePage($recipe);
+preg_match('~<script type="application/ld\+json">(.*?)</script>~s',$html,$json);
+$structured=json_decode($json[1],true,512,JSON_THROW_ON_ERROR);
+checkShare($structured['@type']==='Recipe' && $structured['@context']==='https://schema.org','Recipe schema missing');
+checkShare($structured['name']===$recipe['title'] && $structured['description']===$recipe['description'],'Structured text changed');
+checkShare($structured['recipeIngredient']===['250 g flour'] && $structured['recipeInstructions'][0]['text']==='Bake <b>carefully</b>','Ingredients or instructions missing');
+checkShare($structured['image']===['https://example.com/crepes.jpg'] && $structured['recipeYield']==='4 servings','Pictures or yield incorrect');
+checkShare(!isset($structured['nutrition']) && !isset($structured['household_id']) && !isset($structured['source_text']),'Private/stale data exposed');
+$complete=recipeStructuredData($recipe+['prep_minutes'=>10,'cook_minutes'=>0,'total_minutes'=>90,'source_author'=>'Recipe author']);
+checkShare($complete['prepTime']==='PT10M' && $complete['cookTime']==='PT0M' && $complete['totalTime']==='PT90M','Invalid structured durations');
+checkShare($complete['author']['name']==='Recipe author','Author missing');
+$fresh=$recipe; $fresh['nutrition']['stale']=false;
+checkShare(recipeStructuredData($fresh)['nutrition']['calories']==='123 kcal','Fresh nutrition missing units');
+checkShare(recipeStructuredData(['title'=>'Recipe not found'])===null,'Error page advertised a recipe');
+checkShare(str_contains($html,'noindex,nofollow'),'Existing indexing preference changed');
+$sections=$recipe; $sections['steps']=[['section_title'=>'Batter','instruction'=>'Whisk'],['section_title'=>'Batter','instruction'=>'Rest'],['instruction'=>'Cook']];
+$instructions=recipeStructuredData($sections)['recipeInstructions'];
+checkShare($instructions[0]['@type']==='HowToSection' && $instructions[0]['name']==='Batter' && count($instructions[0]['itemListElement'])===2 && $instructions[1]['text']==='Cook','Instruction sections or sequence lost');
+$injection=$recipe; $injection['description']='</script><script>alert("x")</script>';
+$safe=recipeSharePage($injection);
+checkShare(substr_count($safe,'</script>')===1 && !str_contains($safe,'<script>alert'),'JSON-LD allowed script injection');
 foreach (['Batter','250 g flour','4 servings','Calories (kcal): 123','Rest the batter','needs recalculation','&lt;script&gt;','&lt;b&gt;carefully&lt;/b&gt;','assets/email/coffey_table.jpg','background:transparent','mix-blend-mode:multiply','recipe-header','max-width:900px','#f5eddf'] as $text) checkShare(str_contains($html,$text),'Missing '.$text);
 foreach (['<script>','javascript:','PRIVATE IMPORT','PRIVATE RECIPE','Oven','Original language:','Original measurements','Dessert'] as $text) checkShare(!str_contains($html,$text),'Leaked '.$text);
 if (isset($argv[1])) file_put_contents($argv[1],$html);

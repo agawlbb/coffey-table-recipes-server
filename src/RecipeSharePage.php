@@ -1,6 +1,52 @@
 <?php
 declare(strict_types=1);
 
+/** Public display fields only; never embed the private recipe/edit payload. */
+function recipeStructuredData(array $r): ?array {
+    if (!isset($r['ingredients'],$r['steps'])) return null;
+    $instructions=[]; $lastSection=null; $sectionIndex=null;
+    foreach ($r['steps'] as $row) {
+        $step=['@type'=>'HowToStep','text'=>(string)$row['instruction']];
+        $section=trim((string)($row['section_title'] ?? ''));
+        if ($section==='') { $instructions[]=$step; $lastSection=null; $sectionIndex=null; }
+        else {
+            if ($section!==$lastSection) {
+                $instructions[]=['@type'=>'HowToSection','name'=>$section,'itemListElement'=>[]];
+                $sectionIndex=count($instructions)-1; $lastSection=$section;
+            }
+            $instructions[$sectionIndex]['itemListElement'][]=$step;
+        }
+    }
+    $data=['@context'=>'https://schema.org','@type'=>'Recipe','name'=>$r['title'],
+        'recipeIngredient'=>array_values(array_map(static fn($row)=>(string)$row['original_text'],$r['ingredients'])),
+        'recipeInstructions'=>$instructions];
+    if (!empty($r['description'])) $data['description']=$r['description'];
+    if (!empty($r['original_language'])) $data['inLanguage']=$r['original_language'];
+    foreach (['prep_minutes'=>'prepTime','cook_minutes'=>'cookTime','total_minutes'=>'totalTime'] as $key=>$property) {
+        if (isset($r[$key]) && is_numeric($r[$key]) && $r[$key]>=0) $data[$property]='PT'.(int)$r[$key].'M';
+    }
+    $number=static fn($value)=>rtrim(rtrim(number_format((float)$value,8,'.',''),'0'),'.');
+    if (!empty($r['yield_text'])) $data['recipeYield']=$r['yield_text'];
+    elseif (isset($r['servings']) && is_numeric($r['servings'])) $data['recipeYield']=$number($r['servings']).' servings';
+    $images=[];
+    foreach ($r['photos'] ?? [] as $photo) {
+        $url=$photo['source_url'] ?? '';
+        if (filter_var($url,FILTER_VALIDATE_URL) && in_array(strtolower(parse_url($url,PHP_URL_SCHEME) ?? ''),['http','https'],true)) $images[$url]=$url;
+    }
+    if ($images) $data['image']=array_values($images);
+    if (!empty($r['source_author'])) $data['author']=['@type'=>'Person','name'=>$r['source_author']];
+    $nutrition=$r['nutrition'] ?? null;
+    if ($nutrition && !($nutrition['stale'] ?? false)) {
+        $values=['@type'=>'NutritionInformation','servingSize'=>($nutrition['basis'] ?? '')==='per_serving' ? '1 serving' : 'Whole recipe'];
+        foreach (['calories_kcal'=>['calories','kcal'],'protein_g'=>['proteinContent','g'],'carbohydrate_g'=>['carbohydrateContent','g'],
+            'fat_g'=>['fatContent','g'],'saturated_fat_g'=>['saturatedFatContent','g'],'fiber_g'=>['fiberContent','g'],'sugar_g'=>['sugarContent','g'],'sodium_mg'=>['sodiumContent','mg']] as $key=>[$property,$unit]) {
+            if (isset($nutrition[$key]) && is_numeric($nutrition[$key])) $values[$property]=$number($nutrition[$key]).' '.$unit;
+        }
+        if (count($values)>2) $data['nutrition']=$values;
+    }
+    return $data;
+}
+
 function recipeSharePage(array $r): string {
     $e = static fn($v): string => htmlspecialchars((string) ($v ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $number = static fn($v): string => is_numeric($v) ? rtrim(rtrim(number_format((float) $v, 8, '.', ''), '0'), '.') : (string) $v;
@@ -13,6 +59,9 @@ function recipeSharePage(array $r): string {
     ?>
 <!doctype html>
 <html lang="<?= $e($r['original_language'] ?? 'en') ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title><?= $e($r['title']) ?> · Coffey Table Recipes</title>
+<?php if (($structured=recipeStructuredData($r))!==null): ?>
+<script type="application/ld+json"><?= json_encode($structured,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR) ?></script>
+<?php endif ?>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f5eddf;color:#3b2416;font:16px Roboto,Arial,sans-serif;line-height:1.5}
 main{max-width:900px;margin:auto;padding:40px 24px 24px}.recipe-header{margin-bottom:24px}h1{font-size:clamp(34px,5vw,48px);line-height:1.15;font-weight:600;letter-spacing:-.025em;margin:0 0 18px}
