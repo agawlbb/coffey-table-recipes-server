@@ -70,7 +70,9 @@ try {
             if (filesize($root . '/storage/' . $backup) < 1000) throw new RuntimeException('Incomplete backup');
             $stage = 'migration';
             $pdo->exec(file_get_contents($file));
+            $stage = 'record';
             $pdo->prepare('INSERT INTO schema_migrations (version, checksum) VALUES (?, ?)')->execute([$version, $checksum]);
+            $stage = 'verify';
             if ((int) $pdo->query('SELECT COUNT(*) FROM households WHERE ai_images_enabled <> 0')->fetchColumn() !== 0) {
                 throw new RuntimeException('Disabled default verification failed');
             }
@@ -83,6 +85,7 @@ try {
     }
 } catch (Throwable $error) {
     $result = ['status' => 'error', 'stage' => $stage, 'type' => get_class($error)];
+    if ($error instanceof PDOException) $result['database_error'] = (int) ($error->errorInfo[1] ?? 0);
 }
 file_put_contents($receipt, json_encode($result, JSON_THROW_ON_ERROR), LOCK_EX);
 chmod($receipt, 0600);
