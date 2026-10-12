@@ -34,6 +34,59 @@ def remove_job(session, command):
         raise RuntimeError('Temporary migration job cleanup failed')
 
 
+def run_once(session, account):
+    run = uuid.uuid4().hex
+    filename = f'household-images-{run}.json'
+    command = '/opt/cpanel/ea-php82/root/usr/bin/php ' + shlex.quote(
+        deploy.DIRECTORY + '/bin/enable-household-image-policy.php') + ' ' + run + ' ' + shlex.quote(account) + ' >/dev/null 2>&1'
+    try:
+        cron(session, 'add_line', command=command, minute='*', hour='*', day='*', month='*', weekday='*')
+        for _ in range(18):
+            response = session.get(deploy.HOST + '/execute/Fileman/get_file_content',
+                params={'dir': deploy.DIRECTORY + '/storage', 'file': filename}, timeout=60)
+            deploy.require_http(response, 'Migration verification')
+            result = response.json()
+            if result.get('status') == 1:
+                receipt = json.loads(result['data']['content'])
+                return receipt
+            time.sleep(10)
+        raise RuntimeError('Hosted migration receipt unavailable')
+    finally:
+        remove_job(session, command)
+
+
+def mysql(session, function, **parameters):
+    response = session.post(deploy.HOST + '/execute/Mysql/' + function, data=parameters, timeout=60)
+    deploy.require_success(response, 'Temporary migration permissions')
+    return response.json().get('data')
+
+
+def temporary_schema_migration(session, account, user):
+    if not isinstance(user, str) or not re.fullmatch(re.escape(account) + r'_[A-Za-z0-9_]+', user):
+        raise RuntimeError('Unexpected recipe database user; no privileges changed')
+    target = {'user': user, 'database': account + '_recipes'}
+    original = mysql(session, 'get_privileges_on_database', **target)
+    if not isinstance(original, list) or not original or any(
+            not isinstance(value, str) or not re.fullmatch('[A-Z ]+', value) for value in original):
+        raise RuntimeError('Unrecognized database privileges; no privileges changed')
+    # Keep recovery metadata only in the protected hosting directory, never in logs.
+    metadata = json.dumps({**target, 'privileges': original}).encode()
+    deploy.require_success(session.post(deploy.HOST + '/execute/Fileman/upload_files',
+        data={'dir': deploy.DIRECTORY + '/storage', 'overwrite': '0'},
+        files={'file-1': ('household-image-privileges-' + uuid.uuid4().hex + '.json', metadata, 'application/json')},
+        timeout=60), 'Original privilege backup')
+    try:
+        mysql(session, 'set_privileges_on_database', **target,
+              privileges=','.join(sorted(set(original) | {'ALTER', 'CREATE'})))
+        return run_once(session, account)
+    finally:
+        mysql(session, 'set_privileges_on_database', **target, privileges=','.join(original))
+        restored = mysql(session, 'get_privileges_on_database', **target)
+        if not isinstance(restored, list) or set(restored) != set(original):
+            raise RuntimeError('Original database permission verification failed')
+        print('Verified restoration of original recipe database permissions.')
+
+
 def migrate():
     account = os.environ.get('CPANEL_USER', '')
     token = os.environ.get('CPANEL_API_TOKEN', '')
@@ -48,32 +101,18 @@ def migrate():
             deploy.require_success(session.post(deploy.HOST + '/execute/Fileman/upload_files',
                 data={'dir': deploy.DIRECTORY + '/' + str(path.parent), 'overwrite': '1'},
                 files={'file-1': (path.name, stream, 'application/octet-stream')}, timeout=60), 'Migration upload')
-    run = uuid.uuid4().hex
-    filename = f'household-images-{run}.json'
-    command = '/opt/cpanel/ea-php82/root/usr/bin/php ' + shlex.quote(
-        deploy.DIRECTORY + '/bin/enable-household-image-policy.php') + ' ' + run + ' ' + shlex.quote(account) + ' >/dev/null 2>&1'
-    try:
-        cron(session, 'add_line', command=command, minute='*', hour='*', day='*', month='*', weekday='*')
-        for _ in range(18):
-            response = session.get(deploy.HOST + '/execute/Fileman/get_file_content',
-                params={'dir': deploy.DIRECTORY + '/storage', 'file': filename}, timeout=60)
-            deploy.require_http(response, 'Migration verification')
-            result = response.json()
-            if result.get('status') == 1:
-                receipt = json.loads(result['data']['content'])
-                if receipt.get('status') != 'ok':
-                    stage = receipt.get('stage')
-                    if stage not in ('target', 'database', 'backup', 'migration', 'record', 'verify'):
-                        stage = 'unknown'
-                    code = receipt.get('database_error')
-                    detail = f' (database error {code})' if type(code) is int else ''
-                    raise RuntimeError('Hosted migration failed at ' + stage + detail + '; inspect protected receipt')
-                print('Verified household image migration: ' + json.dumps(receipt))
-                return
-            time.sleep(10)
-        raise RuntimeError('Hosted migration receipt unavailable')
-    finally:
-        remove_job(session, command)
+    receipt = run_once(session, account)
+    if receipt.get('status') == 'error' and receipt.get('stage') == 'migration' and receipt.get('database_error') == 1142:
+        receipt = temporary_schema_migration(session, account, receipt.get('database_user'))
+    if receipt.get('status') != 'ok':
+        stage = receipt.get('stage')
+        if stage not in ('target', 'database', 'backup', 'migration', 'record', 'verify'):
+            stage = 'unknown'
+        code = receipt.get('database_error')
+        detail = f' (database error {code})' if type(code) is int else ''
+        raise RuntimeError('Hosted migration failed at ' + stage + detail + '; inspect protected receipt')
+    safe = {key: receipt.get(key) for key in ('status', 'migration', 'backup', 'households', 'enabled')}
+    print('Verified household image migration: ' + json.dumps(safe))
 
 
 if __name__ == '__main__':

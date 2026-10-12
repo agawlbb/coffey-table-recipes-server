@@ -48,6 +48,13 @@ and hosted databases are retained. Errors stop deployment. Backup files contain
 private data and must stay out of Git; restore into an empty recovery database for
 review rather than replacing live data automatically.
 
+The hosted runtime database user deliberately lacks schema privileges. If its
+reviewed ALTER fails with error 1142, the migration helper saves the original
+privileges in protected storage, temporarily adds only ALTER and CREATE on the
+dedicated recipe database, retries the backed-up migration, and restores/verifies
+the original privileges in a finally block. It grants no DROP or global permissions.
+An unexpected user identity or privilege response stops without changing privileges.
+
 ## Verification and recovery
 
 After extraction, the workflow checks hosted API liveness, localhost CORS, and

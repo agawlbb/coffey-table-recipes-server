@@ -56,3 +56,31 @@ class MigrationJobTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, '^Hosted migration failed at unknown; inspect protected receipt$'):
                 migration.migrate()
             cleanup.assert_called_once()
+
+    def test_temporary_privileges_are_restored_on_migration_failure(self):
+        session = Mock()
+        session.post.return_value.json.return_value = {'status': 1}
+        original = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
+        with patch.object(migration, 'mysql', side_effect=[original, None, None, original]) as mysql, \
+                patch.object(migration, 'run_once', side_effect=RuntimeError('fixture failure')):
+            with self.assertRaisesRegex(RuntimeError, 'fixture failure'):
+                migration.temporary_schema_migration(session, 'fixture', 'fixture_recipes')
+            self.assertEqual(mysql.call_args_list[1].kwargs['privileges'], 'ALTER,CREATE,DELETE,INSERT,SELECT,UPDATE')
+            self.assertEqual(mysql.call_args_list[2].kwargs['privileges'], 'SELECT,INSERT,UPDATE,DELETE')
+            for call in mysql.call_args_list:
+                self.assertEqual(call.kwargs['database'], 'fixture_recipes')
+
+    def test_unrelated_database_user_cannot_receive_privileges(self):
+        with patch.object(migration, 'mysql') as mysql:
+            with self.assertRaisesRegex(RuntimeError, 'Unexpected recipe database user'):
+                migration.temporary_schema_migration(Mock(), 'fixture', 'other_account')
+            mysql.assert_not_called()
+
+    def test_privilege_restoration_mismatch_stops_deployment(self):
+        session = Mock()
+        session.post.return_value.json.return_value = {'status': 1}
+        original = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
+        with patch.object(migration, 'mysql', side_effect=[original, None, None, original + ['ALTER']]), \
+                patch.object(migration, 'run_once', return_value={'status': 'ok'}):
+            with self.assertRaisesRegex(RuntimeError, 'permission verification failed'):
+                migration.temporary_schema_migration(session, 'fixture', 'fixture_recipes')
