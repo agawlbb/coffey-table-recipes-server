@@ -63,3 +63,32 @@ was not modified. A direct hosting session requires a fresh login. Automatic mai
 deployment remains enabled, but billing access must be restored before it can run.
 Both repositories remain private while cached original personal-data commits are
 still accessible. Publishing fresh sanitized repositories avoids those caches.
+
+## Fresh repository publication
+
+On 2026-10-12 the user chose fresh public repositories containing only sanitized
+history, retaining the original repositories and Actions records privately.
+The public source destinations are agawlbb/coffey-table-recipes and
+agawlbb/coffey-table-recipes-server. Only branches and tags are copied; private
+recovery refs, original cached commits, and old build records are excluded.
+
+Local origin will point to the new public repository, with private-history retaining
+the old remote for recovery. Existing clones should use the new public URLs.
+Firebase client build configuration may be transferred as an encrypted GitHub
+secret without printing its contents. Hosting secrets cannot be read back from
+GitHub; they must be supplied to the new repositories before hosting deployment.
+Backend checks still run without them; automatic deployment activates when both
+CPANEL_USER and CPANEL_API_TOKEN are configured. No AI access limits change.
+All iOS builds remain manual and require explicit approval. Publication performs
+no macOS build and no hosted Flutter update.
+
+## AI access decision
+
+The owner requested removal of the 20-import-requests-per-hour quota on 2026-10-12.
+This is a separate authorized behavior change from repository publication.
+Authentication and household authorization remain unchanged; SECURITY.md explains
+why public source does not expose the API key or grant anonymous backend access.
+Registration can occur through the app or Firebase APIs, so website visitation
+is not an enforceable boundary. Backend validation exercised 25 successive imports
+with an exhausted legacy counter and a fake upstream transport: all 77 recipe AI
+checks passed without paid API calls. The hosted change awaits deployment credentials.

@@ -45,8 +45,9 @@ and reject duplicate import keys with HTTP 409. No migration is needed.
 Configure `recipe_ai.api_key` only in ignored `config/local.php`, or use
 `OPENAI_API_KEY`. The app model is `gpt-5.4-mini`, selected by version-controlled defaults.
 Private configuration cannot override it, including older key files. Requests use strict JSON Schema output, `store:false`, an
-output-token bound, 75 second upstream timeout and a per-account limit of 20 calls
-per hour stored under protected `storage/recipe-ai/`. No credentials or source
+output-token bound and a 75 second upstream timeout. The per-account hourly request
+limit was removed at the owner's request on 2026-10-12; legacy counter files are
+ignored. Firebase authentication and household authorization still apply. No credentials or source
 uploads are logged or committed. The source input is sent to OpenAI when the user
 continues; the UI discloses that. Setup remains required on hosted coffeybean.com.
 

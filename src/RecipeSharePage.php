@@ -50,6 +50,6 @@ h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-botto
 <div class="nutrition"><?php foreach (['calories_kcal'=>'Calories (kcal)','protein_g'=>'Protein (g)','carbohydrate_g'=>'Carbohydrates (g)','fat_g'=>'Fat (g)','saturated_fat_g'=>'Saturated fat (g)','fiber_g'=>'Fiber (g)','sugar_g'=>'Sugar (g)','sodium_mg'=>'Sodium (mg)'] as $key=>$label): if (isset($n[$key])): ?><span><?= $e($label) ?>: <?= $e($number($n[$key])) ?></span><?php endif; endforeach ?></div><p>Method: <?= $e($n['method'] ?? '') ?></p><?php endif ?>
 <?php foreach (['related'=>'Recipe family','pairings'=>'Serve alongside'] as $key=>$heading): if (!empty($r[$key])): ?><h2><?= $heading ?></h2><?php foreach ($r[$key] as $row): ?><p><?= $e($row['title']) ?><?php if ($key === 'related'): ?><br><?= $row['id'] === ($r['parent_recipe_id'] ?? null) ? 'Parent recipe' : 'Variation' ?><?php endif ?></p><?php endforeach; endif; endforeach ?>
 <?php $source=array_filter(array_map(static fn($key)=>$r[$key] ?? null, ['source_title','source_author','source_url','source_reference']), static fn($v)=>$v!==null); if ($source): ?><h2>Source</h2><?php foreach ($source as $value): ?><p class="source"><?= $e($value) ?></p><?php endforeach; endif ?>
-<footer><a href="https://github.com/agawlbb/coffey_table_recipes_server">Source code (AGPL-3.0)</a></footer></main></body></html>
+<footer><a href="https://github.com/agawlbb/coffey-table-recipes-server">Source code (AGPL-3.0)</a></footer></main></body></html>
 <?php return ob_get_clean();
 }

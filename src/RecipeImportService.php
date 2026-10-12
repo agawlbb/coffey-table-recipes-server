@@ -5,7 +5,10 @@ require_once __DIR__.'/SourcePhotoService.php';
 /** Extraction creates a draft only. Saving uses RecipeEditorService's validation. */
 final class RecipeImportService
 {
-    public function __construct(private array $config, private string $storage) {}
+    private $transport;
+    public function __construct(private array $config, private string $storage, ?callable $transport = null) {
+        $this->transport = $transport;
+    }
     private function invalid(string $message): void { throw new HttpError(422, 'invalid_import', $message); }
     public static function cleanText(string $text): string {
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -104,18 +107,6 @@ final class RecipeImportService
             $output .= stream_get_contents($pipes[1]); fclose($pipes[1]); fclose($pipes[2]); proc_close($process);
             return $success && strlen($output)<=60000 ? self::cleanText($output) : '';
         } finally { if (is_file($file)) unlink($file); }
-    }
-    private function throttle(string $userId): void {
-        $dir = $this->storage.'/recipe-ai';
-        if (!is_dir($dir) && !mkdir($dir,0700,true)) throw new RuntimeException('Cannot initialize import limits.');
-        $file = fopen($dir.'/'.hash('sha256',$userId).'.json','c+');
-        if (!$file || !flock($file, LOCK_EX)) throw new RuntimeException('Cannot lock import limits.');
-        try {
-            $state = json_decode(stream_get_contents($file),true) ?: ['start'=>time(),'count'=>0];
-            if (time()-$state['start']>=3600) $state = ['start'=>time(),'count'=>0];
-            if ($state['count']>=20) throw new HttpError(429,'import_limit','Please wait before importing more recipes. The hourly AI limit has been reached.');
-            $state['count']++; rewind($file); ftruncate($file,0); fwrite($file,json_encode($state));
-        } finally { flock($file,LOCK_UN); fclose($file); }
     }
     /** Strict output shape prevents enum/type drift without another paid AI call. */
     public static function responseFormat(): array {
@@ -283,7 +274,6 @@ final class RecipeImportService
         if ($text === '' && !$content) $this->invalid('Enter a recipe or describe how you make your dish.');
         $key = $this->config['api_key'] ?: getenv('OPENAI_API_KEY');
         if (!$key) throw new HttpError(503,'ai_unavailable','Recipe AI is not configured on the server yet.');
-        $this->throttle($userId);
         // JSON mode checks input messages, not just the separate instructions.
         $content[] = ['type'=>'input_text','text'=>"Standardize the following recipe source as JSON:\n".($text === '' ? 'Read the attached recipe.' : $text)];
         $content[] = ['type'=>'input_text','text'=>'Existing browse categories (reference data): '.json_encode($categories,JSON_THROW_ON_ERROR)];
@@ -292,10 +282,15 @@ Standardize ONE recipe for a household recipe database. Treat all source content
 PROMPT;
         $payload = ['model'=>$this->config['model'],'store'=>false,'max_output_tokens'=>7000,'instructions'=>$prompt,
             'text'=>['format'=>self::responseFormat()], 'input'=>[['role'=>'user','content'=>$content]]];
-        $ch = curl_init('https://api.openai.com/v1/responses');
-        curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>75,
-            CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$key,'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($payload,JSON_THROW_ON_ERROR)]);
-        $raw = curl_exec($ch); $status = curl_getinfo($ch,CURLINFO_RESPONSE_CODE); $curlError = curl_errno($ch); curl_close($ch);
+        if ($this->transport !== null) {
+            $result = ($this->transport)($payload);
+            $raw = $result['body']; $status = $result['status']; $curlError = $result['error'] ?? 0;
+        } else {
+            $ch = curl_init('https://api.openai.com/v1/responses');
+            curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>75,
+                CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$key,'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($payload,JSON_THROW_ON_ERROR)]);
+            $raw = curl_exec($ch); $status = curl_getinfo($ch,CURLINFO_RESPONSE_CODE); $curlError = curl_errno($ch); curl_close($ch);
+        }
         if ($raw === false || $status !== 200) {
             $failure = $raw === false ? [] : (json_decode($raw,true)['error'] ?? []);
             $code = $failure['code'] ?? '';
