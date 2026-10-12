@@ -1,15 +1,18 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/SourcePhotoService.php';
+require_once __DIR__.'/WebsitePhotoService.php';
 
 /** Extraction creates a draft only. Saving uses RecipeEditorService's validation. */
 final class RecipeImportService
 {
     private $transport;
     private $websiteTransport;
-    public function __construct(private array $config, private string $storage, ?callable $transport = null, ?callable $websiteTransport = null) {
+    private $photoReader;
+    public function __construct(private array $config, private string $storage, ?callable $transport = null, ?callable $websiteTransport = null, ?callable $photoReader = null) {
         $this->transport = $transport;
         $this->websiteTransport = $websiteTransport;
+        $this->photoReader = $photoReader;
     }
     private function invalid(string $message): void { throw new HttpError(422, 'invalid_import', $message); }
     public static function cleanText(string $text): string {
@@ -100,7 +103,7 @@ final class RecipeImportService
             if ($status!==200 || !str_contains(strtolower((string)($reply['type'] ?? '')),'text/html')) throw new HttpError(422,'website_unavailable','This website did not allow direct recipe reading. Try pasting the recipe text.');
             $text=self::websiteText($reply['html']);
             if (strlen($text)<80) throw new HttpError(422,'website_unavailable','This page did not contain readable recipe text.');
-            return ['url'=>$url,'text'=>$text];
+            return ['url'=>$url,'text'=>$text,'images'=>WebsitePhotoService::candidates($reply['html'],$url)];
         }
         throw new HttpError(422,'website_unavailable','The website redirected too many times. Try its current recipe link.');
     }
@@ -257,10 +260,10 @@ final class RecipeImportService
         if (!in_array($kind,['text','website','file','camera','answers'],true)) $this->invalid('Choose an import method.');
         $text = $body['text'] ?? ''; $url = $body['url'] ?? null;
         if (!is_string($text) || strlen($text)>60000 || ($url !== null && (!is_string($url) || strlen($url)>4000))) $this->invalid('Use at most 60,000 characters.');
-        $content = []; $method = 'text'; $sourceImages=[]; $searchFallback=false;
+        $content = []; $method = 'text'; $sourceImages=[]; $searchFallback=false; $websiteImages=[];
         if ($kind === 'website') {
             $url=self::websiteUrl($url ?? '');
-            try { $page=$this->website($url); $text=$page['text']; $url=$page['url']; $method='website extraction'; }
+            try { $page=$this->website($url); $text=$page['text']; $url=$page['url']; $websiteImages=$page['images']; $method='website extraction'; }
             catch (HttpError $error) {
                 if ($error->errorCode!=='website_unavailable') throw $error;
                 $searchFallback=true; $method='cached website search';
@@ -324,6 +327,9 @@ PROMPT;
                 $payload['text']['format']['schema']['properties']['website_source_url']['pattern']='^https?://(?:www\\.)?'.preg_quote($sourceHost,'~').preg_quote(substr($requestedPath,0,-5),'~').'(?:-\\d+|\\.html)/?(?:[?#].*)?$';
             }
             $payload['text']['format']['schema']['required'][]='website_source_url';
+            $payload['text']['format']['schema']['properties']['website_image_url']=['type'=>['string','null'],'description'=>'Exact existing recipe photograph URL found in the retrieved recipe page, including public image CDN links. Never guess or construct an image URL. Null if unavailable.'];
+            $payload['text']['format']['schema']['required'][]='website_image_url';
+            $payload['instructions'].="\nAlso copy the exact main food photograph URL from the verified recipe page into website_image_url, when available. Look for Recipe.image, ImageObject contentUrl, the main recipe picture or og:image. Do not generate a picture or guess its URL; use null if no exact image link is available.";
             $payload['instructions'].="\nSearch the exact URL slug, including its recipe variant number, with a site:".$sourceHost." query. Verify all recipe ingredients and directions before responding.";
             $payload['tools']=[['type'=>'web_search','external_web_access'=>false,'filters'=>['allowed_domains'=>[$sourceHost]],'search_context_size'=>'high']];
             $payload['tool_choice']='required'; $payload['max_tool_calls']=3;
@@ -377,8 +383,14 @@ PROMPT;
                 throw new HttpError(422,'website_unavailable','The website blocks direct reading and the complete recipe could not be verified from public search. Open the page and paste its ingredients and directions instead. Your input has not been saved.');
             }
             $url=self::websiteUrl($verified[0]);
+            $websiteImages=RecipeImportTools::images($result['website_image_url'] ?? [],$url);
         }
         $draft = self::draft($result);
+        if ($kind==='website' && $websiteImages) {
+            $photo=WebsitePhotoService::photo($websiteImages,$url,$this->photoReader);
+            if ($photo!==null) $draft['recipe']['photos']=[$photo];
+            else $draft['recipe']['import_warnings'][]='The website picture could not be downloaded. You can upload it in Photos.';
+        }
         $draft['recipe']['source_type']=self::sourceType($kind,$body,$pdf ?? false);
         $draft['recipe']['source_url'] = $url;
         $draft['recipe']['source_text'] = $kind === 'answers' ? ($body['text'] ?? '') : $text;

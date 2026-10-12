@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/src/bootstrap.php';
-require dirname(__DIR__).'/src/RecipeImportTools.php';
+require_once dirname(__DIR__).'/src/RecipeImportTools.php';
 $count=0;
 function verifyImport(bool $ok,string $message): void {global $count;if(!$ok)throw new RuntimeException($message);$count++;}
 $base='https://example.com/recipes/cake/';
