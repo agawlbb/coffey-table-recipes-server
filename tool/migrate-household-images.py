@@ -63,9 +63,11 @@ def migrate():
                 receipt = json.loads(result['data']['content'])
                 if receipt.get('status') != 'ok':
                     stage = receipt.get('stage')
-                    if stage not in ('target', 'database', 'backup', 'migration'):
+                    if stage not in ('target', 'database', 'backup', 'migration', 'record', 'verify'):
                         stage = 'unknown'
-                    raise RuntimeError('Hosted migration failed at ' + stage + '; inspect protected receipt')
+                    code = receipt.get('database_error')
+                    detail = f' (database error {code})' if type(code) is int else ''
+                    raise RuntimeError('Hosted migration failed at ' + stage + detail + '; inspect protected receipt')
                 print('Verified household image migration: ' + json.dumps(receipt))
                 return
             time.sleep(10)
