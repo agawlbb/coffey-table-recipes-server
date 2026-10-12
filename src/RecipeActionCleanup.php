@@ -19,7 +19,7 @@ final class RecipeActionCleanup {
             }
             $report=['remove'=>count($removed),'convert_timed_rest_to_timer'=>count($converted),'recipes'=>count($ids)];
             if (!$apply || !$rows) { $pdo->rollBack(); return $report; }
-            $backup=['created_at'=>gmdate('c'),'database'=>'hosting_account_recipes','actions'=>$rows,'recipes'=>array_values(array_filter($recipes,fn($r)=>isset($ids[(string)$r['id']]))),'report'=>$report];
+            $backup=['created_at'=>gmdate('c'),'database'=>$pdo->query('SELECT DATABASE()')->fetchColumn(),'actions'=>$rows,'recipes'=>array_values(array_filter($recipes,fn($r)=>isset($ids[(string)$r['id']]))),'report'=>$report];
             $path=rtrim($storage,'/').'/action-cleanup-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(6)).'.json';
             $bytes=json_encode($backup,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT);
             if (file_put_contents($path,$bytes,LOCK_EX)!==strlen($bytes)) throw new RuntimeException('Backup failed.');
