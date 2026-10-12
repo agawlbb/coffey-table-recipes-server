@@ -62,7 +62,10 @@ def migrate():
             if result.get('status') == 1:
                 receipt = json.loads(result['data']['content'])
                 if receipt.get('status') != 'ok':
-                    raise RuntimeError('Hosted migration failed; inspect protected receipt')
+                    stage = receipt.get('stage')
+                    if stage not in ('target', 'database', 'backup', 'migration'):
+                        stage = 'unknown'
+                    raise RuntimeError('Hosted migration failed at ' + stage + '; inspect protected receipt')
                 print('Verified household image migration: ' + json.dumps(receipt))
                 return
             time.sleep(10)

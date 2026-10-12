@@ -53,6 +53,6 @@ class MigrationJobTests(unittest.TestCase):
                 patch.object(migration.deploy.requests, 'Session', return_value=session), \
                 patch.object(migration, 'cron'), \
                 patch.object(migration, 'remove_job') as cleanup:
-            with self.assertRaisesRegex(RuntimeError, '^Hosted migration failed; inspect protected receipt$'):
+            with self.assertRaisesRegex(RuntimeError, '^Hosted migration failed at unknown; inspect protected receipt$'):
                 migration.migrate()
             cleanup.assert_called_once()
