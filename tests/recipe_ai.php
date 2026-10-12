@@ -27,13 +27,19 @@ $pie=$input; $pie['recipe']['categories']=[['label'=>'Desserts','parent_label'=>
 aiExpect(RecipeImportService::draft($pie)['recipe']['category_assignments']===[['label'=>'Pies','parent_label'=>'Desserts']],'Redundant parent category assignment remained.');
 $heat=$input;
 $heat['recipe']['steps'][0]['actions']=[['action_type'=>'appliance_temperature','label'=>'Simmer over low heat','temperature_value'=>null,'temperature_unit'=>'F']];
-$heatAction=RecipeImportService::draft($heat)['recipe']['actions'][0];
-aiExpect($heatAction['action_type']==='reminder' && $heatAction['temperature_unit']===null && $heatAction['label']==='Simmer over low heat','Qualitative heat did not become a reminder.');
+aiExpect(RecipeImportService::draft($heat)['recipe']['actions']===[], 'Qualitative heat should not create an action.');
 $bad = $timed; $bad['recipe']['steps'][0]['actions'][0]['duration_seconds']=0;
-$recovered=RecipeImportService::draft($bad)['recipe'];
-aiExpect($recovered['actions'][0]['action_type']==='reminder' && $recovered['actions'][0]['duration_seconds']===null && str_contains($recovered['import_warnings'][0],'Review step 1') && !str_contains($recovered['notes'] ?? '', 'Review step'),'Incomplete timer should remain reviewable without guessing.');
+aiExpect(RecipeImportService::draft($bad)['recipe']['actions']===[], 'Incomplete timers should be omitted, never turned into reminders.');
 $bad['recipe']['steps'][0]['actions'][0]['action_type']='simmer';
-aiExpect(RecipeImportService::draft($bad)['recipe']['actions'][0]['action_type']==='reminder','Unknown action lost instead of preserved.');
+aiExpect(RecipeImportService::draft($bad)['recipe']['actions']===[], 'Unknown action should be omitted.');
+foreach (['reminder','internal_temperature'] as $type) {
+    $extra=$timed; $extra['recipe']['steps'][0]['actions'][0]=['action_type'=>$type,'label'=>'Cook','temperature_value'=>165,'temperature_unit'=>'F'];
+    aiExpect(RecipeImportService::draft($extra)['recipe']['actions']===[], 'Unwanted action type survived filtering.');
+}
+$rest=$timed; $rest['recipe']['steps'][0]['actions'][0]['action_type']='rest';
+aiExpect(RecipeImportService::draft($rest)['recipe']['actions'][0]['action_type']==='timer', 'Explicit timed resting must be a timer.');
+$oven=$timed; $oven['recipe']['steps'][0]['actions'][0]=['action_type'=>'appliance_temperature','label'=>'Preheat oven','temperature_value'=>300,'temperature_unit'=>'F'];
+aiExpect(RecipeImportService::draft($oven)['recipe']['actions'][0]['temperature_value']===300, 'Explicit appliance temperature was lost.');
 $bad=$timed; $bad['recipe']['steps'][0]['actions'][0]['temperature_unit']='F';
 aiExpect(RecipeImportService::draft($bad)['recipe']['actions'][0]['temperature_unit']===null,'Stray timer temperature unit remained unsavable.');
 $format=RecipeImportService::responseFormat();

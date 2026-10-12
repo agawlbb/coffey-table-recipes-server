@@ -1,5 +1,26 @@
 # AI recipe imports
 
+Current action policy (October 11, 2026): AI imports generate ONLY explicit
+positive-duration timers (including timed rests) and commands to set an appliance
+to a numeric C/F temperature. The strict schema permits only timer and
+appliance_temperature; normalization drops other or incomplete actions without
+creating reminders. Qualitative heat, ingredient additions, stirring, chilling
+without a duration and internal doneness checks remain in step text. Historical
+reminder/internal-temperature behavior described below is superseded.
+
+Hosted cleanup: bin/cleanup-recipe-actions.php supports dry-run/apply against only
+hosting_account_recipes. It backs up affected action rows and original recipe revisions
+in protected storage before transactionally deleting disallowed actions and
+converting positive-duration rests to timers. Valid timers/appliance temperatures,
+recipe instructions and ingredients are retained. Affected revisions/timestamps
+are updated; current nutrition freshness is retained. The deployment workflow
+runs this operation only on an explicit [cleanup-actions] commit or opted-in
+manual dispatch. The temporary handler requires a random secret header, has an
+idempotent completion marker, and is removed afterward. No new public API exists.
+Validation: 50 import normalization/schema checks and 10 source picture checks
+pass; changed PHP files pass syntax checks. Hosted results are recorded after run.
+
+
 POST `/households/{id}/recipe-import` requires Firebase authentication and household
 membership. It analyzes input without changing recipe data. Body: `kind` is
 `text`, `website`, `file`, `camera`, or `answers`. Text uses `text`; website uses
