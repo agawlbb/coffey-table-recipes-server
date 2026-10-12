@@ -35,6 +35,19 @@ try {
         $directory = new FirebaseAccountDirectory($config);
         (new VerificationService([$directory, 'verificationLink'], [new VerificationMail($config), 'send']))->send($identity);
         respond(200, ['sent' => true]);
+    } elseif ($route === '/admin/households' || preg_match('#^/admin/households/([1-9][0-9]{0,18})/ai-images$#', $route, $permissionMatch)) {
+        $identity = authenticatedIdentity($config);
+        $pdo = database($config);
+        $directory = new FirebaseAccountDirectory($config);
+        $user = (new HouseholdService($pdo, [$directory, 'requireAccount']))->bootstrap($identity);
+        $service = new AdministrationService($pdo, [$directory, 'delete']);
+        if ($route === '/admin/households' && $method === 'GET') {
+            respond(200, ['households' => $service->households($user['id'])]);
+        } elseif (isset($permissionMatch[1]) && $method === 'POST') {
+            respond(200, ['household' => $service->setAiImages($user['id'], $permissionMatch[1], requestBody()['enabled'] ?? null)]);
+        } else {
+            throw new HttpError(405, 'method_not_allowed', 'Unsupported request method.');
+        }
     } elseif ($route === '/admin/users'  || preg_match('#^/admin/(users|people|firebase)/([A-Za-z0-9_-]{1,128})/delete$#', $route, $adminMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
@@ -42,7 +55,7 @@ try {
         $user = (new HouseholdService($pdo, [$directory, 'requireAccount']))->bootstrap($identity);
         $service = new AdministrationService($pdo, [$directory, 'delete'], [$directory, 'all']);
         if ($route === '/admin/users' && $method === 'GET') {
-            respond(200, ['users' => $service->users($user['id']), 'people' => $service->people($user['id'])]);
+            respond(200, ['users' => $service->users($user['id']), 'people' => $service->people($user['id']), 'households' => $service->households($user['id'])]);
         } elseif (isset($adminMatch[1]) && $method === 'POST') {
             $body = requestBody();
             if ($adminMatch[1] === 'people') {
@@ -68,7 +81,7 @@ try {
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/category-image$#', $route, $categoryMatch)) {
         if ($method !== 'POST') throw new HttpError(405,'method_not_allowed','Use POST.');
         $identity=authenticatedIdentity($config); $pdo=database($config);
-        $households=new HouseholdService($pdo); $user=$households->bootstrap($identity);
+        $households=new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']); $user=$households->bootstrap($identity);
         $households->membership($user['id'],$categoryMatch[1]);
         $body=requestBody(); $id=$body['category_id'] ?? '';
         if (!is_string($id) || !preg_match('/^[1-9][0-9]{0,18}$/',$id)) throw new HttpError(422,'invalid_category','Choose a category.');
@@ -80,7 +93,7 @@ try {
         $identity = authenticatedIdentity($config); $pdo = database($config);
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
-        $households->membership($user['id'], $photoMatch[1]);
+        $households->requireAiImages($user['id'], $photoMatch[1]);
         $body = requestBody(100000); $recipe = $body['recipe'] ?? null;
         if (!is_array($recipe)) throw new HttpError(422,'invalid_recipe','Choose a recipe.');
         if (isset($recipe['id'])) {

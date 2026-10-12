@@ -19,6 +19,13 @@ still apply. Image generation retains its existing concurrency and existing-imag
 checks. Public source adds no API permissions, but no internet deployment can be
 guaranteed immune to abuse by eligible or compromised accounts.
 
+AI image generation additionally requires the household's `ai_images_enabled`
+permission, disabled by default for new and existing households. Only an application
+administrator can enable it. Membership in an approved household permits generation
+by every member; household owners cannot approve themselves. Recipe importing is
+unchanged. Revocation blocks new generation requests, including direct API calls,
+while existing shared category artwork remains accessible without generation.
+
 For administration, the verified token's Firebase UID selects the database user
 record. Only an enabled record with account_role=administrator can perform privileged
 operations. Google sign-in can supply the identity, but the token alone cannot

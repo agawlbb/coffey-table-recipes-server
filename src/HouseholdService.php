@@ -48,6 +48,21 @@ final class HouseholdService
         return $member;
     }
 
+    public function requireAiImages(string $userId, string $householdId): void
+    {
+        if (!$this->aiImagesEnabled($userId, $householdId)) {
+            throw new HttpError(403, 'ai_images_disabled', 'AI image generation is disabled for this household. Ask the application administrator to enable it.');
+        }
+    }
+
+    public function aiImagesEnabled(string $userId, string $householdId): bool
+    {
+        $this->membership($userId, $householdId);
+        $query = $this->pdo->prepare('SELECT ai_images_enabled FROM households WHERE id = ?');
+        $query->execute([$householdId]);
+        return (bool) $query->fetchColumn();
+    }
+
     public function create(string $userId, string $name, string $personName): array
     {
         $this->pdo->beginTransaction();

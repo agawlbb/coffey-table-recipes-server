@@ -37,7 +37,7 @@ final class RecipeService
                 HAVING c.parent_id IS NULL OR COUNT(DISTINCT a.recipe_id)>0 ORDER BY c.position,c.label,c.id', [$householdId, $scope === '' ? null : $scope]);
             foreach ($nodes as &$categoryNode) {
                 $categoryNode['image_url']=str_starts_with($categoryNode['image_key'],'ai-') ? rtrim($this->mediaUrl,'/').'/category-'.$categoryNode['id'].'.jpg' : null;
-                $categoryNode['needs_ai_image']=str_starts_with($categoryNode['slug'],'import-') && $categoryNode['image_url']===null;
+                $categoryNode['needs_ai_image']=str_starts_with($categoryNode['slug'],'import-') && $categoryNode['image_url']===null && $this->households->aiImagesEnabled($userId, $householdId);
             } unset($categoryNode);
             return ['recipes' => [], 'category_nodes' => $nodes, 'view' => 'categories', 'next_offset' => null];
         }
@@ -95,6 +95,7 @@ final class RecipeService
     public function editOptions(string $userId, string $householdId, string $recipeId = '0'): array {
         $this->households->membership($userId, $householdId);
         return [
+            'ai_images_enabled' => $this->households->aiImagesEnabled($userId, $householdId),
             'categories' => $this->rows('SELECT c.id,c.label,p.label AS parent_label FROM recipe_categories c LEFT JOIN recipe_categories p ON p.id=c.parent_id ORDER BY COALESCE(p.position,c.position),c.position,c.label', []),
             'recipes' => $this->rows('SELECT id,title FROM recipes WHERE household_id=? AND id<>? ORDER BY title,id', [$householdId,$recipeId]),
         ];

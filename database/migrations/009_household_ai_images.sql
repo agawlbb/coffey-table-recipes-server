@@ -1,0 +1,1 @@
+ALTER TABLE households ADD COLUMN ai_images_enabled TINYINT(1) NOT NULL DEFAULT 0;

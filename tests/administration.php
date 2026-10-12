@@ -22,6 +22,7 @@ try {
     $config['database']['name'] = $name;
     $pdo = database($config);
     foreach (glob(dirname(__DIR__) . '/database/migrations/*.sql') as $file) {
+        if (basename($file) === '009_household_ai_images.sql') continue;
         foreach (explode(';', file_get_contents($file)) as $sql) if (trim($sql) !== '') $pdo->exec($sql);
     }
     $ident = static fn($uid, $email, $verified = true) => ['uid' => $uid, 'name' => $uid, 'email' => $email, 'email_verified' => $verified];
@@ -44,12 +45,33 @@ try {
     $pdo->prepare("INSERT INTO household_invitations (household_id, person_id, invited_by_user_id, email, expires_at) VALUES (?, ?, ?, 'guest@example.test', UTC_TIMESTAMP() + INTERVAL 1 DAY)")->execute([$table['id'], $person['id'], $target['id']]);
     $pdo->prepare("INSERT INTO recipes (household_id, title, created_by_user_id, updated_by_user_id) VALUES (?, 'Keep me', ?, ?)")->execute([$table['id'], $target['id'], $target['id']]);
     $pdo->prepare("INSERT INTO cooking_events (household_id, cooked_at, recorded_by_user_id) VALUES (?, UTC_TIMESTAMP(), ?)")->execute([$table['id'], $target['id']]);
+    $pdo->exec(file_get_contents(dirname(__DIR__) . '/database/migrations/009_household_ai_images.sql'));
+    checkAdmin((int) $pdo->query('SELECT ai_images_enabled FROM households')->fetchColumn() === 0, 'Migration enabled an existing household');
+    $pdo->exec("INSERT INTO households (name) VALUES ('New household default')");
+    $newTable = $pdo->lastInsertId();
+    checkAdmin((int) $pdo->query('SELECT ai_images_enabled FROM households WHERE id = ' . (int) $newTable)->fetchColumn() === 0, 'New household default is enabled');
+    $pdo->prepare('DELETE FROM households WHERE id = ?')->execute([$newTable]);
     $calls = []; $fail = false;
     $service = new AdministrationService($pdo, static function ($uid) use (&$calls, &$fail): void {
         $calls[] = $uid;
         if ($fail) throw new HttpError(503, 'firebase_unavailable', 'Firebase unavailable');
     });
     rejectAdmin(static fn() => $service->users($other['id']), 403);
+    rejectAdmin(static fn() => $service->households($other['id']), 403);
+    rejectAdmin(static fn() => $service->setAiImages($other['id'], $table['id'], true), 403);
+    $tables = $service->households($actor['id']);
+    checkAdmin(count($tables) === 1 && $tables[0]['member_count'] === 2 && $tables[0]['ai_images_enabled'] === false, 'Household listing or disabled default incorrect');
+    rejectAdmin(static fn() => $h->requireAiImages($target['id'], $table['id']), 403);
+    rejectAdmin(static fn() => $h->requireAiImages($other['id'], $table['id']), 403);
+    rejectAdmin(static fn() => $service->setAiImages($actor['id'], $table['id'], 'true'), 422);
+    rejectAdmin(static fn() => $service->setAiImages($actor['id'], '999999', true), 404);
+    $service->setAiImages($actor['id'], $table['id'], true);
+    $h->requireAiImages($target['id'], $table['id']);
+    $h->requireAiImages($other['id'], $table['id']);
+    checkAdmin($h->aiImagesEnabled($other['id'], $table['id']), 'Ordinary household member cannot generate enabled images');
+    rejectAdmin(static fn() => $h->requireAiImages($actor['id'], $table['id']), 404);
+    $service->setAiImages($actor['id'], $table['id'], false);
+    rejectAdmin(static fn() => $h->requireAiImages($other['id'], $table['id']), 403);
     rejectAdmin(static fn() => $service->delete($other['id'], $target['id'], true), 403);
     rejectAdmin(static fn() => $service->delete($actor['id'], $target['id'], false), 422);
     rejectAdmin(static fn() => $service->delete($actor['id'], '999999', true), 404);

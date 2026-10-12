@@ -121,9 +121,14 @@ try {
         return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['type'=>'image_generation_call','status'=>'completed','result'=>'/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q==']]])];
     });
     $categoryImages=new CategoryImageService($pdo,$categoryPhoto,$media,'https://example.test/media/recipes');
+    editReject(fn()=>$categoryImages->ensure((string)$cookieCategory,$a['id'],$h),403);
+    editExpect($categoryCalls===0, 'Disabled household reached the AI image provider.');
+    $pdo->prepare('UPDATE households SET ai_images_enabled = 1 WHERE id = ?')->execute([$h]);
     $categoryUrl=$categoryImages->ensure((string)$cookieCategory,$a['id'],$h);
     editExpect($categoryUrl==='https://example.test/media/recipes/category-'.$cookieCategory.'.jpg' && is_file($media.'/category-'.$cookieCategory.'.jpg'),'Category image was not published.');
-    editExpect($categoryImages->ensure((string)$cookieCategory,$a['id'],$h)===$categoryUrl && $categoryCalls===1,'Shared category image was generated twice.');
+    $pdo->prepare('UPDATE households SET ai_images_enabled = 0 WHERE id = ?')->execute([$h]);
+    editExpect($categoryImages->ensure((string)$cookieCategory,$a['id'],$h)===$categoryUrl && $categoryCalls===1,'Existing category image is unavailable or generated twice after disabling.');
+    editReject(fn()=>$categoryImages->ensure((string)$cookieCategory,$b['id'],$h),404);
     editReject(fn()=>$categoryImages->ensure((string)$cookieCategory,$b['id'],$other),404);
     echo "$checks recipe edit checks passed.\n";
 } finally {
