@@ -3,6 +3,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      cleanup_actions:
+        description: Run the authorized one-time action cleanup
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -29,6 +34,7 @@ jobs:
           php tests/verification.php
           php tests/recipe_photo.php
           php tests/source_photos.php
+          php tests/recipe_ai.php
       - run: python3 -m pip install requests==2.32.5
       - run: python3 -m unittest discover -s tool -p 'test_*.py'
       - name: Verify cPanel TLS without credentials
@@ -38,3 +44,16 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/deploy-backend.py
+      - name: Back up and remove unwanted hosted recipe actions
+        if: contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/cleanup-hosted-actions.py
+      - name: Record action cleanup result
+        if: always() && (contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true)
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-cleanup-report
+          path: storage/action-cleanup-report.json
+          if-no-files-found: ignore
