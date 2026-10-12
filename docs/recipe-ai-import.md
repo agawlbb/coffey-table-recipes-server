@@ -86,13 +86,16 @@ variants must match the canonical slug (recipe3 cannot become recipe2).
 Unverifiable sources return a paste-text error; nothing is saved. The verified
 canonical URL is retained as the recipe source.
 
-Website fix validation, October 12, 2026: 16 deterministic website checks and
+Website fix validation, October 12, 2026: 17 deterministic website checks and
 77 recipe AI checks pass, covering HTTP upgrade, safe redirects, private redirect
 rejection, source evidence, wrong domains/variants and empty recipe rejection.
 A live import of the old Food Network recipe3.html link returned the exact
 recipe3-1946704 source, eight ingredients, seven steps, a 375 F oven action and
 600/1800-second timers, without questions or a database save.
 Web search implementation follows https://developers.openai.com/api/docs/guides/tools-web-search.
+Legacy recipe variants are also constrained in the structured response schema.
+Source evidence tolerates HTTP/HTTPS, www and trailing-slash differences, while
+retaining the actual returned source URL and rejecting different recipes/domains.
 
 The AI prompt preserves source language and uncertain quantities, silently corrects
 obvious spelling mistakes, asks for unresolved cooking ambiguity, and treats sources

@@ -35,6 +35,9 @@ $service=new RecipeImportService($config,sys_get_temp_dir(),function($payload) u
 },$blocked);
 $draft=$service->analyze(['kind'=>'website','url'=>$base.'/recipe3.html'],'fixture');
 webExpect($draft['recipe']['source_url']===$source && $draft['preprocessing']==='cached website search','Verified cached source not retained');
+$service=new RecipeImportService($config,sys_get_temp_dir(),fn()=>$answer($reply,['http://93.184.216.34/recipe3-12345/']),$blocked);
+$equivalent=$service->analyze(['kind'=>'website','url'=>$base.'/recipe3.html'],'fixture');
+webExpect($equivalent['recipe']['source_url']===$source.'/','Equivalent source protocol/trailing slash failed verification');
 foreach (['no_sources','wrong_variant','wrong_domain','no_ingredients'] as $failure) {
     $bad=$reply; $sources=[$source];
     if ($failure==='no_sources') $sources=[];
