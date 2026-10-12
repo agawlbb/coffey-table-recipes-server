@@ -34,3 +34,18 @@ Before publication, all cleaned refs must pass the final credential/privacy scan
 old Actions records must be retired after verified private backups, and the hosted
 backend deployment must succeed. Replace old clones after the rewrite; never merge
 or force-push the original personal history back into the public repositories.
+
+## Clean-history verification
+
+All 192 cleaned app/backend commits and 799 historical text blobs passed the
+privacy-pattern scan and Gitleaks 8.30.1 with zero findings. Every published
+branch and tag was atomically replaced using leases against the recorded originals;
+remote references matched the cleaned local history.
+
+GitHub still serves personal details through original detached commit IDs.
+Visibility remains private pending a decision on fresh public repositories,
+GitHub cache removal, or acceptance of that residual exposure. Private recovery
+bundles and 53 workflow log archives plus 28 artifact archives are verified.
+
+Backend deployment remains automatic. Checksum and public source-link behavior
+are included in CI validation. AI access and public recipe sharing are unchanged.

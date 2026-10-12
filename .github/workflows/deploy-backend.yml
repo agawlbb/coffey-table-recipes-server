@@ -32,6 +32,8 @@ jobs:
         run: |
           php tests/invitation-mail.php
           php tests/verification.php
+          php tests/migration_checksums.php
+          php tests/recipe_sharing.php
           php tests/recipe_photo.php
           php tests/source_photos.php
           php tests/recipe_ai.php
