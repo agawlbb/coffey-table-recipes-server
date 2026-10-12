@@ -17,6 +17,12 @@ mapping, sections/order, time/nutrition units, malicious script text, private-fi
 exclusion and error pages. PHP syntax validation passes. No schema migration or
 Flutter build is needed. Specification: https://schema.org/Recipe.
 
+Hosted verification: deployment d6115a1 succeeded. The existing Mint Chip Ice
+Cream page (`share.php?id=9`) returned 200 with valid Recipe JSON-LD containing
+seven ingredient lines, 25 instruction entries and one picture. The noindex
+setting was retained, and private/edit fields were absent from the structured
+data. Verification made no database writes.
+
 ## Recipe heading cleanup - 2026-10-11
 
 The recipe title is now the first and largest heading, with compact Coffey Table Recipes branding beneath it. Section headings use green text and a subtle divider. Removed the visible language/measurement metadata and all category tags. The branding JPEG uses `mix-blend-mode: multiply` to blend its embedded white surround into the cream page without modifying the shared email image.
