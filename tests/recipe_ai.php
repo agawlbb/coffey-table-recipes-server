@@ -69,4 +69,28 @@ aiExpect(RecipeImportService::sourceType('text',['input_source'=>'written_descri
 aiExpect(RecipeImportService::sourceType('file',[],true)==='Uploaded PDF','PDF source mislabeled.');
 aiExpect(RecipeImportService::sourceType('file',[])==='Uploaded image','Image source mislabeled.');
 aiExpect(RecipeImportService::sourceType('answers',['recipe'=>['source_type'=>'Camera photo']])==='Camera photo','Clarification lost original source.');
+
+// Exercise more than the former hourly quota without real upstream API calls.
+$limitStorage = sys_get_temp_dir().'/coffey-ai-limit-test-'.bin2hex(random_bytes(6));
+mkdir($limitStorage.'/recipe-ai',0700,true);
+$legacyCounter = $limitStorage.'/recipe-ai/'.hash('sha256','repeat-user').'.json';
+file_put_contents($legacyCounter,json_encode(['start'=>time(),'count'=>20]));
+$calls = 0;
+$repeatService = new RecipeImportService(['api_key'=>'test-fixture','model'=>'test-model'],$limitStorage,
+    static function(array $payload) use (&$calls,$input): array {
+        $calls++;
+        return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[
+            ['type'=>'message','content'=>[['type'=>'output_text','text'=>json_encode($input)]]],
+        ]])];
+    });
+try {
+    for ($i=0;$i<25;$i++) {
+        $repeatDraft = $repeatService->analyze(['kind'=>'text','text'=>'Soup: boil water.'],'repeat-user');
+        aiExpect($repeatDraft['recipe']['title']==='Soup','Repeated import did not produce the expected draft.');
+    }
+    aiExpect($calls===25,'Hourly restriction blocked a repeated import.');
+    aiExpect(json_decode(file_get_contents($legacyCounter),true)['count']===20,'Legacy hourly counter was modified.');
+} finally {
+    unlink($legacyCounter); rmdir($limitStorage.'/recipe-ai'); rmdir($limitStorage);
+}
 echo "$checks recipe AI preprocessing and validation checks passed.\n";

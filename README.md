@@ -33,8 +33,8 @@ The root address redirects to app/, containing the compiled Flutter web client. 
 
 This project is licensed under GNU AGPL-3.0-only. See LICENSE and NOTICE.md for
 source, network-service, artwork, and dependency notices. Source repositories:
-[Flutter app](https://github.com/agawlbb/coffey_table_recipes) and
-[PHP backend](https://github.com/agawlbb/coffey_table_recipes_server).
+[Flutter app](https://github.com/agawlbb/coffey-table-recipes) and
+[PHP backend](https://github.com/agawlbb/coffey-table-recipes-server).
 
 Use your own Firebase project, database, hosting, email and optional AI credentials
 for independent installations. Local configuration, signing material, uploaded

@@ -18,6 +18,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      HOSTING_CONFIGURED: ${{ secrets.CPANEL_USER != '' && secrets.CPANEL_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -40,22 +42,27 @@ jobs:
       - run: python3 -m pip install requests==2.32.5
       - run: python3 -m unittest discover -s tool -p 'test_*.py'
       - name: Verify cPanel TLS without credentials
+        if: env.HOSTING_CONFIGURED == 'true'
         run: python3 -c "import requests; requests.get('https://ecngx362.inmotionhosting.com:2083', timeout=30).raise_for_status()"
       - name: Publish and verify backend
+        if: env.HOSTING_CONFIGURED == 'true'
         env:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/deploy-backend.py
       - name: Back up and remove unwanted hosted recipe actions
-        if: contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true
+        if: env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true)
         env:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/cleanup-hosted-actions.py
       - name: Record action cleanup result
-        if: always() && (contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true)
+        if: always() && env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true)
         uses: actions/upload-artifact@v4
         with:
           name: action-cleanup-report
           path: storage/action-cleanup-report.json
           if-no-files-found: ignore
+      - name: Report deployment configuration
+        if: env.HOSTING_CONFIGURED != 'true'
+        run: echo 'Backend checks passed. Set CPANEL_USER and CPANEL_API_TOKEN repository secrets to enable automatic hosting deployment.'
