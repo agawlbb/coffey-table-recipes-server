@@ -41,3 +41,15 @@ Validation: 62 administrator checks cover existing/new defaults, ordinary-member
 access, administrator-only switches, invalid input, cross-household denial and
 revocation. Recipe editing tests verify disabled category generation makes no AI call
 and previously generated artwork can be reused after revocation.
+
+Hosted validation on 2026-10-12: migration 009 and backend commit `b895c86`
+deployed successfully in GitHub Actions run 38323429701. All existing households
+were verified disabled. The complete pre-migration backup returned HTTP 403 to
+public requests, original database privileges were restored and verified, and the
+temporary cron job was removed. Hosted health passed; anonymous household inventory,
+permission changes and recipe-image generation returned HTTP 401. Backend deployment
+and migration orchestration passed 25 Python tests, with 62 administrator, 50 recipe
+editing, 55 schema, 51 household/authentication, 77 AI-import and six migration-checksum
+checks passing locally. Image calls in tests were simulated. No real AI image was
+generated. The Flutter administration UI is committed separately and awaits an
+explicitly authorized tagged app deployment.
