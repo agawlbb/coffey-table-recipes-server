@@ -4,6 +4,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      household_image_migration:
+        description: Back up recipe database and apply reviewed migration 009
+        type: boolean
+        default: false
       cleanup_actions:
         description: Run the authorized one-time action cleanup
         type: boolean
@@ -46,6 +50,12 @@ jobs:
       - name: Verify cPanel TLS without credentials
         if: env.HOSTING_CONFIGURED == 'true'
         run: python3 -c "import requests; requests.get('https://ecngx362.inmotionhosting.com:2083', timeout=30).raise_for_status()"
+      - name: Back up recipe database and apply household image permission
+        if: env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[household-image-migration]') || inputs.household_image_migration == true)
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/migrate-household-images.py
       - name: Publish and verify backend
         if: env.HOSTING_CONFIGURED == 'true'
         env:

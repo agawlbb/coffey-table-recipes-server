@@ -32,10 +32,21 @@ those excluded hosted files. No files are automatically deleted; deliberately
 removed runtime files require a separate reviewed cleanup. Existing uncommitted
 changes are never sent: GitHub builds the pushed commit in a fresh checkout.
 
-Database migrations are **not** run by pushes. Back up the hosted database and
+Database migrations are **not** normally run by pushes. Back up the hosted database and
 apply reviewed migrations separately. Hosted data is never imported or replaced
 by this workflow. Flutter releases retain their separate explicitly authorized,
 tagged deployment process.
+
+The reviewed household-image migration is an explicit exception: the
+`household_image_migration` manual input or `[household-image-migration]` commit
+marker runs only migration 009 before deploying its dependent code. A CLI-only
+script verifies the exact recipe directory and dedicated account recipe database,
+creates a complete consistent SQL snapshot in protected storage, then adds the
+disabled-by-default column and records its checksum. A temporary cPanel cron job
+executes it; only the exact matching job is removed afterward. Other cron entries
+and hosted databases are retained. Errors stop deployment. Backup files contain
+private data and must stay out of Git; restore into an empty recovery database for
+review rather than replacing live data automatically.
 
 ## Verification and recovery
 

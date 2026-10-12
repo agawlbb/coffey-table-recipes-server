@@ -35,6 +35,29 @@ final class AdministrationService
         return $rows;
     }
 
+    public function households(string $actorId): array
+    {
+        $this->authorize($actorId);
+        $rows = $this->pdo->query('SELECT h.id, h.name, h.ai_images_enabled, (SELECT COUNT(*) FROM household_memberships m WHERE m.household_id = h.id) AS member_count FROM households h ORDER BY h.name, h.id')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['id'] = (string) $row['id'];
+            $row['ai_images_enabled'] = (bool) $row['ai_images_enabled'];
+            $row['member_count'] = (int) $row['member_count'];
+        }
+        return $rows;
+    }
+
+    public function setAiImages(string $actorId, string $householdId, mixed $enabled): array
+    {
+        $this->authorize($actorId);
+        if (!is_bool($enabled)) throw new HttpError(422, 'invalid_permission', 'Choose whether AI image generation is enabled.');
+        $query = $this->pdo->prepare('SELECT id FROM households WHERE id = ?');
+        $query->execute([$householdId]);
+        if ($query->fetchColumn() === false) throw new HttpError(404, 'household_not_found', 'Household not found.');
+        $this->pdo->prepare('UPDATE households SET ai_images_enabled = ? WHERE id = ?')->execute([$enabled ? 1 : 0, $householdId]);
+        return ['id' => $householdId, 'ai_images_enabled' => $enabled];
+    }
+
     public function people(string $actorId): array
     {
         $this->authorize($actorId);

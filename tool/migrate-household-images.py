@@ -1,0 +1,79 @@
+"""Apply only reviewed migration 009 via a temporary, CLI-only hosting job."""
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import time
+import uuid
+
+spec = importlib.util.spec_from_file_location('backend_deploy', Path(__file__).with_name('deploy-backend.py'))
+deploy = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(deploy)
+
+
+def cron(session, function, **parameters):
+    response = session.post(deploy.HOST + '/json-api/cpanel', data={
+        'cpanel_jsonapi_user': os.environ['CPANEL_USER'], 'cpanel_jsonapi_apiversion': '2',
+        'cpanel_jsonapi_module': 'Cron', 'cpanel_jsonapi_func': function, **parameters}, timeout=60)
+    deploy.require_http(response, 'Migration scheduling')
+    result = response.json()['cpanelresult']
+    if result.get('event', {}).get('result') != 1 or any(
+            row.get('status', row.get('result', 1)) != 1 for row in result.get('data', [])):
+        raise RuntimeError('Migration scheduling failed; response details omitted')
+    return result.get('data', [])
+
+
+def remove_job(session, command):
+    # Match the exact dedicated command; retain all other account cron entries.
+    for row in sorted(cron(session, 'listcron'), key=lambda row: int(row.get('count', 0)), reverse=True):
+        if row.get('command') == command:
+            cron(session, 'remove_line', line=row['count'])
+    if any(row.get('command') == command for row in cron(session, 'listcron')):
+        raise RuntimeError('Temporary migration job cleanup failed')
+
+
+def migrate():
+    account = os.environ.get('CPANEL_USER', '')
+    token = os.environ.get('CPANEL_API_TOKEN', '')
+    if not token or not re.fullmatch('[a-z0-9_]+', account):
+        raise RuntimeError('Configure hosting credentials')
+    session = deploy.requests.Session()
+    session.headers['Authorization'] = f'cpanel {account}:{token}'
+    # Upload only the CLI script and its reviewed SQL, before deploying code that needs it.
+    for name in ('bin/enable-household-image-policy.php', 'database/migrations/009_household_ai_images.sql'):
+        path = Path(name)
+        with path.open('rb') as stream:
+            deploy.require_success(session.post(deploy.HOST + '/execute/Fileman/upload_files',
+                data={'dir': deploy.DIRECTORY + '/' + str(path.parent), 'overwrite': '1'},
+                files={'file-1': (path.name, stream, 'application/octet-stream')}, timeout=60), 'Migration upload')
+    run = uuid.uuid4().hex
+    filename = f'household-images-{run}.json'
+    command = '/opt/cpanel/ea-php82/root/usr/bin/php ' + shlex.quote(
+        deploy.DIRECTORY + '/bin/enable-household-image-policy.php') + ' ' + run + ' ' + shlex.quote(account) + ' >/dev/null 2>&1'
+    try:
+        cron(session, 'add_line', command=command, minute='*', hour='*', day='*', month='*', weekday='*')
+        for _ in range(18):
+            response = session.get(deploy.HOST + '/execute/Fileman/get_file_content',
+                params={'dir': deploy.DIRECTORY + '/storage', 'file': filename}, timeout=60)
+            deploy.require_http(response, 'Migration verification')
+            result = response.json()
+            if result.get('status') == 1:
+                receipt = json.loads(result['data']['content'])
+                if receipt.get('status') != 'ok':
+                    raise RuntimeError('Hosted migration failed; inspect protected receipt')
+                print('Verified household image migration: ' + json.dumps(receipt))
+                return
+            time.sleep(10)
+        raise RuntimeError('Hosted migration receipt unavailable')
+    finally:
+        remove_job(session, command)
+
+
+if __name__ == '__main__':
+    try:
+        migrate()
+    except Exception as error:
+        detail = str(error) if isinstance(error, RuntimeError) else type(error).__name__
+        raise SystemExit('Migration failed: ' + detail + '. Credentials are not logged.')
