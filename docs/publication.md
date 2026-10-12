@@ -92,3 +92,35 @@ Registration can occur through the app or Firebase APIs, so website visitation
 is not an enforceable boundary. Backend validation exercised 25 successive imports
 with an exhausted legacy counter and a fake upstream transport: all 77 recipe AI
 checks passed without paid API calls. The hosted change awaits deployment credentials.
+
+## Publication and hosted deployment verified
+
+Completed on 2026-10-12. Fresh public repositories are
+https://github.com/agawlbb/coffey-table-recipes and
+https://github.com/agawlbb/coffey-table-recipes-server. Every copied branch/tag
+passed privacy and Gitleaks checks. Anonymous lookups of original personal-data
+commit IDs returned no commit found; none of the old Actions records were copied.
+Original underscore-named repositories remain private and are archived to prevent
+obsolete code deployment. Their existing records were retained without deletion.
+Local origin uses the new public repository; private-history retains the original.
+
+The user explicitly approved encrypted Firebase client build settings in the new
+app repository and an expiring cPanel deployment token in both new repositories.
+Only secret names and successful storage were verified; values were not printed
+or committed. The new token expires October 12, 2027. Existing hosted OpenAI
+credentials and user data were preserved. GitHub workflow tokens have read-only
+default permissions, and main is protected against force pushes and deletion.
+
+Public Ubuntu deployment run 38309357432 successfully deployed backend source
+209024378e04f0e2a65c37fb4ab28883d8fe978f. PHP syntax, locked dependencies,
+77 AI preprocessing/repeated-import checks, migration checks, sharing checks,
+deployment tests, TLS and publish verification passed. Hosted backend-version.json
+independently identifies that commit. Health returned 200, anonymous administrator
+and AI requests returned 401, protected configuration returned 403, and the public
+recipe page links to the new source. Administrator role lookup by Firebase UID and
+removal of the hourly import limit are now deployed. No database migration was run.
+
+Future backend main pushes deploy automatically. App website deployment still
+requires explicit authorization and a version tag. No macOS workflow was dispatched,
+no paid AI request was made, and the hosted Flutter app was not changed. The app's
+Firebase build settings are ready for a separately approved future iOS build.
