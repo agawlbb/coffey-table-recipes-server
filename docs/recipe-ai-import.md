@@ -138,3 +138,20 @@ Live validation of the supplied cracker/marshmallow/date-roll recipe returned fi
 ingredients, six steps, no questions, Pasted text as its source, and notes containing
 the plastic-bag/rolling-pin method, scissors/regular-marshmallow advice, pre-chopped
 dates and reserved coating crumbs. No estimation commentary was added.
+
+Source picture suggestions: source images are numbered in the existing AI import
+request, and returned food-picture bounds refer to those images. A portable PHP
+extractor handles embedded JPEG and common 8-bit RGB/grayscale Flate PDF images
+without GD or a paid rendering call. Extraction is bounded and unsupported PDF
+image encodings are skipped; recipe import still proceeds. Original image imports
+reuse their own pixels. The client crops locally, offers Use this picture / Skip
+picture, preserves suggestions through clarification without resending their bytes,
+and persists only selected pictures on normal Save. No generated-image API call
+is needed. Up to six source candidates totaling 5 MB are analyzed at low detail
+when free text extraction already supplied the recipe.
+
+Validation: live recipe-card image, scanned PDF, and PDF with a separate embedded
+food image all returned appropriate picture suggestions. The separate-image PDF
+returned full-image bounds, rather than PDF-page placement coordinates. Offline
+extraction/crop tests and typed-category review tests passed; no hosted recipe
+was created during testing.
