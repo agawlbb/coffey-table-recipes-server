@@ -39,6 +39,7 @@ jobs:
           php tests/recipe_photo.php
           php tests/source_photos.php
           php tests/recipe_ai.php
+          php tests/website_import.php
       - run: python3 -m pip install requests==2.32.5
       - run: python3 -m unittest discover -s tool -p 'test_*.py'
       - name: Verify cPanel TLS without credentials

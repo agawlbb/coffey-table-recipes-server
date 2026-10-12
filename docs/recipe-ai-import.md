@@ -74,7 +74,25 @@ files removed in finally, and time out after 15 seconds. Unavailable/failed/spar
 extraction falls back to PDF/image AI input. The input file bound is 5 MB, image
 bound 24 megapixels, and extracted text bound 60 KB. Website reads have a 2 MB bound,
 20 second timeout, verified TLS, public DNS validation, pinned resolution, no proxy,
-and no redirects. Recipe JSON-LD is preferred; page text is the fallback.
+and up to five redirects with each destination independently validated and pinned.
+HTTP input links upgrade to HTTPS. Recipe JSON-LD is preferred; page text is the
+fallback. If direct reading is blocked, moved or unavailable, the existing
+gpt-5.4-mini standardization request can use cached public web search limited to
+the source domain, with at most three tool calls. This adds no second
+standardization request. Search has its own API tool charge; normal direct
+extraction remains free preprocessing. A fallback draft must use a returned
+search source on the same host and have ingredients and steps. Old .html recipe
+variants must match the canonical slug (recipe3 cannot become recipe2).
+Unverifiable sources return a paste-text error; nothing is saved. The verified
+canonical URL is retained as the recipe source.
+
+Website fix validation, October 12, 2026: 16 deterministic website checks and
+77 recipe AI checks pass, covering HTTP upgrade, safe redirects, private redirect
+rejection, source evidence, wrong domains/variants and empty recipe rejection.
+A live import of the old Food Network recipe3.html link returned the exact
+recipe3-1946704 source, eight ingredients, seven steps, a 375 F oven action and
+600/1800-second timers, without questions or a database save.
+Web search implementation follows https://developers.openai.com/api/docs/guides/tools-web-search.
 
 The AI prompt preserves source language and uncertain quantities, silently corrects
 obvious spelling mistakes, asks for unresolved cooking ambiguity, and treats sources
