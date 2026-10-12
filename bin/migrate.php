@@ -2,6 +2,7 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require dirname(__DIR__) . '/src/bootstrap.php';
+require dirname(__DIR__) . '/src/MigrationChecksums.php';
 
 try {
     $pdo = database(configuration());
@@ -16,7 +17,7 @@ try {
             $version = basename($file);
             $checksum = hash_file('sha256', $file);
             if (isset($applied[$version])) {
-                if ($applied[$version] !== $checksum) throw new RuntimeException("Applied migration has changed: $version");
+                if (!migrationChecksumMatches($version, $applied[$version], $checksum)) throw new RuntimeException("Applied migration has changed: $version");
                 continue;
             }
             // MySQL DDL commits implicitly. Do not pretend migrations are transactional.

@@ -20,8 +20,8 @@ class KeySetupTests(unittest.TestCase):
                 setup.configure()
             request.assert_not_called()
 
-    def test_wrong_account_does_not_contact_network(self):
-        with patch.dict(os.environ, {'CPANEL_USER':'wrong','CPANEL_API_TOKEN':'fixture','RECIPE_AI_API_KEY':'sk-fixture'}, clear=True), patch.object(setup.requests, 'get') as request:
+    def test_invalid_account_does_not_contact_network(self):
+        with patch.dict(os.environ, {'CPANEL_USER':'../wrong','CPANEL_API_TOKEN':'fixture','RECIPE_AI_API_KEY':'sk-fixture'}, clear=True), patch.object(setup.requests, 'get') as request:
             with self.assertRaisesRegex(RuntimeError, 'unavailable'):
                 setup.configure()
             request.assert_not_called()

@@ -6,7 +6,7 @@ import sys
 import requests
 
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
-DIRECTORY = '/home/hosting_account/coffeybean.com/CoffeyTableRecipes/config'
+DIRECTORY = '/home/' + os.environ.get('CPANEL_USER', 'hosting_account') + '/coffeybean.com/CoffeyTableRecipes/config'
 PUBLIC = 'https://coffeybean.com/CoffeyTableRecipes/'
 
 
@@ -23,7 +23,7 @@ def configure():
     key = os.environ.get('RECIPE_AI_API_KEY', '')
     user = os.environ.get('CPANEL_USER', '')
     token = os.environ.get('CPANEL_API_TOKEN', '')
-    if user != 'hosting_account' or not token or not key.startswith('sk-'):
+    if not user or not user.replace('_', '').isalnum() or not token or not key.startswith('sk-'):
         raise RuntimeError('Required secure setup credentials are unavailable')
     # Validate the key without modifying OpenAI resources or consuming model tokens.
     response = requests.get('https://api.openai.com/v1/models/gpt-5.4-mini',

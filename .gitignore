@@ -19,3 +19,16 @@
 /media/recipes/*.jpg
 /media/recipes/*.png
 /media/recipes/*.webp
+
+# Apple signing material and private recovery archives
+*.p12
+*.pfx
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+*.p8
+*.cer
+*.certSigningRequest
+*.bundle
+/private-backup/
