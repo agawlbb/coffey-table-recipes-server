@@ -31,10 +31,10 @@ class PhpUpgradeTests(unittest.TestCase):
         session = Mock()
         response = Mock(status_code=200)
         response.json.return_value = {'status':1}
-        session.post.return_value = response
+        session.get.return_value = response
         upgrade.set_version(session, 'ea-php84')
-        self.assertEqual(session.post.call_args.kwargs['data'], {'version':'ea-php84','vhost':'coffeybean.com'})
-        self.assertFalse(session.post.call_args.kwargs['allow_redirects'])
+        self.assertEqual(session.get.call_args.kwargs['params'], {'version':'ea-php84','vhost':'coffeybean.com'})
+        self.assertFalse(session.get.call_args.kwargs['allow_redirects'])
 
     def exercise(self, mode='', inspect=False, available=('ea-php81','ea-php84')):
         files = {}
@@ -47,7 +47,7 @@ class PhpUpgradeTests(unittest.TestCase):
         versions = [BEFORE, AFTER]
         results = [PROBE, PROBE]
         if mode == 'web':
-            versions = [BEFORE] + [AFTER] * 6 + [BEFORE]
+            versions = [BEFORE] + [AFTER] * 7 + [BEFORE]
             results = [PROBE] + [RuntimeError('private response')] * 6 + [PROBE]
         if mode == 'cli':
             results = [PROBE]

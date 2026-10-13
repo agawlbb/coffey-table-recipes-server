@@ -50,8 +50,24 @@ def installed(session):
 def set_version(session, version):
     if not re.fullmatch(r'ea-php[0-9]{2,3}|inherit', version):
         raise RuntimeError('Invalid PHP handler')
-    api_result(session.post(deploy.HOST + '/execute/LangPHP/php_set_vhost_versions',
-        data={'version': version, 'vhost': DOMAIN}, timeout=60, allow_redirects=False))
+    # LangPHP documents this operation as GET with query parameters.
+    response = session.get(deploy.HOST + '/execute/LangPHP/php_set_vhost_versions',
+        params={'version': version, 'vhost': DOMAIN}, timeout=60, allow_redirects=False)
+    if response.status_code == 200:
+        result = response.json()
+        if result.get('status') != 1:
+            # This endpoint returns only PHP settings errors. Redact hosting
+            # credentials and potential secret-shaped values before diagnostics.
+            errors = result.get('errors') or []
+            if isinstance(errors, list):
+                for error in errors:
+                    if isinstance(error, str):
+                        for secret in (os.environ.get('CPANEL_API_TOKEN', ''), os.environ.get('CPANEL_USER', '')):
+                            if secret:
+                                error = error.replace(secret, '[redacted]')
+                        error = re.sub(r'(?:sk-[A-Za-z0-9_-]+|Bearer\s+\S+)', '[redacted]', error)
+                        print('PHP handler API error: ' + error[:500])
+    api_result(response)
 
 
 def verify_scope(before, after, expected):
@@ -199,6 +215,7 @@ def upgrade(inspect=False):
     probe_url = deploy.PUBLIC + filename
     attempted = False
     uploaded = False
+    stage = 'probe upload'
     try:
         uploaded = True  # An upload timeout may still have written the file.
         upload(session, deploy.DIRECTORY, filename, source.encode())
@@ -207,10 +224,13 @@ def upgrade(inspect=False):
         if public.get(probe_url, timeout=30).status_code != 404:
             raise RuntimeError('Temporary PHP probe authentication check failed')
         public_checks(public, probe_url, secret, verify_version=False)
+        stage = 'hosted CLI checks'
         cli = cli_probe(session, account, filename, secret, receipt)
         print('Hosted PHP CLI checks: ' + json.dumps(check_probe(cli)))
         attempted = True
+        stage = 'domain handler API switch'
         set_version(session, TARGET)
+        stage = 'web handler verification'
         # Allow the hosting PHP handler to settle without repeatedly changing it.
         for attempt in range(6):
             try:
@@ -226,10 +246,14 @@ def upgrade(inspect=False):
             json.dumps({'domain':DOMAIN, 'previous':original, 'current':TARGET,
                 'cli':check_probe(cli), 'web':check_probe(web), 'other_domains_unchanged':True}).encode())
         print('Verified hosted PHP upgrade: ' + original + ' -> ' + TARGET + '; other domains unchanged.')
-    except Exception:
+    except Exception as error:
+        print('PHP upgrade stage failed: ' + stage + ' (' + type(error).__name__ + ')')
         if attempted:
             try:
-                set_version(session, restore)
+                # A rejected switch may leave the original setting intact.
+                current = versions(session)
+                if current[DOMAIN]['version'] != original:
+                    set_version(session, restore)
                 verify_scope(before, versions(session), original)
                 public_checks(public, probe_url, secret, verify_version=False)
                 print('Verified rollback to the previous hosted PHP handler.')
