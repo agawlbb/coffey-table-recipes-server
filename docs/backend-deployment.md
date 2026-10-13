@@ -134,3 +134,9 @@ After successful deployment, `tool/schedule-recipe-cleanup.py` verifies one dail
 command and preserves unrelated account jobs. See recipe-deletion.md for recovery
 behavior, history retention and hosted acceptance checks. This automation has
 been fixture-tested but has not yet been run on the host.
+
+Recipe recovery rollout completed on 2026-10-12 in run 38327961963. Migration 010
+was backed up and applied successfully; all 21 existing recipes were retained,
+original runtime privileges restored, backend commit 02d9ea3 verified publicly,
+and the daily 03:15 server-time cleanup schedule verified. See recipe-deletion.md
+for the validation record and the remaining authenticated Flutter release check.

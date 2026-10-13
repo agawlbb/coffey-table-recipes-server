@@ -76,3 +76,20 @@ migration and scheduling fixture tests passed. Hosted validation is pending.
 Recipe sharing (43 checks), migration checksums (6), invitation mail (15),
 verification (14) and PHP syntax checks also passed. Mail fixtures sent no mail;
 they required unsandboxed access to the existing tracked email image locally.
+## Hosted rollout verified (2026-10-12)
+
+Authorized backend push deployed commit `02d9ea3c4a6c075bc58f42faa9e55cd6258b5bef`.
+GitHub Actions run 38327961963 completed successfully:
+https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/38327961963
+
+The hosted CLI helper saved a full protected backup, applied migration 010, and
+verified the inventory remained at 21 recipes. The workflow confirmed restoration
+of the original runtime database privileges after the temporary schema grant.
+Backend upload/extraction, health, CORS, protected paths and deployment receipt
+verification passed. The exact daily cleanup job was verified at 03:15 server time.
+Independent reads confirmed the expected hosted commit and healthy API JSON.
+
+The hosted Flutter app was not published. Authenticated delete/restore acceptance
+through the new Flutter UI remains a separate release check; this rollout did not
+delete a user's recipe or run permanent cleanup manually. The scheduled expiry job
+will act only on recipes whose recovery deadline has elapsed.
