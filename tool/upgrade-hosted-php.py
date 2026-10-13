@@ -134,6 +134,20 @@ def write_handler(session, root, content):
         raise RuntimeError('Hosted PHP directory handler readback did not match')
 
 
+def runtime_override(content):
+    start = '# Coffey recipe PHP runtime -- BEGIN'
+    end = '# Coffey recipe PHP runtime -- END'
+    if start in content or end in content:
+        pattern = re.escape(start) + r'.*?' + re.escape(end)
+        if len(re.findall(pattern, content, flags=re.S)) != 1:
+            raise RuntimeError('Hosted explicit PHP handler block was ambiguous')
+        content = re.sub(pattern, '', content, flags=re.S)
+    return content.rstrip('\r\n') + '\n' + start + '\n' + (
+        '<FilesMatch "\\.(?:php|php8|phtml)$">\n'
+        '    SetHandler application/x-httpd-ea-php84\n'
+        '</FilesMatch>\n') + end + '\n'
+
+
 def check_probe(result):
     required = ('extensions', 'composer_bootstrap', 'database_read', 'import_preprocessing')
     if result.get('status') != 'ok' or not re.fullmatch(r'8\.4\.\d+', result.get('php_version', '')) or any(
@@ -296,6 +310,14 @@ def upgrade(inspect=False):
         stage = 'hosted CLI checks'
         cli = cli_probe(session, account, filename, secret, receipt)
         print('Hosted PHP CLI checks: ' + json.dumps(check_probe(cli)))
+        # Prove the installed explicit handler on only this random probe first.
+        # Existing PHP application files keep their original FPM route here.
+        stage = 'isolated explicit handler preflight'
+        probe_rule = '\n# Temporary recipe PHP handler preflight\n<Files "' + filename + '">\n    SetHandler application/x-httpd-ea-php84\n</Files>\n'
+        directory_attempted = True
+        write_handler(session, root, root_before + probe_rule)
+        preflight = public_checks(public, probe_url, secret)
+        print('Hosted isolated PHP handler checks: ' + json.dumps(check_probe(preflight)))
         attempted = True
         stage = 'domain handler API switch'
         set_version(session, TARGET)
@@ -306,7 +328,7 @@ def upgrade(inspect=False):
         current_content = read_file(session, root, '.htaccess')
         if current_content is None:
             raise RuntimeError('Hosted PHP directory handler was unavailable')
-        planned_content = php_handler_content(current_content, TARGET)
+        planned_content = runtime_override(php_handler_content(current_content.replace(probe_rule, ''), TARGET))
         if planned_content != current_content:
             directory_attempted = True
             write_handler(session, root, planned_content)
@@ -332,12 +354,13 @@ def upgrade(inspect=False):
         controlled_messages = ('Hosted ', 'Recipe domain PHP setting', 'An unrelated domain PHP setting')
         if isinstance(error, RuntimeError) and str(error).startswith(controlled_messages):
             print('PHP upgrade check detail: ' + str(error))
-        if attempted:
+        if attempted or directory_attempted:
             try:
-                # A rejected switch may leave the original setting intact.
-                current = versions(session)
-                if current[DOMAIN]['version'] != original:
-                    set_version(session, restore)
+                if attempted:
+                    # A rejected switch may leave the original setting intact.
+                    current = versions(session)
+                    if current[DOMAIN]['version'] != original:
+                        set_version(session, restore)
                 if directory_attempted:
                     write_handler(session, root, root_before)
                 verify_scope(before, versions(session), original)

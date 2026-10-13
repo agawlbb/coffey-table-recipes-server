@@ -66,12 +66,15 @@ class PhpUpgradeTests(unittest.TestCase):
         def read(session, directory, name):
             return files.get((directory, name))
         versions = [BEFORE, AFTER]
-        results = [PROBE, PROBE]
+        results = [PROBE, PROBE, PROBE]
         if mode == 'web':
             versions = [BEFORE] + [AFTER] * 7 + [BEFORE]
-            results = [PROBE] + [RuntimeError('private response')] * 6 + [PROBE]
+            results = [PROBE, PROBE] + [RuntimeError('private response')] * 6 + [PROBE]
         if mode == 'cli':
             results = [PROBE]
+        if mode == 'preflight':
+            versions = [BEFORE, BEFORE]
+            results = [PROBE, RuntimeError('private response'), PROBE]
         with patch.dict(os.environ, CPANEL_USER='fixture', CPANEL_API_TOKEN='fixture-token'), \
                 patch.object(upgrade.deploy, 'DIRECTORY', '/home/fixture/coffeybean.com/CoffeyTableRecipes'), \
                 patch.object(upgrade.deploy.requests, 'Session', side_effect=[Mock(headers={}), public]), \
@@ -110,6 +113,12 @@ class PhpUpgradeTests(unittest.TestCase):
         switch.assert_not_called()
         cleanup.assert_called_once()
 
+    def test_isolated_handler_failure_restores_file_without_switching_domain(self):
+        switch, cleanup, files = self.exercise(mode='preflight')
+        switch.assert_not_called()
+        cleanup.assert_called_once()
+        self.assertEqual(files[(ROOT, '.htaccess')], HANDLER)
+
     def test_web_failure_restores_original_handler_and_cleans_probe(self):
         switch, cleanup, files = self.exercise(mode='web')
         self.assertEqual([call.args[1] for call in switch.call_args_list], ['ea-php84','ea-php81'])
@@ -122,13 +131,36 @@ class PhpUpgradeTests(unittest.TestCase):
         cleanup.assert_called_once()
         receipts = [json.loads(content) for (_, name), content in files.items() if name.startswith('php-upgrade-after-')]
         self.assertEqual(receipts[0]['other_domains_unchanged'], True)
-        self.assertEqual(files[(ROOT, '.htaccess')], HANDLER.replace('ea-php81','ea-php84'))
+        self.assertEqual(files[(ROOT, '.htaccess')], upgrade.runtime_override(HANDLER.replace('ea-php81','ea-php84')))
 
     def test_directory_update_changes_only_php_handler_preserving_other_rules(self):
         self.assertEqual(upgrade.php_handler_content(HANDLER, 'ea-php84'), HANDLER.replace('ea-php81','ea-php84'))
         for content in ('Options -Indexes\n', HANDLER + HANDLER):
             with self.assertRaisesRegex(RuntimeError, 'ambiguous'):
                 upgrade.php_handler_content(content, 'ea-php84')
+
+    def test_explicit_handler_is_scoped_to_php_and_does_not_duplicate_on_repeat(self):
+        updated = upgrade.runtime_override(HANDLER)
+        self.assertIn('<FilesMatch "\\.(?:php|php8|phtml)$">', updated)
+        self.assertIn('Options -Indexes', updated)
+        self.assertEqual(upgrade.runtime_override(updated).count('SetHandler application/x-httpd-ea-php84'), 1)
+
+    def test_runtime_verification_never_reuses_baseline_cache_key(self):
+        public = Mock()
+        health = Mock()
+        health.json.return_value = {'status':'ok'}
+        probe = Mock()
+        probe.json.return_value = {**PROBE,'sapi':'cgi-fcgi'}
+        responses = [health, Mock(status_code=401)] + [Mock(status_code=403)] * 4 + [probe]
+        public.get.side_effect = responses * 2
+        public.options.return_value = Mock(status_code=204, headers={'Access-Control-Allow-Origin':'http://localhost'})
+        url = 'https://coffeybean.com/CoffeyTableRecipes/fixture-probe.php'
+        upgrade.public_checks(public, url, 'fixture-token', verify_version=False)
+        upgrade.public_checks(public, url, 'fixture-token')
+        calls = [call for call in public.get.call_args_list if call.args[0] == url]
+        self.assertEqual(len(calls), 2)
+        self.assertNotEqual(calls[0].kwargs['params']['runtime_check'], calls[1].kwargs['params']['runtime_check'])
+        self.assertEqual(calls[1].kwargs['headers']['Cache-Control'], 'no-cache')
 
     def test_cli_failure_removes_only_exact_temporary_job(self):
         with patch.object(upgrade.migration, 'cron'), \

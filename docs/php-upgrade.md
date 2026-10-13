@@ -58,3 +58,12 @@ Runtime requests use unique query nonces, and the temporary probe sends
 Cache-Control headers, so a cached pre-upgrade version response must never
 determine upgrade success or rollback:
 https://www.inmotionhosting.com/support/server/nginx/advanced-nginx-vps-and-dedicated/
+
+Actual web execution was PHP 8.1 FPM even when cPanel's php_fpm field was zero.
+The workflow therefore preflights an explicit SetHandler on only the temporary
+random probe file. Only after that file actually executes PHP 8.4 and passes
+read checks does it apply a scoped FilesMatch handler to this site's PHP files.
+Images/static files and other document roots are outside that override. Any
+failed preflight restores the original file without switching the domain.
+Apache's SetHandler directive:
+https://httpd.apache.org/docs/2.4/mod/core.html#sethandler
