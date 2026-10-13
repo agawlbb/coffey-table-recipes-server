@@ -69,3 +69,9 @@ Upgrade plan (separate live-runtime change):
    back if checks fail. Do not create production test recipes or send mail.
 5. Update the explicit PHP binary paths for recipe maintenance jobs after
    verifying CLI compatibility, then record the results in Git.
+
+The owner authorized this upgrade on October 13, 2026. PHP 8.4 compatibility
+and hosted CLI checks passed, but the live PHP-FPM switch is blocked by hosting
+configuration. All attempted live settings were restored and checked; the
+website remains healthy on PHP 8.1.34. See `php-upgrade.md` for the specific
+provider repair request, execution evidence, and saved maintenance follow-up.

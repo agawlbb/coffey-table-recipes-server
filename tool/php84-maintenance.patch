@@ -1,0 +1,132 @@
+diff --git a/.github/workflows/deploy-backend.yml b/.github/workflows/deploy-backend.yml
+index 80c626c..dbead11 100644
+--- a/.github/workflows/deploy-backend.yml
++++ b/.github/workflows/deploy-backend.yml
+@@ -28,24 +28,15 @@ jobs:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+         with:
+-          php-version: '8.2'
+-          extensions: pdo_mysql, pdo_sqlite, curl, mbstring, openssl
++          php-version: '8.4'
++          extensions: pdo_mysql, pdo_sqlite, curl, mbstring, openssl, dom
+           tools: composer:v2
+       - name: Validate PHP syntax
+         run: git ls-files -z '*.php' | xargs -0 -n1 php -l
+       - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+-      - name: Validate mail and verification behavior
+-        run: |
+-          php tests/invitation-mail.php
+-          php tests/verification.php
+-          php tests/migration_checksums.php
+-          php tests/recipe_deletion.php
+-          php tests/recipe_sharing.php
+-          php tests/recipe_photo.php
+-          php tests/source_photos.php
+-          php tests/recipe_ai.php
+-          php tests/website_import.php
+-          php tests/website_photos.php
++      - run: composer check-platform-reqs --no-dev
++      - name: Validate backend behavior
++        run: bash tool/validate-php.sh
+       - run: python3 -m pip install requests==2.32.5
+       - run: python3 -m unittest discover -s tool -p 'test_*.py'
+       - name: Verify cPanel TLS without credentials
+diff --git a/tool/migrate-household-images.py b/tool/migrate-household-images.py
+index 1876bfb..229ba03 100644
+--- a/tool/migrate-household-images.py
++++ b/tool/migrate-household-images.py
+@@ -37,7 +37,7 @@ def remove_job(session, command):
+ def run_once(session, account):
+     run = uuid.uuid4().hex
+     filename = f'household-images-{run}.json'
+-    command = '/opt/cpanel/ea-php82/root/usr/bin/php ' + shlex.quote(
++    command = '/opt/cpanel/ea-php84/root/usr/bin/php ' + shlex.quote(
+         deploy.DIRECTORY + '/bin/enable-household-image-policy.php') + ' ' + run + ' ' + shlex.quote(account) + ' >/dev/null 2>&1'
+     try:
+         cron(session, 'add_line', command=command, minute='*', hour='*', day='*', month='*', weekday='*')
+diff --git a/tool/migrate-recipe-deletion.py b/tool/migrate-recipe-deletion.py
+index 117a4e3..ca8cec7 100644
+--- a/tool/migrate-recipe-deletion.py
++++ b/tool/migrate-recipe-deletion.py
+@@ -37,7 +37,7 @@ def remove_job(session, command):
+ def run_once(session, account):
+     run = uuid.uuid4().hex
+     filename = f'recipe-deletion-{run}.json'
+-    command = '/opt/cpanel/ea-php82/root/usr/bin/php ' + shlex.quote(
++    command = '/opt/cpanel/ea-php84/root/usr/bin/php ' + shlex.quote(
+         deploy.DIRECTORY + '/bin/enable-recipe-deletion.php') + ' ' + run + ' ' + shlex.quote(account) + ' >/dev/null 2>&1'
+     try:
+         cron(session, 'add_line', command=command, minute='*', hour='*', day='*', month='*', weekday='*')
+diff --git a/tool/schedule-recipe-cleanup.py b/tool/schedule-recipe-cleanup.py
+index 9fbfe26..069f207 100644
+--- a/tool/schedule-recipe-cleanup.py
++++ b/tool/schedule-recipe-cleanup.py
+@@ -17,10 +17,12 @@ def schedule():
+         raise RuntimeError('Configure hosting credentials')
+     session = migration.deploy.requests.Session()
+     session.headers['Authorization'] = f'cpanel {account}:{token}'
+-    command = '/opt/cpanel/ea-php82/root/usr/bin/php ' + shlex.quote(
++    command = '/opt/cpanel/ea-php84/root/usr/bin/php ' + shlex.quote(
+         migration.deploy.DIRECTORY + '/bin/purge-deleted-recipes.php')
++    legacy_command = command.replace('/ea-php84/', '/ea-php82/', 1)
+     expected = {'minute': '15', 'hour': '3', 'day': '*', 'month': '*', 'weekday': '*'}
+-    jobs = [row for row in migration.cron(session, 'listcron') if row.get('command') == command]
++    original_jobs = migration.cron(session, 'listcron')
++    jobs = [row for row in original_jobs if row.get('command') == command]
+     if len(jobs) != 1 or any(str(jobs[0].get(key)) != value for key, value in expected.items()):
+         if jobs:
+             migration.remove_job(session, command)
+@@ -28,6 +30,15 @@ def schedule():
+     jobs = [row for row in migration.cron(session, 'listcron') if row.get('command') == command]
+     if len(jobs) != 1 or any(str(jobs[0].get(key)) != value for key, value in expected.items()):
+         raise RuntimeError('Daily recipe cleanup schedule verification failed')
++    # Add and verify the replacement before removing the exact legacy job.
++    # A failed addition leaves the existing daily cleanup running on PHP 8.2.
++    if any(row.get('command') == legacy_command for row in original_jobs):
++        migration.remove_job(session, legacy_command)
++        remaining = migration.cron(session, 'listcron')
++        jobs = [row for row in remaining if row.get('command') == command]
++        if any(row.get('command') == legacy_command for row in remaining) or len(jobs) != 1 or any(
++                str(jobs[0].get(key)) != value for key, value in expected.items()):
++            raise RuntimeError('Daily recipe cleanup PHP upgrade verification failed')
+     print('Verified daily recipe cleanup at 03:15 server time.')
+ 
+ 
+diff --git a/tool/test_recipe_cleanup_schedule.py b/tool/test_recipe_cleanup_schedule.py
+index cde53e5..abdf079 100644
+--- a/tool/test_recipe_cleanup_schedule.py
++++ b/tool/test_recipe_cleanup_schedule.py
+@@ -11,7 +11,7 @@ spec.loader.exec_module(schedule)
+ 
+ class CleanupScheduleTests(unittest.TestCase):
+     def job(self):
+-        return {'command': '/opt/cpanel/ea-php82/root/usr/bin/php ' + schedule.migration.deploy.DIRECTORY + '/bin/purge-deleted-recipes.php',
++        return {'command': '/opt/cpanel/ea-php84/root/usr/bin/php ' + schedule.migration.deploy.DIRECTORY + '/bin/purge-deleted-recipes.php',
+                 'minute': '15', 'hour': '3', 'day': '*', 'month': '*', 'weekday': '*'}
+ 
+     @patch.dict(os.environ, CPANEL_USER='fixture', CPANEL_API_TOKEN='fixture-token')
+@@ -48,3 +48,23 @@ class CleanupScheduleTests(unittest.TestCase):
+             with self.assertRaisesRegex(RuntimeError, 'Configure hosting credentials'):
+                 schedule.schedule()
+             session.assert_not_called()
++
++    @patch.dict(os.environ, CPANEL_USER='fixture', CPANEL_API_TOKEN='fixture-token')
++    def test_upgrade_verifies_replacement_before_removing_only_legacy_job(self):
++        legacy = {**self.job(), 'command':self.job()['command'].replace('/ea-php84/', '/ea-php82/')}
++        unrelated = {'command':'other-site-backup'}
++        with patch.object(schedule.migration, 'cron', side_effect=[
++                [legacy, unrelated], [], [legacy, unrelated, self.job()], [unrelated, self.job()]]) as cron, \
++                patch.object(schedule.migration, 'remove_job') as remove:
++            schedule.schedule()
++            remove.assert_called_once_with(unittest.mock.ANY, legacy['command'])
++            self.assertEqual([call.args[1] for call in cron.call_args_list], ['listcron','add_line','listcron','listcron'])
++
++    @patch.dict(os.environ, CPANEL_USER='fixture', CPANEL_API_TOKEN='fixture-token')
++    def test_failed_replacement_retains_legacy_daily_job(self):
++        legacy = {**self.job(), 'command':self.job()['command'].replace('/ea-php84/', '/ea-php82/')}
++        with patch.object(schedule.migration, 'cron', side_effect=[[legacy], RuntimeError('addition failed')]), \
++                patch.object(schedule.migration, 'remove_job') as remove:
++            with self.assertRaisesRegex(RuntimeError, 'addition failed'):
++                schedule.schedule()
++            remove.assert_not_called()
