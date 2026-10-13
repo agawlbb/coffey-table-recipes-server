@@ -37,3 +37,10 @@ After the verified switch, update CI and the explicit PHP binary used by recipe
 maintenance scripts and the existing daily cleanup job. Preserve its 03:15
 server-time schedule and all unrelated account jobs. Record actual results
 below after execution.
+
+Hosting-specific API behavior: cPanel's PHP setter encounters a stale addon
+alias with no resolvable owner after processing coffeybean.com. The script
+accepts only that specific alias error, and only after independent cPanel
+readback confirms the requested handler. All other domain settings and the real
+PHP web runtime must still pass verification. Unknown errors remain failures.
+No stale alias or unrelated account domain is repaired or removed by this tool.

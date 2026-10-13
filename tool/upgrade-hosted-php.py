@@ -67,6 +67,17 @@ def set_version(session, version):
                                 error = error.replace(secret, '[redacted]')
                         error = re.sub(r'(?:sk-[A-Za-z0-9_-]+|Bearer\s+\S+)', '[redacted]', error)
                         print('PHP handler API error: ' + error[:500])
+            # Some addon-domain mappings are stale on this account. cPanel can
+            # finish changing the requested domain before failing on that alias.
+            # Accept only this known error, only if independent readback confirms
+            # the requested handler. The caller still checks every other domain
+            # and the real web runtime before declaring success.
+            if isinstance(errors, list) and errors and all(isinstance(error, str) and
+                    'No users correspond to the domain' in error for error in errors):
+                current = versions(session)
+                if current[DOMAIN]['version'] == version:
+                    print('Verified requested domain handler despite stale addon-alias API error.')
+                    return
     api_result(response)
 
 
