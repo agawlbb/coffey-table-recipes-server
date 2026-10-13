@@ -1,5 +1,58 @@
 # Hosted PHP upgrade
 
+## Current status: blocked by hosting runtime configuration
+
+October 13, 2026: the live switch is **not completed**. The website is healthy
+on PHP **8.1.34**, SAPI **fpm-fcgi**. Original domain settings and the original
+document-root `.htaccess` were restored and verified. Temporary cron jobs and
+public probe files were removed from the website tree; cleanup was verified.
+
+Hosting has PHP **8.4.26** installed. PHP 8.4 CI syntax, locked Composer/platform
+checks, and all ten offline PHP behavior suites passed. Hosted PHP 8.4 CLI
+checks also passed required extensions, Composer bootstrap, read-only database
+access, household/recipe reads, and import preprocessing. The latest local
+Python suite has 63 passing tests.
+
+The live PHP-FPM route still executes 8.1.34 after cPanel selects ea-php84,
+despite its php_fpm field reporting zero. Both the existing AddHandler and an
+isolated-file explicit SetHandler were tested; neither changed the active web
+runtime. Unique request nonces and X-Accel-Expires: 0 ruled out reusing the
+pre-upgrade response. The cPanel setter also reports a stale addon alias with
+no resolvable owner. Available account-level controls cannot complete the
+actual PHP-FPM switch; provider intervention is required.
+
+Final guarded attempt and verified rollback/cleanup:
+https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/38410012183
+Earlier fresh-runtime diagnostic:
+https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/38409062343
+
+CI and persistent maintenance commands remain on PHP 8.2. The tested follow-up
+changes are saved in `tool/php84-maintenance.patch`; apply them only after the
+live runtime upgrade is verified. They move CI and maintenance commands to
+8.4, add a Composer platform check, and replace only the exact legacy daily
+cleanup job after verifying its replacement. Its 03:15 schedule is preserved.
+
+## Request for InMotion support
+
+Please repair/synchronize PHP version management for **coffeybean.com only**.
+The verified document root is `/home/ACCOUNT/coffeybean.com`; the recipe app is
+in its `CoffeyTableRecipes` subdirectory. PHP 8.4.26 is installed and the app
+passes compatibility checks and hosted CLI tests on it.
+
+LangPHP/php_set_vhost_versions for coffeybean.com returns:
+`No users correspond to the domain coffeybean.com.negaautism.org`.
+It can change the reported domain version but the actual website remains
+PHP 8.1.34, fpm-fcgi. cPanel's php_fpm flag is zero. Even a verified ea-php84
+AddHandler and an isolated explicit SetHandler leave the web process on 8.1.
+
+Please correct the stale addon-domain ownership/mapping and this site's active
+PHP-FPM routing/pool, then switch this site to PHP 8.4. Preserve other account
+domains, their runtimes, DNS, databases, and the existing recipe data. Please
+confirm the actual web PHP version, rather than only the MultiPHP label.
+The original settings have been restored and the site is currently healthy.
+
+## Reviewed upgrade workflow
+
 The owner authorized upgrading hosted PHP on October 13, 2026. The reviewed
 target is PHP 8.4, conditional on cPanel availability and compatibility checks.
 PHP 8.4 receives upstream security support through December 31, 2028:
