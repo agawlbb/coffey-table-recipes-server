@@ -3,6 +3,11 @@ declare(strict_types=1);
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 $cli = PHP_SAPI === 'cli';
+if (!$cli) {
+    header('Cache-Control: no-store');
+    header('X-Accel-Expires: 0');
+    header('Vary: X-Recipe-PHP-Check');
+}
 $token = $cli ? ($argv[1] ?? '') : ($_SERVER['HTTP_X_RECIPE_PHP_CHECK'] ?? '');
 if (!hash_equals('__TOKEN_HASH__', hash('sha256', $token))) { http_response_code(404); exit; }
 $root = '__APP_ROOT__';
