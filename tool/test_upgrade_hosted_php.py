@@ -62,7 +62,7 @@ class PhpUpgradeTests(unittest.TestCase):
         def upload(session, directory, name, content):
             files[(directory, name)] = content.decode()
         def read(session, directory, name):
-            return files[(directory, name)]
+            return files.get((directory, name))
         versions = [BEFORE, AFTER]
         results = [PROBE, PROBE]
         if mode == 'web':

@@ -87,6 +87,10 @@ def verify_scope(before, after, expected):
     original = {name: row for name, row in before.items() if name != DOMAIN}
     current = {name: row for name, row in after.items() if name != DOMAIN}
     if original != current:
+        differences = [{'domain':name, 'fields':sorted(key for key in set(original.get(name, {})) | set(current.get(name, {}))
+            if original.get(name, {}).get(key) != current.get(name, {}).get(key))}
+            for name in sorted(set(original) | set(current)) if original.get(name) != current.get(name)]
+        print('PHP domain setting differences: ' + json.dumps(differences))
         raise RuntimeError('An unrelated domain PHP setting changed; inspect hosting settings')
 
 
@@ -114,6 +118,9 @@ def check_probe(result):
     required = ('extensions', 'composer_bootstrap', 'database_read', 'import_preprocessing')
     if result.get('status') != 'ok' or not re.fullmatch(r'8\.4\.\d+', result.get('php_version', '')) or any(
             result.get(key) is not True for key in required):
+        version = result.get('php_version', '')
+        print('Hosted PHP runtime mismatch: ' + json.dumps({'php_version':version if re.fullmatch(r'[0-9.]+', version) else 'unknown',
+            'passed_checks':[key for key in required if result.get(key) is True]}))
         raise RuntimeError('Hosted PHP 8.4 runtime checks failed; response details omitted')
     return {key: result.get(key) for key in ('php_version', 'sapi', *required, 'recipe_read')}
 
@@ -201,8 +208,13 @@ def upgrade(inspect=False):
     root = '/home/' + account + '/coffeybean.com'
     if before[DOMAIN].get('documentroot', '').rstrip('/') != root:
         raise RuntimeError('Recipe domain document root did not match; no settings changed')
-    print('Hosted PHP inspection: ' + json.dumps({'domain':DOMAIN, 'current':before[DOMAIN]['version'], 'available':available}))
+    print('Hosted PHP inspection: ' + json.dumps({'domain':DOMAIN, 'current':before[DOMAIN]['version'],
+        'php_fpm':before[DOMAIN].get('php_fpm'), 'available':available}))
     if inspect:
+        for directory in (root, deploy.DIRECTORY):
+            content = read_file(session, directory, '.htaccess') or ''
+            handlers = re.findall(r'(?:AddHandler|SetHandler)\s+application/x-httpd-[A-Za-z0-9_-]+', content)
+            print('Hosted directory PHP handlers: ' + json.dumps({'directory':directory.rsplit('/', 1)[1], 'handlers':handlers}))
         return
     if TARGET not in available:
         raise RuntimeError('PHP 8.4 is not installed on hosting; no settings changed')
@@ -259,6 +271,9 @@ def upgrade(inspect=False):
         print('Verified hosted PHP upgrade: ' + original + ' -> ' + TARGET + '; other domains unchanged.')
     except Exception as error:
         print('PHP upgrade stage failed: ' + stage + ' (' + type(error).__name__ + ')')
+        controlled_messages = ('Hosted ', 'Recipe domain PHP setting', 'An unrelated domain PHP setting')
+        if isinstance(error, RuntimeError) and str(error).startswith(controlled_messages):
+            print('PHP upgrade check detail: ' + str(error))
         if attempted:
             try:
                 # A rejected switch may leave the original setting intact.
