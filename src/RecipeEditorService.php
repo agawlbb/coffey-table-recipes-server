@@ -69,6 +69,12 @@ final class RecipeEditorService
             if ($recipeId === '') {
                 $source = $this->fields($body, ['source_text'=>'60000','import_key'=>'191']);
                 if ($source['import_key'] !== null && !preg_match('/^[a-f0-9]{64}$/', $source['import_key'])) $this->invalid('Invalid import identifier.');
+                if ($source['import_key'] !== null) {
+                    // Re-importing must not be blocked by recoverable trash. Transfer
+                    // only the duplicate reservation, in the same save transaction.
+                    $q = $this->pdo->prepare('UPDATE recipes SET import_key=NULL WHERE household_id=? AND import_key=? AND deleted_at IS NOT NULL');
+                    $q->execute([$householdId,$source['import_key']]);
+                }
                 $recipeId = $this->insert('recipes', ['household_id'=>$householdId,'title'=>'New recipe','created_by_user_id'=>$userId,'updated_by_user_id'=>$userId] + $source);
                 $body['revision'] = 1;
             }
