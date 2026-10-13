@@ -61,7 +61,11 @@ directory denies HTTP access and backend deployment preserves private files.
 The manual `Configure recipe AI key` workflow uses the existing cPanel deployment
 secrets plus `RECIPE_AI_API_KEY`. It verifies OpenAI model access, uploads only
 `config/recipe-ai.local.json` to the verified recipe directory, compares private
-readback, and requires public HTTP 403. No model tokens or database writes are
+readback, and requires public HTTP 403 before writing and after verification.
+Existing configuration is backed up outside the web directory. Failed installs
+quarantine the uploaded key outside that directory and restore the old key only
+while access protection remains verified. See `security-maintenance.md` for
+rollback and private recovery details. No model tokens or database writes are
 used by these checks. Secret values and server response details are never logged.
 When provisioning from a local key, obtain approval for storing the temporary
 encrypted GitHub Actions secret, and remove that secret after setup completes.
