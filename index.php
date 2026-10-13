@@ -113,6 +113,23 @@ try {
         $draft = (new RecipeImportService($config['recipe_ai'], __DIR__.'/storage'))->analyze(requestBody(8*1024*1024), $user['id'], $options['categories']);
         $draft['recipe']['edit_options'] = $options;
         respond(200, $draft);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/(?:deleted|([1-9][0-9]{0,18})/(delete|restore))$#', $route, $deletionMatch)) {
+        $listing = !isset($deletionMatch[2]) || $deletionMatch[2] === '';
+        if ($method !== ($listing ? 'GET' : 'POST')) throw new HttpError(405, 'method_not_allowed', $listing ? 'Use GET.' : 'Use POST.');
+        $identity = authenticatedIdentity($config);
+        $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $deletion = new RecipeDeletionService($pdo, $households);
+        if ($listing) {
+            $offset = $_GET['offset'] ?? '0';
+            if (!is_string($offset) || !preg_match('/^[0-9]{1,6}$/', $offset)) throw new HttpError(400, 'invalid_filter', 'Invalid offset.');
+            respond(200, $deletion->recentlyDeleted($user['id'], $deletionMatch[1], (int)$offset));
+        } else {
+            $body = requestBody();
+            if ($deletionMatch[3] === 'delete') respond(200, $deletion->delete($user['id'], $deletionMatch[1], $deletionMatch[2], $body));
+            else respond(200, $deletion->restore($user['id'], $deletionMatch[1], $deletionMatch[2]));
+        }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);

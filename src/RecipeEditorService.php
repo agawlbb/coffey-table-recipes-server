@@ -72,7 +72,7 @@ final class RecipeEditorService
                 $recipeId = $this->insert('recipes', ['household_id'=>$householdId,'title'=>'New recipe','created_by_user_id'=>$userId,'updated_by_user_id'=>$userId] + $source);
                 $body['revision'] = 1;
             }
-            $q = $this->pdo->prepare('SELECT revision FROM recipes WHERE household_id=? AND id=? FOR UPDATE');
+            $q = $this->pdo->prepare('SELECT revision FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=? FOR UPDATE');
             $q->execute([$householdId, $recipeId]);
             $revision = $q->fetchColumn();
             if ($revision === false) throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
@@ -91,7 +91,7 @@ final class RecipeEditorService
                 while ($ancestor !== '') {
                     if (isset($visited[$ancestor])) $this->invalid('The original recipe cannot form a circular relationship.');
                     $visited[$ancestor] = true;
-                    $q = $this->pdo->prepare('SELECT parent_recipe_id FROM recipes WHERE household_id=? AND id=?');
+                    $q = $this->pdo->prepare('SELECT parent_recipe_id FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=?');
                     $q->execute([$householdId, $ancestor]); $r = $q->fetch(PDO::FETCH_ASSOC);
                     if (!$r) $this->invalid('Choose an original recipe from this household.');
                     $ancestor = (string) ($r['parent_recipe_id'] ?? '');
@@ -210,7 +210,7 @@ final class RecipeEditorService
             $seen = [];
             foreach ($lists['pairings'] as $row) {
                 $id = (string)($row['id'] ?? '');
-                $q = $this->pdo->prepare('SELECT id FROM recipes WHERE household_id=? AND id=?'); $q->execute([$householdId,$id]);
+                $q = $this->pdo->prepare('SELECT id FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=?'); $q->execute([$householdId,$id]);
                 if ($id === $recipeId || !$q->fetchColumn() || isset($seen[$id])) $this->invalid('Invalid or duplicate pairing.'); $seen[$id] = true;
                 $values = $this->fields($row,['notes'=>'60000']);
                 $this->insert('recipe_pairings',['household_id'=>$householdId,'recipe_id'=>min((int)$recipeId,(int)$id),'paired_recipe_id'=>max((int)$recipeId,(int)$id)] + $values);

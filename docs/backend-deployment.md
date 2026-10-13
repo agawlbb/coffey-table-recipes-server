@@ -119,3 +119,24 @@ No database migration or data import was performed; credentials, uploaded media
 and the hosted Flutter app were preserved. Authenticated recipe save behavior
 still requires its own feature verification; these deployment checks do not
 perform production saves. Backend pushes to main now deploy automatically.
+
+## Recipe recovery migration 010
+
+The recipe-recovery backend depends on migration 010. Deployment now always runs
+`tool/migrate-recipe-deletion.py` before extracting PHP. It skips an already
+recorded matching checksum; on first use it saves a full consistent protected
+backup and applies only the reviewed recovery migration to the dedicated recipe
+database. Temporary ALTER, CREATE and REFERENCES privileges are restored and
+verified. The backup includes explicit non-generated columns for safe restore.
+
+After successful deployment, `tool/schedule-recipe-cleanup.py` verifies one daily
+03:15 server-time CLI cleanup job. It changes only the exact recipe cleanup
+command and preserves unrelated account jobs. See recipe-deletion.md for recovery
+behavior, history retention and hosted acceptance checks. This automation has
+been fixture-tested but has not yet been run on the host.
+
+Recipe recovery rollout completed on 2026-10-12 in run 38327961963. Migration 010
+was backed up and applied successfully; all 21 existing recipes were retained,
+original runtime privileges restored, backend commit 02d9ea3 verified publicly,
+and the daily 03:15 server-time cleanup schedule verified. See recipe-deletion.md
+for the validation record and the remaining authenticated Flutter release check.
