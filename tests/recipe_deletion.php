@@ -5,6 +5,17 @@ require dirname(__DIR__).'/src/RecipeShare.php';
 
 // In-memory fixtures only: never connects to a local or hosted recipe database.
 // SQL adaptations cover timestamps/locking syntax, not MySQL concurrency or DDL.
+final class TrashFixtureStatement extends PDOStatement {
+    protected function __construct() {}
+    public function execute(?array $params = null): bool {
+        try { return parent::execute($params); }
+        catch (PDOException $error) {
+            // Translate only the production import-key uniqueness constraint.
+            if (str_contains($error->getMessage(), 'recipes.household_id, recipes.import_key')) $error->errorInfo[1] = 1062;
+            throw $error;
+        }
+    }
+}
 final class TrashFixtureDatabase extends PDO {
     private function sql(string $sql): string {
         return str_replace(['DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 30 DAY)','UTC_TIMESTAMP(6)',' FOR UPDATE',' <=> '], ["datetime('now','+30 days')","datetime('now')",'',' IS '], $sql);
@@ -14,6 +25,7 @@ final class TrashFixtureDatabase extends PDO {
 }
 $pdo = new TrashFixtureDatabase('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+$pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS,[TrashFixtureStatement::class]);
 $pdo->exec('PRAGMA foreign_keys=ON');
 $pdo->exec("CREATE TABLE household_memberships (household_id INTEGER,user_id INTEGER,role TEXT);
  CREATE TABLE households (id INTEGER,ai_images_enabled INTEGER);
@@ -26,7 +38,7 @@ foreach (['003_recipes.sql','005_recipe_categories.sql'] as $name) {
         $columns = [];
         foreach (explode("\n",$table[2]) as $line) {
             if (!preg_match('/^\s*([a-z][a-z_]+)\s+(BIGINT|INT|VARCHAR|TEXT|LONGTEXT|DECIMAL|DATETIME|BOOLEAN|ENUM)/',$line,$m)) continue;
-            $columns[] = $m[1].' '.($m[2]==='BIGINT' || $m[2]==='INT' || $m[2]==='BOOLEAN' ? 'INTEGER' : 'TEXT');
+            $columns[] = $m[1].' '.($m[2]==='BIGINT' || $m[2]==='INT' || $m[2]==='BOOLEAN' ? 'INTEGER' : 'TEXT').($m[1]==='revision' ? ' DEFAULT 1' : '');
         }
         if ($table[1]==='recipes') {
             $columns = array_filter($columns,fn($c)=>!str_starts_with($c,'id '));
@@ -39,6 +51,7 @@ foreach (['003_recipes.sql','005_recipe_categories.sql'] as $name) {
         $pdo->exec('CREATE TABLE '.$table[1].' ('.implode(',',$columns).')');
     }
 }
+$pdo->exec('CREATE UNIQUE INDEX household_import_key ON recipes(household_id,import_key)');
 $pdo->exec('CREATE TABLE deleted_recipe_cooking_history (household_id INTEGER,event_id INTEGER,recipe_id INTEGER,recipe_title TEXT,recipe_revision INTEGER,servings_made TEXT,notes TEXT,PRIMARY KEY(event_id,recipe_id))');
 $pdo->exec("INSERT INTO recipes(id,household_id,title,revision) VALUES (1,1,'Soup',1),(2,1,'Bread',1),(3,2,'Private',1);
  INSERT INTO recipe_steps(id,household_id,recipe_id,position,instruction) VALUES (1,1,1,0,'Simmer');
@@ -93,5 +106,27 @@ checkTrash($trash->purgeExpired('unused')===0,'Cleanup is not repeatable');
 checkTrash(is_file($media.'/'.$shared),'Shared photo was removed');
 checkTrash(!is_file($media.'/'.$owned),'Owned expired photo was retained');
 unlink($media.'/'.$shared); rmdir($media);
+$draft=['title'=>'Soup','original_language'=>'en','measurement_system'=>'unspecified',
+    'source_text'=>'Original soup instructions','import_key'=>hash('sha256','reimport-fixture'),
+    'ingredients'=>[], 'groups'=>[], 'steps'=>[], 'actions'=>[], 'photos'=>[], 'tags'=>[], 'category_assignments'=>[], 'pairings'=>[]];
+$original=$editor->save('1','1','',$draft);
+rejectTrash(fn()=>$editor->save('1','1','',$draft),409);
+$other=$editor->save('2','2','',$draft);
+$beforeDelete=$trash->delete('1','1',$original['id'],['revision'=>$original['revision']]);
+$bad=$draft; $bad['title']='';
+rejectTrash(fn()=>$editor->save('1','1','',$bad),422);
+$q=$pdo->prepare('SELECT import_key FROM recipes WHERE id=?'); $q->execute([$original['id']]);
+checkTrash($q->fetchColumn()===$draft['import_key'],'Failed reimport did not roll back key transfer');
+$replacement=$editor->save('1','1','',$draft);
+checkTrash($replacement['id']!==$original['id'] && $replacement['title']===$original['title'],'Reimport of deleted recipe was not created');
+$q->execute([$original['id']]); checkTrash($q->fetchColumn()===null,'Deleted reservation retained');
+$q->execute([$other['id']]); checkTrash($q->fetchColumn()===$draft['import_key'],'Other household reservation changed');
+checkTrash($trash->recentlyDeleted('1','1')['recipes'][0]['purge_after']===$beforeDelete['purge_after'],'Reimport changed recovery deadline');
+rejectTrash(fn()=>$editor->save('1','1','',$draft),409);
+$recovered=$trash->restore('1','1',$original['id'])['recipe'];
+checkTrash($recovered['id']===$original['id'] && $recovered['title']==='Soup','Original cannot be recovered after reimport');
+checkTrash($read->detail('1','1',$replacement['id'])['title']==='Soup','Restoring original replaced the new recipe');
+$distinct=$draft; $distinct['import_key']=hash('sha256','different-soup-source');
+checkTrash($editor->save('1','1','',$distinct)['title']==='Soup','Distinct source with same title rejected');
 echo "$checks recipe deletion fixture checks passed.\n";
 

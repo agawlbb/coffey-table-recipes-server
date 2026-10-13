@@ -93,3 +93,27 @@ The hosted Flutter app was not published. Authenticated delete/restore acceptanc
 through the new Flutter UI remains a separate release check; this rollout did not
 delete a user's recipe or run permanent cleanup manually. The scheduled expiry job
 will act only on recipes whose recovery deadline has elapsed.
+
+## Re-importing a deleted recipe (2026-10-13)
+
+A deleted recipe previously retained the household's unique import fingerprint,
+so saving the same source again failed even though the recipe was hidden. Recipe
+creation now clears a matching fingerprint only from deleted recipes in the same
+household, inside the new recipe's save transaction. A failed save rolls back the
+transfer. Active recipes retain duplicate-import protection. Different recipes
+may share a title; titles are not unique.
+
+The deleted recipe keeps its original ID, content, and recovery deadline. It can
+still be restored alongside the newly imported copy. No schema migration is
+needed. PHP syntax validation and 40 in-memory deletion/import checks passed,
+including active duplicate rejection, cross-household isolation, failed-save
+rollback, re-import, and restoration of the original after re-import.
+
+Hosted deployment of `fb36a91ffad127cd393e011681c8742f85fac4a0` succeeded on
+2026-10-13 in GitHub Actions run 38484352321. The workflow passed PHP validation,
+all behavior/automation checks, migration checksum verification, deployment
+receipt/health checks, and daily cleanup schedule verification. Independent public
+reads confirmed the exact hosted commit and healthy API. The migration was
+already applied; no schema change or manual deletion was required. Authenticated
+user re-import remains a user acceptance check; fixtures exercised the fix without
+modifying personal recipes. No Flutter rebuild or hosted-app deployment was needed.
