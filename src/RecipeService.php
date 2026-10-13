@@ -20,7 +20,7 @@ final class RecipeService
         $this->households->membership($userId, $householdId);
         if (mb_strlen($query) > 200 || mb_strlen($category) > 120 || $offset < 0 || $offset > 100000) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
         $parameters = [$householdId];
-        $where = 'r.household_id = ?';
+        $where = 'r.household_id = ? AND r.deleted_at IS NULL';
         $node = null;
         if ($scope !== '') {
             if (!preg_match('/^[1-9][0-9]{0,18}$/', $scope)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
@@ -30,11 +30,12 @@ final class RecipeService
             array_push($parameters, $scope, $scope);
         }
         if ($tree && $query === '' && ($node === null || $node['parent_id'] === null)) {
-            $nodes = $this->rows('SELECT c.id,c.parent_id,c.slug,c.label,c.image_key,COUNT(DISTINCT a.recipe_id) AS recipe_count
+            $nodes = $this->rows('SELECT c.id,c.parent_id,c.slug,c.label,c.image_key,COUNT(DISTINCT active.id) AS recipe_count
                 FROM recipe_categories c LEFT JOIN recipe_categories child ON child.parent_id=c.id
                 LEFT JOIN recipe_category_assignments a ON (a.category_id=c.id OR a.category_id=child.id) AND a.household_id=?
+                LEFT JOIN recipes active ON active.id=a.recipe_id AND active.household_id=a.household_id AND active.deleted_at IS NULL
                 WHERE c.parent_id <=> ? GROUP BY c.id,c.parent_id,c.slug,c.label,c.image_key,c.position
-                HAVING c.parent_id IS NULL OR COUNT(DISTINCT a.recipe_id)>0 ORDER BY c.position,c.label,c.id', [$householdId, $scope === '' ? null : $scope]);
+                HAVING c.parent_id IS NULL OR COUNT(DISTINCT active.id)>0 ORDER BY c.position,c.label,c.id', [$householdId, $scope === '' ? null : $scope]);
             foreach ($nodes as &$categoryNode) {
                 $categoryNode['image_url']=str_starts_with($categoryNode['image_key'],'ai-') ? rtrim($this->mediaUrl,'/').'/category-'.$categoryNode['id'].'.jpg' : null;
                 $categoryNode['needs_ai_image']=str_starts_with($categoryNode['slug'],'import-') && $categoryNode['image_url']===null && $this->households->aiImagesEnabled($userId, $householdId);
@@ -61,13 +62,13 @@ final class RecipeService
         } unset($item);
         $hasMore = count($items) > 30;
         if ($hasMore) array_pop($items);
-        $categories = $this->rows("SELECT DISTINCT label FROM recipe_tags WHERE household_id=? AND kind='category' ORDER BY label", [$householdId]);
+        $categories = $this->rows("SELECT DISTINCT t.label FROM recipe_tags t JOIN recipes r ON r.id=t.recipe_id AND r.household_id=t.household_id AND r.deleted_at IS NULL WHERE t.household_id=? AND t.kind='category' ORDER BY t.label", [$householdId]);
         return ['recipes' => $items, 'categories' => array_column($categories, 'label'), 'category_nodes' => [], 'view' => 'recipes', 'next_offset' => $hasMore ? $offset + count($items) : null];
     }
 
     public function detail(string $userId, string $householdId, string $recipeId): array {
         $this->households->membership($userId, $householdId);
-        $rows = $this->rows('SELECT * FROM recipes WHERE household_id=? AND id=?', [$householdId, $recipeId]);
+        $rows = $this->rows('SELECT * FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=?', [$householdId, $recipeId]);
         if (!$rows) throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
         $recipe = $rows[0];
         // Keep raw extracted source text and import bookkeeping out of the display response.
@@ -85,8 +86,8 @@ final class RecipeService
         $recipe['nutrition'] = $nutrition[0] ?? null;
         if ($recipe['nutrition'] !== null) $recipe['nutrition']['stale'] = $recipe['nutrition']['recipe_revision'] !== $recipe['revision'];
         $parent = $recipe['parent_recipe_id'];
-        $recipe['related'] = $this->rows('SELECT id,title,parent_recipe_id FROM recipes WHERE household_id=? AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$householdId, $recipeId, $parent ?? $recipeId, $parent, $parent, $parent]);
-        $recipe['pairings'] = $this->rows('SELECT r.id,r.title,p.notes FROM recipe_pairings p JOIN recipes r ON r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END AND r.household_id=p.household_id WHERE p.household_id=? AND (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$recipeId, $householdId, $recipeId, $recipeId]);
+        $recipe['related'] = $this->rows('SELECT id,title,parent_recipe_id FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$householdId, $recipeId, $parent ?? $recipeId, $parent, $parent, $parent]);
+        $recipe['pairings'] = $this->rows('SELECT r.id,r.title,p.notes FROM recipe_pairings p JOIN recipes r ON r.deleted_at IS NULL AND r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END AND r.household_id=p.household_id WHERE p.household_id=? AND (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$recipeId, $householdId, $recipeId, $recipeId]);
         $recipe['category_assignments'] = $this->rows('SELECT category_id FROM recipe_category_assignments WHERE household_id=? AND recipe_id=? ORDER BY category_id', [$householdId, $recipeId]);
         $recipe['edit_options'] = $this->editOptions($userId, $householdId, $recipeId);
         return $recipe;
@@ -97,7 +98,7 @@ final class RecipeService
         return [
             'ai_images_enabled' => $this->households->aiImagesEnabled($userId, $householdId),
             'categories' => $this->rows('SELECT c.id,c.label,p.label AS parent_label FROM recipe_categories c LEFT JOIN recipe_categories p ON p.id=c.parent_id ORDER BY COALESCE(p.position,c.position),c.position,c.label', []),
-            'recipes' => $this->rows('SELECT id,title FROM recipes WHERE household_id=? AND id<>? ORDER BY title,id', [$householdId,$recipeId]),
+            'recipes' => $this->rows('SELECT id,title FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id<>? ORDER BY title,id', [$householdId,$recipeId]),
         ];
     }
 }
