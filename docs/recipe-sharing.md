@@ -1,5 +1,9 @@
 # Public recipe links
 
+Step headings display as “1. Heading” followed by their instructions. Steps
+without a heading keep “1. Instructions”. Structured instruction data retains
+its order and section information. Sharing/rendering regression checks pass.
+
 ## Structured recipe data - 2026-10-12
 
 Rendered recipe pages include a Schema.org Recipe JSON-LD block generated from

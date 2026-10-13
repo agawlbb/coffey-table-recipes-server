@@ -89,8 +89,8 @@ h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-botto
 <h2>Method</h2>
 <?php if (empty($r['steps'])): ?><p>No cooking steps recorded.</p><?php endif ?>
 <?php foreach ($r['steps'] ?? [] as $step): ?><div class="step">
-<?php if (isset($step['section_title'])): ?><h3><?= $e($step['section_title']) ?></h3><?php endif ?>
-<p><?= $e($step['position']) ?>. <?= $e($step['instruction']) ?></p>
+<?php $hasHeading=trim((string)($step['section_title'] ?? ''))!==''; if ($hasHeading): ?><h3><?= $e($step['position']) ?>. <?= $e($step['section_title']) ?></h3><?php endif ?>
+<p><?= $hasHeading ? '' : $e($step['position']).'. ' ?><?= $e($step['instruction']) ?></p>
 </div><?php endforeach ?>
 <?php endif ?>
 <?php if (isset($r['notes'])): ?><h2>Notes</h2><p><?= $e($r['notes']) ?></p><?php endif ?>
