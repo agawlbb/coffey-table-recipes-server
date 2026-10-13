@@ -1,0 +1,49 @@
+name: Upgrade hosted PHP
+on:
+  workflow_dispatch:
+    inputs:
+      apply_upgrade:
+        description: Apply the reviewed coffeybean.com-only PHP 8.4 upgrade after compatibility checks
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: hosted-backend
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: python3 -m pip install requests==2.32.5
+      - name: Inspect hosted PHP availability
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/upgrade-hosted-php.py --inspect
+  upgrade:
+    needs: inspect
+    if: inputs.apply_upgrade == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, pdo_sqlite, curl, mbstring, openssl, dom
+          tools: composer:v2
+      - run: git ls-files -z '*.php' | xargs -0 -n1 php -l
+      - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - run: composer check-platform-reqs --no-dev
+      - run: bash tool/validate-php.sh
+      - run: python3 -m pip install requests==2.32.5
+      - run: python3 -m unittest discover -s tool -p 'test_*.py'
+      - name: Upgrade and verify hosted PHP with rollback
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/upgrade-hosted-php.py
