@@ -44,3 +44,11 @@ accepts only that specific alias error, and only after independent cPanel
 readback confirms the requested handler. All other domain settings and the real
 PHP web runtime must still pass verification. Unknown errors remain failures.
 No stale alias or unrelated account domain is repaired or removed by this tool.
+
+On this CGI hosting setup, cPanel's partial setter can also leave the document
+root's PHP AddHandler directive unchanged. The script backs up and verifies
+that `.htaccess` separately, requires exactly one existing EasyApache PHP
+AddHandler, and changes only its handler value to ea-php84. Other directives
+and unrelated document roots are preserved. Rollback restores the original
+file as well as the domain setting. The host documents directory PHP handlers:
+https://www.inmotionhosting.com/support/website/multiple-php-versions/
