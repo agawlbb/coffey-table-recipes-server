@@ -176,7 +176,10 @@ def public_checks(public, probe_url, token, verify_version=True):
     for path in ('config/local.php', 'config/recipe-ai.local.json', 'vendor/autoload.php', 'storage/'):
         if public.get(deploy.PUBLIC + path, timeout=30).status_code != 403:
             raise RuntimeError('Hosted internal-path protection check failed')
-    response = public.get(probe_url, headers={'X-Recipe-PHP-Check':token}, timeout=30)
+    # InMotion's proxy may ignore Cache-Control. Never reuse a cached version
+    # response from the pre-upgrade baseline; the probe also sends X-Accel-Expires.
+    response = public.get(probe_url, params={'runtime_check':secrets.token_hex(16)},
+        headers={'X-Recipe-PHP-Check':token, 'Cache-Control':'no-cache'}, timeout=30)
     deploy.require_http(response, 'Hosted PHP runtime')
     result = response.json()
     if verify_version:
@@ -234,7 +237,11 @@ def upgrade(inspect=False):
         'php_fpm':before[DOMAIN].get('php_fpm'), 'available':available}))
     if inspect:
         for version in (before[DOMAIN]['version'], TARGET):
-            info = handler(session, version)
+            try:
+                info = handler(session, version)
+            except Exception:
+                print('Hosted PHP handler type query unavailable; directory inspection continues.')
+                continue
             if isinstance(info, dict):
                 info = {key:value for key,value in info.items() if key in ('handler','php_handler','version')}
             elif not isinstance(info, str) or not re.fullmatch(r'[a-z0-9_-]+', info):
@@ -283,7 +290,7 @@ def upgrade(inspect=False):
         upload(session, deploy.DIRECTORY, filename, source.encode())
         if read_file(session, deploy.DIRECTORY, filename) != source:
             raise RuntimeError('Temporary PHP probe did not match')
-        if public.get(probe_url, timeout=30).status_code != 404:
+        if public.get(probe_url, params={'runtime_check':secrets.token_hex(16)}, timeout=30).status_code != 404:
             raise RuntimeError('Temporary PHP probe authentication check failed')
         public_checks(public, probe_url, secret, verify_version=False)
         stage = 'hosted CLI checks'
@@ -342,7 +349,7 @@ def upgrade(inspect=False):
     finally:
         if uploaded:
             quarantine_probe(session, account, filename)
-            if public.get(probe_url, timeout=30).status_code not in (403, 404):
+            if public.get(probe_url, params={'runtime_check':secrets.token_hex(16)}, timeout=30).status_code not in (403, 404):
                 raise RuntimeError('Temporary PHP probe URL cleanup failed')
             print('Verified temporary PHP probe and cron cleanup.')
 

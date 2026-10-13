@@ -52,3 +52,9 @@ AddHandler, and changes only its handler value to ea-php84. Other directives
 and unrelated document roots are preserved. Rollback restores the original
 file as well as the domain setting. The host documents directory PHP handlers:
 https://www.inmotionhosting.com/support/website/multiple-php-versions/
+
+Runtime requests use unique query nonces, and the temporary probe sends
+`X-Accel-Expires: 0` in addition to no-store. InMotion's proxy can ignore normal
+Cache-Control headers, so a cached pre-upgrade version response must never
+determine upgrade success or rollback:
+https://www.inmotionhosting.com/support/server/nginx/advanced-nginx-vps-and-dedicated/
