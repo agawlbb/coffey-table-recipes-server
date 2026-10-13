@@ -77,6 +77,7 @@ class PhpUpgradeTests(unittest.TestCase):
                 patch.object(upgrade.deploy.requests, 'Session', side_effect=[Mock(headers={}), public]), \
                 patch.object(upgrade, 'versions', side_effect=versions), \
                 patch.object(upgrade, 'installed', return_value=list(available)), \
+                patch.object(upgrade, 'handler', return_value='cgi'), \
                 patch.object(upgrade, 'upload', side_effect=upload), \
                 patch.object(upgrade, 'read_file', side_effect=read), \
                 patch.object(upgrade, 'public_checks', side_effect=results), \
