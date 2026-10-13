@@ -14,6 +14,8 @@ BEFORE = {'coffeybean.com': {'vhost':'coffeybean.com', 'version':'ea-php81',
 AFTER = {**BEFORE, 'coffeybean.com': {**BEFORE['coffeybean.com'], 'version':'ea-php84'}}
 PROBE = {'status':'ok', 'php_version':'8.4.20', 'sapi':'cli', 'extensions':True,
     'composer_bootstrap':True, 'database_read':True, 'import_preprocessing':True, 'recipe_read':True}
+ROOT = '/home/fixture/coffeybean.com'
+HANDLER = 'Options -Indexes\n# php handler\n<IfModule mime_module>\n  AddHandler application/x-httpd-ea-php81 .php .php8 .phtml\n</IfModule>\n'
 
 
 class PhpUpgradeTests(unittest.TestCase):
@@ -56,10 +58,10 @@ class PhpUpgradeTests(unittest.TestCase):
         query.assert_not_called()
 
     def exercise(self, mode='', inspect=False, available=('ea-php81','ea-php84')):
-        files = {}
+        files = {(ROOT, '.htaccess'):HANDLER}
         public = Mock(headers={})
         public.get.return_value = Mock(status_code=404)
-        def upload(session, directory, name, content):
+        def upload(session, directory, name, content, overwrite=False):
             files[(directory, name)] = content.decode()
         def read(session, directory, name):
             return files.get((directory, name))
@@ -94,13 +96,13 @@ class PhpUpgradeTests(unittest.TestCase):
         switch, cleanup, files = self.exercise(inspect=True)
         switch.assert_not_called()
         cleanup.assert_not_called()
-        self.assertEqual(files, {})
+        self.assertEqual(files, {(ROOT, '.htaccess'):HANDLER})
 
     def test_unavailable_target_never_changes_settings(self):
         switch, cleanup, files = self.exercise(available=('ea-php81',))
         switch.assert_not_called()
         cleanup.assert_not_called()
-        self.assertEqual(files, {})
+        self.assertEqual(files, {(ROOT, '.htaccess'):HANDLER})
 
     def test_cli_failure_never_changes_handler_and_cleans_probe(self):
         switch, cleanup, _ = self.exercise(mode='cli')
@@ -108,9 +110,10 @@ class PhpUpgradeTests(unittest.TestCase):
         cleanup.assert_called_once()
 
     def test_web_failure_restores_original_handler_and_cleans_probe(self):
-        switch, cleanup, _ = self.exercise(mode='web')
+        switch, cleanup, files = self.exercise(mode='web')
         self.assertEqual([call.args[1] for call in switch.call_args_list], ['ea-php84','ea-php81'])
         cleanup.assert_called_once()
+        self.assertEqual(files[(ROOT, '.htaccess')], HANDLER)
 
     def test_success_records_private_backup_and_verification(self):
         switch, cleanup, files = self.exercise()
@@ -118,6 +121,13 @@ class PhpUpgradeTests(unittest.TestCase):
         cleanup.assert_called_once()
         receipts = [json.loads(content) for (_, name), content in files.items() if name.startswith('php-upgrade-after-')]
         self.assertEqual(receipts[0]['other_domains_unchanged'], True)
+        self.assertEqual(files[(ROOT, '.htaccess')], HANDLER.replace('ea-php81','ea-php84'))
+
+    def test_directory_update_changes_only_php_handler_preserving_other_rules(self):
+        self.assertEqual(upgrade.php_handler_content(HANDLER, 'ea-php84'), HANDLER.replace('ea-php81','ea-php84'))
+        for content in ('Options -Indexes\n', HANDLER + HANDLER):
+            with self.assertRaisesRegex(RuntimeError, 'ambiguous'):
+                upgrade.php_handler_content(content, 'ea-php84')
 
     def test_cli_failure_removes_only_exact_temporary_job(self):
         with patch.object(upgrade.migration, 'cron'), \

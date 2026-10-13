@@ -94,9 +94,9 @@ def verify_scope(before, after, expected):
         raise RuntimeError('An unrelated domain PHP setting changed; inspect hosting settings')
 
 
-def upload(session, directory, name, content):
+def upload(session, directory, name, content, overwrite=False):
     deploy.require_success(session.post(deploy.HOST + '/execute/Fileman/upload_files',
-        data={'dir': directory, 'overwrite': '0'},
+        data={'dir': directory, 'overwrite': '1' if overwrite else '0'},
         files={'file-1': (name, content, 'application/octet-stream')},
         timeout=60, allow_redirects=False), 'PHP upgrade verification upload')
 
@@ -112,6 +112,21 @@ def read_file(session, directory, name):
     if not isinstance(content, str):
         raise RuntimeError('PHP upgrade verification readback was invalid')
     return content
+
+
+def php_handler_content(content, version):
+    if not re.fullmatch(r'ea-php[0-9]{2,3}', version):
+        raise RuntimeError('Invalid directory PHP handler')
+    pattern = r'(?m)^(\s*AddHandler\s+)application/x-httpd-ea-php[0-9]{2,3}(\s+[^\r\n]+)$'
+    if len(list(re.finditer(pattern, content))) != 1:
+        raise RuntimeError('Hosted PHP directory handler was ambiguous; no file overwritten')
+    return re.sub(pattern, lambda match: match[1] + 'application/x-httpd-' + version + match[2], content)
+
+
+def write_handler(session, root, content):
+    upload(session, root, '.htaccess', content.encode(), overwrite=True)
+    if read_file(session, root, '.htaccess') != content:
+        raise RuntimeError('Hosted PHP directory handler readback did not match')
 
 
 def check_probe(result):
@@ -218,6 +233,10 @@ def upgrade(inspect=False):
         return
     if TARGET not in available:
         raise RuntimeError('PHP 8.4 is not installed on hosting; no settings changed')
+    root_before = read_file(session, root, '.htaccess')
+    if root_before is None:
+        raise RuntimeError('Hosted PHP directory handler backup was unavailable')
+    php_handler_content(root_before, TARGET)  # Validate before any settings mutation.
     run = uuid.uuid4().hex
     filename = 'recipe-php-check-' + run + '.php'
     receipt = 'php84-cli-' + run + '.json'
@@ -233,11 +252,16 @@ def upgrade(inspect=False):
     upload(session, deploy.DIRECTORY + '/storage', backup, json.dumps(before).encode())
     if json.loads(read_file(session, deploy.DIRECTORY + '/storage', backup) or '{}') != before:
         raise RuntimeError('PHP rollback settings backup did not match')
+    handler_backup = 'php-handler-before-' + run + '.htaccess'
+    upload(session, deploy.DIRECTORY + '/storage', handler_backup, root_before.encode())
+    if read_file(session, deploy.DIRECTORY + '/storage', handler_backup) != root_before:
+        raise RuntimeError('PHP directory handler backup did not match')
     public = deploy.requests.Session()
     public.headers['User-Agent'] = 'CoffeyTableRecipes PHP upgrade verification'
     probe_url = deploy.PUBLIC + filename
     attempted = False
     uploaded = False
+    directory_attempted = False
     stage = 'probe upload'
     try:
         uploaded = True  # An upload timeout may still have written the file.
@@ -253,6 +277,18 @@ def upgrade(inspect=False):
         attempted = True
         stage = 'domain handler API switch'
         set_version(session, TARGET)
+        # cPanel updates userdata before failing on this account's stale alias,
+        # leaving the actual directory AddHandler behind. Update only that
+        # verified site's directive, preserving every other line in the file.
+        stage = 'directory handler update'
+        current_content = read_file(session, root, '.htaccess')
+        if current_content is None:
+            raise RuntimeError('Hosted PHP directory handler was unavailable')
+        planned_content = php_handler_content(current_content, TARGET)
+        if planned_content != current_content:
+            directory_attempted = True
+            write_handler(session, root, planned_content)
+        print('Verified coffeybean.com directory PHP handler: ' + TARGET)
         stage = 'web handler verification'
         # Allow the hosting PHP handler to settle without repeatedly changing it.
         for attempt in range(6):
@@ -280,6 +316,8 @@ def upgrade(inspect=False):
                 current = versions(session)
                 if current[DOMAIN]['version'] != original:
                     set_version(session, restore)
+                if directory_attempted:
+                    write_handler(session, root, root_before)
                 verify_scope(before, versions(session), original)
                 public_checks(public, probe_url, secret, verify_version=False)
                 print('Verified rollback to the previous hosted PHP handler.')
