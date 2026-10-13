@@ -47,6 +47,11 @@ def installed(session):
     return values
 
 
+def handler(session, version):
+    return api_result(session.get(deploy.HOST + '/execute/LangPHP/php_get_handler',
+        params={'version':version}, timeout=60, allow_redirects=False)).get('data')
+
+
 def set_version(session, version):
     if not re.fullmatch(r'ea-php[0-9]{2,3}|inherit', version):
         raise RuntimeError('Invalid PHP handler')
@@ -134,7 +139,9 @@ def check_probe(result):
     if result.get('status') != 'ok' or not re.fullmatch(r'8\.4\.\d+', result.get('php_version', '')) or any(
             result.get(key) is not True for key in required):
         version = result.get('php_version', '')
+        sapi = result.get('sapi', '')
         print('Hosted PHP runtime mismatch: ' + json.dumps({'php_version':version if re.fullmatch(r'[0-9.]+', version) else 'unknown',
+            'sapi':sapi if re.fullmatch(r'[a-z_-]+', sapi) else 'unknown',
             'passed_checks':[key for key in required if result.get(key) is True]}))
         raise RuntimeError('Hosted PHP 8.4 runtime checks failed; response details omitted')
     return {key: result.get(key) for key in ('php_version', 'sapi', *required, 'recipe_read')}
@@ -226,9 +233,17 @@ def upgrade(inspect=False):
     print('Hosted PHP inspection: ' + json.dumps({'domain':DOMAIN, 'current':before[DOMAIN]['version'],
         'php_fpm':before[DOMAIN].get('php_fpm'), 'available':available}))
     if inspect:
-        for directory in (root, deploy.DIRECTORY):
+        for version in (before[DOMAIN]['version'], TARGET):
+            info = handler(session, version)
+            if isinstance(info, dict):
+                info = {key:value for key,value in info.items() if key in ('handler','php_handler','version')}
+            elif not isinstance(info, str) or not re.fullmatch(r'[a-z0-9_-]+', info):
+                info = 'unknown handler format'
+            print('Hosted PHP handler type: ' + json.dumps({'version':version, 'handler':info}))
+        for directory in ('/home/' + account, root, deploy.DIRECTORY):
             content = read_file(session, directory, '.htaccess') or ''
-            handlers = re.findall(r'(?:AddHandler|SetHandler)\s+application/x-httpd-[A-Za-z0-9_-]+', content)
+            handlers = [line.strip() for line in content.splitlines() if re.match(
+                r'\s*(?:AddHandler|SetHandler|FcgidWrapper|Action|ProxyPassMatch)\s+', line)]
             print('Hosted directory PHP handlers: ' + json.dumps({'directory':directory.rsplit('/', 1)[1], 'handlers':handlers}))
         return
     if TARGET not in available:
