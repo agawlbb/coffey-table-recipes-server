@@ -36,6 +36,25 @@ class PhpUpgradeTests(unittest.TestCase):
         self.assertEqual(session.get.call_args.kwargs['params'], {'version':'ea-php84','vhost':'coffeybean.com'})
         self.assertFalse(session.get.call_args.kwargs['allow_redirects'])
 
+    def test_known_alias_error_requires_independent_requested_handler_readback(self):
+        session = Mock()
+        response = Mock(status_code=200)
+        response.json.return_value = {'status':0,'errors':['No users correspond to the domain stale.example.']}
+        session.get.return_value = response
+        with patch.object(upgrade, 'versions', return_value=AFTER):
+            upgrade.set_version(session, 'ea-php84')
+        with patch.object(upgrade, 'versions', return_value=BEFORE), self.assertRaises(RuntimeError):
+            upgrade.set_version(session, 'ea-php84')
+
+    def test_unknown_api_errors_are_not_accepted_even_if_handler_matches(self):
+        session = Mock()
+        response = Mock(status_code=200)
+        response.json.return_value = {'status':0,'errors':['Permission denied']}
+        session.get.return_value = response
+        with patch.object(upgrade, 'versions', return_value=AFTER) as query, self.assertRaises(RuntimeError):
+            upgrade.set_version(session, 'ea-php84')
+        query.assert_not_called()
+
     def exercise(self, mode='', inspect=False, available=('ea-php81','ea-php84')):
         files = {}
         public = Mock(headers={})
