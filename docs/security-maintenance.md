@@ -33,11 +33,39 @@ The deployment workflow reads LangPHP/php_get_vhost_versions through existing
 cPanel authentication, selects only coffeybean.com, and prints only its resolved
 PHP handler. This does not change PHP settings or expose a phpinfo endpoint.
 CI remains on PHP 8.2 pending a tested hosting upgrade. PHP 8.2 security support
-ends December 31, 2026; if hosting uses it, test and schedule an upgrade before
-that date. CLI maintenance jobs explicitly use ea-php82 and must also be
-reviewed when changing PHP. Source: https://www.php.net/supported-versions.php
+ends December 31, 2026. CLI maintenance jobs explicitly use ea-php82 and must
+also be reviewed when changing PHP. Source: https://www.php.net/supported-versions.php
 
 Validation: 48 offline Python deployment/configuration tests passed, including
 precheck rejection, upload timeout, rollback, private prior-key recovery,
 restoration, and protection loss during restoration. No database data changed
 in these local tests.
+
+Hosted validation: backend commit `60b8a59ba5fe98abbd75a619956b63c3f6a4ddd5`
+was deployed and verified in successful Linux workflow run `38394933074`:
+https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/38394933074
+The workflow passed PHP syntax, Composer installation, the backend behavior
+suite, all 48 Python tests, cPanel TLS, hosted health/CORS/internal-path checks,
+deployment receipt verification, and daily cleanup schedule verification.
+
+The authenticated cPanel query reported **ea-php81 for coffeybean.com**.
+PHP 8.1 upstream support ended December 31, 2025:
+https://www.php.net/eol.php
+This is higher priority than the original CI-only PHP 8.2 maintenance note.
+It does not establish that the site has been compromised, nor does the API
+report the precise patch version or the provider's possible backported fixes.
+The live PHP setting was not changed in this maintenance.
+
+Upgrade plan (separate live-runtime change):
+
+1. Confirm which supported handlers/extensions hosting makes available; prefer
+   PHP 8.4 if available (security support through December 31, 2028).
+2. Check locked Composer requirements and run the PHP syntax/behavior suite on
+   the candidate version. Match CI to that version after compatibility passes.
+3. Record the current handler and any application-directory overrides, and
+   preserve a rollback path. Change only coffeybean.com, not other account sites.
+4. Verify hosted health, authenticated read-only recipe flows, public shares,
+   import preprocessing, and photo access immediately after the switch. Roll
+   back if checks fail. Do not create production test recipes or send mail.
+5. Update the explicit PHP binary paths for recipe maintenance jobs after
+   verifying CLI compatibility, then record the results in Git.

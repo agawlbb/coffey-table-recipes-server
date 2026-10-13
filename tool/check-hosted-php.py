@@ -29,7 +29,10 @@ def check():
         raise RuntimeError('Hosted PHP query failed; details omitted')
     version = selected_version(response.json())
     print('coffeybean.com configured PHP handler: ' + version)
-    if version.endswith('82'):
+    branch = int(version.rsplit('php', 1)[1])
+    if branch <= 81:
+        print('This PHP branch has ended upstream security support; prioritize a tested hosting upgrade.')
+    elif branch == 82:
         print('PHP 8.2 security support ends 2026-12-31; test a supported upgrade before then.')
 
 
