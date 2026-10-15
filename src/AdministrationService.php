@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 final class AdministrationService
 {
-    public function __construct(private PDO $pdo, private $deleteFirebase, private $listFirebase = null) {}
+    public function __construct(private PDO $pdo, private $deleteFirebase, private $listFirebase = null, private ?CategoryImageService $categoryImages = null, private string $mediaUrl = 'https://coffeybean.com/CoffeyTableRecipes/media/recipes') {}
 
-    private function authorize(string $actorId): void
+    public function requireAdministrator(string $actorId): void
     {
         $query = $this->pdo->prepare('SELECT account_role, disabled FROM users WHERE id = ?');
         $query->execute([$actorId]);
@@ -14,6 +14,8 @@ final class AdministrationService
             throw new HttpError(403, 'administrator_required', 'Administrator access is required.');
         }
     }
+
+    private function authorize(string $actorId): void { $this->requireAdministrator($actorId); }
 
     public function users(string $actorId): array
     {
@@ -191,6 +193,7 @@ final class AdministrationService
     /** The category catalog is shared; emptiness includes all households and trash. */
     public function parentCategories(string $actorId, ?array $body = null): array {
         $this->authorize($actorId);
+        $createdId=null; $coverWarning=null;
         if ($body !== null) {
             $action = $body['action'] ?? null;
             if (!in_array($action, ['add','rename','delete'], true)) throw new HttpError(422,'invalid_action','Choose a category action.');
@@ -215,6 +218,7 @@ final class AdministrationService
                     if ($action==='add') {
                         $statement=$this->pdo->prepare('INSERT INTO recipe_categories (parent_id,slug,label,image_key,position) VALUES (NULL,?,?,?,?)');
                         $statement->execute(['custom-'.bin2hex(random_bytes(16)),$label,'',count($parents)+1]);
+                        $createdId=(string)$this->pdo->lastInsertId();
                     } else {
                         $statement=$this->pdo->prepare('UPDATE recipe_categories SET label=? WHERE id=? AND parent_id IS NULL');
                         $statement->execute([$label,$id]);
@@ -227,9 +231,17 @@ final class AdministrationService
                 throw $error;
             }
         }
-        $categories=$this->categoryRows('SELECT c.id,c.label,(SELECT COUNT(*) FROM recipe_categories child WHERE child.parent_id=c.id) AS child_count,(SELECT COUNT(*) FROM recipe_category_assignments a WHERE a.category_id=c.id) AS assignment_count FROM recipe_categories c WHERE c.parent_id IS NULL ORDER BY c.position,c.label,c.id',[]);
-        foreach ($categories as &$category) $category['can_delete']=(int)$category['child_count']===0 && (int)$category['assignment_count']===0;
+        if ($createdId!==null && $this->categoryImages!==null) {
+            try { $this->categoryImages->ensureParent($createdId,$actorId); }
+            catch (Throwable $error) { $coverWarning='Category added, but its AI cover could not be generated. Use Generate cover to try again.'; }
+        }
+        $categories=$this->categoryRows('SELECT c.id,c.label,c.image_key,(SELECT COUNT(*) FROM recipe_categories child WHERE child.parent_id=c.id) AS child_count,(SELECT COUNT(*) FROM recipe_category_assignments a WHERE a.category_id=c.id) AS assignment_count FROM recipe_categories c WHERE c.parent_id IS NULL ORDER BY c.position,c.label,c.id',[]);
+        foreach ($categories as &$category) {
+            $category['can_delete']=(int)$category['child_count']===0 && (int)$category['assignment_count']===0;
+            $category['image_url']=str_starts_with($category['image_key'],'ai-') ? rtrim($this->mediaUrl,'/').'/category-'.$category['id'].'.jpg' : null;
+            $category['needs_ai_image']=$category['image_key']==='';
+        }
         unset($category);
-        return ['categories'=>$categories];
+        return ['categories'=>$categories,'cover_warning'=>$coverWarning];
     }
 }

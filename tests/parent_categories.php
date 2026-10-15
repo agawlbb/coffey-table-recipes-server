@@ -43,4 +43,53 @@ expectCategory((int)$pdo->query('SELECT parent_id FROM recipe_categories WHERE i
 $service->parentCategories('1',['action'=>'delete','id'=>$snack['id']]);
 expectCategory(count($service->parentCategories('1')['categories'])===2,'Empty delete failed');
 expectCategory((int)$pdo->query('SELECT COUNT(*) FROM recipe_category_assignments')->fetchColumn()===1,'Assignments removed');
+$directory=sys_get_temp_dir().'/parent-cover-test-'.bin2hex(random_bytes(8));
+$calls=0;
+$jpeg=base64_encode(file_get_contents(__DIR__.'/fixtures/category-cover.jpg'));
+$photo=new RecipePhotoService(['api_key'=>'fixture-only'],$directory,function($payload) use (&$calls,$jpeg): array {
+    $calls++;
+    expectCategory(str_contains($payload['input'],'parent category') && str_contains($payload['input'],'homemade pantry staples'),'Parent prompt lacks category context');
+    expectCategory($payload['tools'][0]['quality']==='low' && $payload['tools'][0]['size']==='816x816','Image cost controls changed');
+    return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['type'=>'image_generation_call','status'=>'completed','result'=>$jpeg]]])];
+});
+$images=new CategoryImageService($pdo,$photo,$directory,'https://example.test/media/recipes');
+$withImages=new AdministrationService($pdo,static function(){},null,$images,'https://example.test/media/recipes');
+try {
+    foreach (['2','3','999'] as $actor) rejectCategory(fn()=>$images->ensureParent('1',$actor),403);
+    rejectCategory(fn()=>$images->ensureParent('2','1'),404);
+    rejectCategory(fn()=>$images->ensureParent('../1','1'),422);
+    rejectCategory(fn()=>$images->ensureParent('1','1'),409);
+    expectCategory($calls===0,'Unauthorized or existing category incurred image cost');
+    $rows=$withImages->parentCategories('1',['action'=>'add','label'=>'Homemade ingredients'])['categories'];
+    $parent=array_values(array_filter($rows,fn($c)=>$c['label']==='Homemade ingredients'))[0];
+    $id=$parent['id'];
+    expectCategory($parent['image_url']==='https://example.test/media/recipes/category-'.$id.'.jpg' && !$parent['needs_ai_image'],'Added parent cover missing');
+    expectCategory(is_file($directory.'/category-'.$id.'.jpg') && $calls===1,'Cover not generated once');
+    expectCategory($images->ensureParent($id,'1')===$parent['image_url'] && $calls===1,'Cover retry incurred another image charge');
+    $lock=fopen($directory.'/category-'.$id.'.jpg.lock','c+'); flock($lock,LOCK_EX);
+    rejectCategory(fn()=>$images->ensureParent($id,'1'),409);
+    flock($lock,LOCK_UN); fclose($lock);
+    $withImages->parentCategories('1',['action'=>'rename','id'=>$id,'label'=>'Pantry']);
+    expectCategory($calls===1,'Rename regenerated artwork');
+    $failurePhoto=new RecipePhotoService(['api_key'=>'fixture-only'],$directory,fn($p)=>['status'=>500,'body'=>'{}']);
+    $failureImages=new CategoryImageService($pdo,$failurePhoto,$directory,'https://example.test/media/recipes');
+    $failureAdmin=new AdministrationService($pdo,static function(){},null,$failureImages);
+    $failed=$failureAdmin->parentCategories('1',['action'=>'add','label'=>'Failed cover']);
+    $pending=array_values(array_filter($failed['categories'],fn($c)=>$c['label']==='Failed cover'))[0];
+    expectCategory(is_string($failed['cover_warning']) && $pending['needs_ai_image'] && $pending['image_url']===null,'Failed cover lost category or retry state');
+    $images->ensureParent($pending['id'],'1');
+    expectCategory($calls===2,'Missing cover could not be retried');
+    // Existing household child-image permission remains independent of admin generation.
+    $pdo->exec("CREATE TABLE household_memberships(household_id INTEGER,user_id INTEGER,role TEXT);
+        CREATE TABLE households(id INTEGER,ai_images_enabled INTEGER);
+        INSERT INTO households VALUES(42,0);
+        INSERT INTO household_memberships VALUES(42,2,'owner');
+        UPDATE recipe_categories SET slug='import-soup' WHERE id=2;
+        INSERT INTO recipe_category_assignments VALUES(2,100,42);");
+    rejectCategory(fn()=>$images->ensure('2','2','42'),403);
+    expectCategory($calls===2,'Disabled household incurred child image cost');
+} finally {
+    foreach (glob($directory.'/*') ?: [] as $path) unlink($path);
+    if (is_dir($directory)) rmdir($directory);
+}
 echo "$checks parent category checks passed.\n";
