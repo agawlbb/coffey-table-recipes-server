@@ -45,3 +45,28 @@ tag is only a hint when it conflicts with the actual recipe prose. This replaces
 the incorrectly introduced English-only rule. The cache fingerprint was updated
 so retries cannot reuse output generated under either prior language rule.
 Validation: 61 mocked variation checks, 62 relationship checks, 77 AI preprocessing checks, 18 description checks and changed-file PHP syntax checks passed. No live provider requests were sent.
+
+## Boneless jerk chicken regression (2026-10-15)
+
+Reproduced live from the English Smoked Jerk Chicken Thighs recipe with the exact
+request `uses boneless thighs`: explanation was Spanish, title unchanged, and
+method retained skin/bone instructions despite skinless/boneless ingredients.
+Variation requests now explicitly bind the recipe's stored language into the
+provider instructions and explanation schema (with prose inference only when no
+valid language tag exists). Every variation must have a distinct descriptive
+title identifying its change; unchanged titles are rejected before caching.
+The prompt specifically requires removing inapplicable skin/bone instructions.
+The cache policy version was advanced. Deployment now privately reads back the
+two variation PHP source files and verifies their hashes before issuing a receipt.
+Validation: 64 variation checks, 62 relationship checks, 77 AI preprocessing
+checks, PHP syntax, and all 65 Python deployment tests passed with mocked services.
+
+Live verification after deploying c0e9422: hosted source hashes and deployment
+receipt matched. Repeated the exact request `uses boneless thighs` from the
+English (`en`) Smoked Jerk Chicken Thighs recipe in the localhost app using the
+hosted backend. The returned title was `Smoked Jerk Boneless Chicken Thighs` and
+the review explanation was English. It explained the shorter smoke time and
+removal of bone/skin handling. The method used a 35–45 minute smoke stage with a
+matching 45-minute timer and no skin-side-down or bone-probe instructions. The
+review draft remains unsaved in the built-in browser; the original was not edited.
+Unlike the earlier mocked checks, this verification used actual provider output.

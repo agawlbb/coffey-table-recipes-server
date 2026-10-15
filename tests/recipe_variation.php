@@ -42,7 +42,8 @@ try {
     $format=$payloads[0]['text']['format']['schema'];
     expectVariation(in_array('change_description',$format['required'],true) && !isset($format['properties']['recipe']['properties']['change_description']),'Explanation required outside recipe schema');
     expectVariation(!isset(RecipeImportService::responseFormat()['schema']['properties']['change_description']),'Ordinary imports keep their response contract');
-    expectVariation(str_contains($format['properties']['change_description']['description'],'same language as the original recipe title and cooking instructions'),'Explanation schema follows actual recipe language');
+    expectVariation(str_contains($format['properties']['change_description']['description'],'Required output language for this request: en.'),'Explanation schema pins English for English recipe');
+    expectVariation($format['properties']['recipe']['properties']['original_language']['enum']===['en'],'Recipe language is constrained to the source language');
     expectVariation(str_contains($payloads[0]['instructions'],'Write change_description and follow-up questions in the SAME language'),'Explanation language follows source prose');
     expectVariation($draft['recipe']['original_language']==='en','English source retains English recipe language');
     expectVariation(str_contains($payloads[0]['instructions'],'if it conflicts with the actual recipe prose, follow the prose'),'Stale language metadata must not override recipe prose');
@@ -94,6 +95,7 @@ try {
     $spanishSource=array_replace($source,['title'=>'Curry de pollo','original_language'=>'es',
         'steps'=>[['id'=>'spanish-step','instruction'=>'Cocina el pollo.']]]);
     $spanishService=new RecipeVariationService($config,$directory,static function(array $payload): array {
+        expectVariation(str_contains($payload['text']['format']['schema']['properties']['change_description']['description'],'Required output language for this request: es.'),'Spanish explanation receives its own explicit language rule');
         $content=$payload['input'][0]['content'][0]['text'];
         $data=json_decode(substr($content,strpos($content,'{')),true);
         expectVariation($data['original_recipe']['title']==='Curry de pollo' && $data['original_recipe']['original_language']==='es','Spanish source language reaches provider even with English request');
@@ -104,5 +106,9 @@ try {
     });
     $spanish=$spanishService->analyze($spanishSource,array_replace($body,['request_id'=>str_repeat('d',32)]),'user-a','house-a');
     expectVariation($spanish['recipe']['original_language']==='es' && str_starts_with($spanish['change_description'],'Se sustituye'),'Spanish recipe explanation is preserved rather than forced into English');
+    $unchangedTitle=new RecipeVariationService($config,$directory,static fn()=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
+        'recipe'=>['title'=>'Chicken curry','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'change_description'=>'Changed ingredients.',
+    ])]]]]])]);
+    variationError(fn()=>$unchangedTitle->analyze($source,array_replace($body,['request_id'=>str_repeat('e',32)]),'user-a','house-a'),'invalid_ai_reply');
 } finally { foreach(glob($directory.'/variation-drafts/*') ?: [] as $file) unlink($file); if(is_dir($directory.'/variation-drafts'))rmdir($directory.'/variation-drafts'); rmdir($directory); }
 echo "$checks recipe variation checks passed.\n";
