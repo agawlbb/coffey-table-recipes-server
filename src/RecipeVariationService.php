@@ -57,7 +57,7 @@ final class RecipeVariationService
         $input = ['original_recipe'=>$original,'requested_changes'=>trim($changes),'clarification_answers'=>$answers];
         $text = json_encode($input, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if (strlen($text)>60000) throw new HttpError(422,'invalid_variation','This recipe is too long to vary automatically.');
-        $fingerprint = hash('sha256', json_encode(['complete-variation-with-english-explanation-v2',$text,$this->config['variation_model'] ?? $this->config['model'],$categories], JSON_THROW_ON_ERROR));
+        $fingerprint = hash('sha256', json_encode(['complete-variation-with-source-language-explanation-v3',$text,$this->config['variation_model'] ?? $this->config['model'],$categories], JSON_THROW_ON_ERROR));
         $directory = $this->storage.'/variation-drafts';
         if (!is_dir($directory) && !mkdir($directory,0700,true) && !is_dir($directory)) throw new RuntimeException('Cannot prepare variation draft storage.');
         $path = $directory.'/'.$identity.'.json';

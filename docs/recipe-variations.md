@@ -4,7 +4,7 @@ POST `/households/{household}/recipes/{parent}/variation` accepts `changes` (1â€
 
 Generation reviews the complete adaptation: title, description, ingredient quantities and preparation, every instruction, equipment, temperatures, doneness, step actions, prep/cook/total and resting times, yield, servings, notes and categories. Affected details must agree with the new ingredients and method. Variation-specific instructions override ordinary import source-preservation rules, so original timings and handling instructions are not blindly retained.
 
-`change_description` is a required, nonblank string of at most 4,000 characters, in English regardless of the recipe language, explaining actual changes and their cooking implications. It belongs only to the response envelope, never recipe description, notes or database fields. The private draft retry cache includes it; the editor receives it as temporary review information outside the recipe/save payload. Invalid explanations fail generation without poisoning retries. A versioned cache fingerprint prevents pre-explanation drafts from being reused under the updated contract. Ordinary import responses are unchanged.
+`change_description` is a required, nonblank string of at most 4,000 characters, in the same language as the original recipe prose, explaining actual changes and their cooking implications. It belongs only to the response envelope, never recipe description, notes or database fields. The private draft retry cache includes it; the editor receives it as temporary review information outside the recipe/save payload. Invalid explanations fail generation without poisoning retries. A versioned cache fingerprint prevents pre-explanation drafts from being reused under the updated contract. Ordinary import responses are unchanged.
 
 Generation saves a private review draft, not a recipe. Only approval through the ordinary recipe-create editor creates the variation. Originals are never written by generation. Drafts have `source_type: ai_variation`, server-selected parent, a Variation tag, no photos/nutrition copied from the original, and a stable import key for save retries. A new request ID deliberately creates a distinct variation. Generation retries, including earlier clarification rounds, reuse the cached result; up to eight distinct rounds are allowed per request. Cancellation leaves no recipe. Private draft cache is under `storage/variation-drafts` (excluded from Git and public HTTP by the existing storage protection); remove old draft files under the deployment's retention policy only when no request is using them.
 
@@ -37,4 +37,11 @@ Merged the recipe variations feature into backend main for hosted deployment. Lo
 
 ## Explanation language correction (2026-10-15)
 
-Review explanations and follow-up questions use English. Recipe content retains its original language. The cache fingerprint was updated so retries cannot reuse explanations generated under the previous language rule. The 58 variation checks and 62 relationship checks passed with mocked provider responses, including a Spanish-source fixture and the English response contract.
+Review explanations and follow-up questions match the actual original recipe title
+and cooking instructions. An English recipe requires an English explanation; a
+Spanish recipe requires Spanish. Request/answer language, dish names, ingredients
+and category labels must not change the explanation language. The stored language
+tag is only a hint when it conflicts with the actual recipe prose. This replaces
+the incorrectly introduced English-only rule. The cache fingerprint was updated
+so retries cannot reuse output generated under either prior language rule.
+Validation: 61 mocked variation checks, 62 relationship checks, 77 AI preprocessing checks, 18 description checks and changed-file PHP syntax checks passed. No live provider requests were sent.
