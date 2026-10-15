@@ -25,6 +25,15 @@ aiExpect($prepared['actions'][0]['duration_seconds']===120 && $prepared['actions
 aiExpect($prepared['category_assignments']===[['label'=>'Cookies','parent_label'=>'Desserts']],'Category proposal accepted untrusted ID.');
 $pie=$input; $pie['recipe']['categories']=[['label'=>'Desserts','parent_label'=>''],['label'=>'Pies','parent_label'=>'Desserts']];
 aiExpect(RecipeImportService::draft($pie)['recipe']['category_assignments']===[['label'=>'Pies','parent_label'=>'Desserts']],'Redundant parent category assignment remained.');
+$catalog=[['id'=>'42','label'=>'Cookies','parent_label'=>'Desserts']];
+aiExpect(RecipeImportService::draft($timed,$catalog)['recipe']['category_assignments'][0]['category_id']==='42','Existing category not resolved.');
+foreach (['10 to 15 minutes','10–15 minutes','10-15 minutes','10 minutes to 15 minutes','15 to 10 minutes'] as $range) {
+    $ranged=$input;
+    $ranged['recipe']['steps'][0]['instruction']='Cook for '.$range.'.';
+    $ranged['recipe']['steps'][0]['actions']=[['action_type'=>'timer','duration_seconds'=>900],['action_type'=>'timer','duration_seconds'=>600]];
+    $actions=RecipeImportService::draft($ranged)['recipe']['actions'];
+    aiExpect(count($actions)===1 && $actions[0]['duration_seconds']===600,'Wrong range timer: '.$range);
+}
 $heat=$input;
 $heat['recipe']['steps'][0]['actions']=[['action_type'=>'appliance_temperature','label'=>'Simmer over low heat','temperature_value'=>null,'temperature_unit'=>'F']];
 aiExpect(RecipeImportService::draft($heat)['recipe']['actions']===[], 'Qualitative heat should not create an action.');
@@ -77,15 +86,17 @@ $legacyCounter = $limitStorage.'/recipe-ai/'.hash('sha256','repeat-user').'.json
 file_put_contents($legacyCounter,json_encode(['start'=>time(),'count'=>20]));
 $calls = 0;
 $repeatService = new RecipeImportService(['api_key'=>'test-fixture','model'=>'test-model'],$limitStorage,
-    static function(array $payload) use (&$calls,$input): array {
+    static function(array $payload) use (&$calls,$input,$catalog): array {
         $calls++;
+        aiExpect(str_contains($payload['instructions'],'exactly ONE timer') && str_contains($payload['instructions'],'full parent and child category catalog'),'Missing range/category prompt rules.');
+        aiExpect(str_contains(json_encode($payload['input']), 'Cookies'),'Category catalog missing from AI request.');
         return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[
             ['type'=>'message','content'=>[['type'=>'output_text','text'=>json_encode($input)]]],
         ]])];
     });
 try {
     for ($i=0;$i<25;$i++) {
-        $repeatDraft = $repeatService->analyze(['kind'=>'text','text'=>'Soup: boil water.'],'repeat-user');
+        $repeatDraft = $repeatService->analyze(['kind'=>'text','text'=>'Soup: boil water.'],'repeat-user',$catalog);
         aiExpect($repeatDraft['recipe']['title']==='Soup','Repeated import did not produce the expected draft.');
     }
     aiExpect($calls===25,'Hourly restriction blocked a repeated import.');
