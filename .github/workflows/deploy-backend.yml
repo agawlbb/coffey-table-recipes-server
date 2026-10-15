@@ -12,6 +12,10 @@ on:
         description: Run the authorized one-time action cleanup
         type: boolean
         default: false
+      homemade_ingredients_cover:
+        description: Generate the requested missing homemade ingredients parent cover once
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -86,6 +90,19 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/schedule-recipe-cleanup.py
+      - name: Generate requested homemade ingredients cover
+        if: env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[homemade-ingredients-cover]') || inputs.homemade_ingredients_cover == true)
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/cover-homemade-ingredients.py
+      - name: Record parent cover result
+        if: always() && env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[homemade-ingredients-cover]') || inputs.homemade_ingredients_cover == true)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: parent-cover-report
+          path: storage/parent-cover-report.json
+          if-no-files-found: ignore
       - name: Back up and remove unwanted hosted recipe actions
         if: env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true)
         env:

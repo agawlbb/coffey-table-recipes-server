@@ -35,12 +35,21 @@ try {
         $directory = new FirebaseAccountDirectory($config);
         (new VerificationService([$directory, 'verificationLink'], [new VerificationMail($config), 'send']))->send($identity);
         respond(200, ['sent' => true]);
-    } elseif ($route === '/admin/parent-categories') {
+    } elseif ($route === '/admin/parent-categories' || preg_match('#^/admin/parent-categories/([1-9][0-9]{0,18})/category-image$#',$route,$parentImageMatch)) {
         if (!in_array($method,['GET','POST'],true)) throw new HttpError(405,'method_not_allowed','Use GET or POST.');
         $identity=authenticatedIdentity($config); $pdo=database($config);
         $directory=new FirebaseAccountDirectory($config);
         $user=(new HouseholdService($pdo,[$directory,'requireAccount']))->bootstrap($identity);
-        respond(200,(new AdministrationService($pdo,[$directory,'delete']))->parentCategories($user['id'],$method==='POST'?requestBody():null));
+        $mediaUrl=rtrim(preg_replace('#/app/?$#','',$config['app_url']),'/').'/media/recipes';
+        $images=new CategoryImageService($pdo,new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'),__DIR__.'/media/recipes',$mediaUrl);
+        $admin=new AdministrationService($pdo,[$directory,'delete'],null,$images,$mediaUrl);
+        if (isset($parentImageMatch[1])) {
+            if ($method!=='POST') throw new HttpError(405,'method_not_allowed','Use POST.');
+            requestBody();
+            respond(200,['image_url'=>$images->ensureParent($parentImageMatch[1],$user['id'])]);
+        } else {
+            respond(200,$admin->parentCategories($user['id'],$method==='POST'?requestBody():null));
+        }
     } elseif ($route === '/admin/households' || preg_match('#^/admin/households/([1-9][0-9]{0,18})/ai-images$#', $route, $permissionMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
