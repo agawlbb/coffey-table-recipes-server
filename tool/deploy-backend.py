@@ -76,6 +76,17 @@ def deploy():
     if result.get('event', {}).get('result') != 1 or not items or any(
             item.get('result') != 1 or item.get('dest', '').rstrip('/') != DIRECTORY for item in items):
         raise RuntimeError('Extraction did not confirm the intended application directory')
+    # A receipt alone cannot prove archive extraction replaced existing PHP files.
+    # Read back the variation runtime source privately; never log its contents.
+    for name in ('src/RecipeImportService.php', 'src/RecipeVariationService.php'):
+        if name not in manifest:
+            continue
+        response = session.get(HOST + '/execute/Fileman/get_file_content',
+            params={'dir': DIRECTORY + '/src', 'file': Path(name).name}, timeout=30)
+        require_success(response, 'Runtime source verification')
+        content = response.json().get('data', {}).get('content')
+        if not isinstance(content, str) or hashlib.sha256(content.encode()).hexdigest() != manifest[name]:
+            raise RuntimeError('Hosted runtime source does not match package: ' + name)
     # Public checks deliberately use a different session without cPanel credentials.
     public = requests.Session()
     public.headers['User-Agent'] = 'CoffeyTableRecipes deployment verification'

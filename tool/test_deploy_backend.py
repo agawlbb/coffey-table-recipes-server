@@ -72,6 +72,12 @@ class DeploymentTests(unittest.TestCase):
     def test_failed_health_does_not_publish_receipt(self):
         self.run_deployment_case('health')
 
+    def test_stale_runtime_source_does_not_publish_receipt(self):
+        self.run_deployment_case('stale_source')
+
+    def test_matching_runtime_source_is_verified(self):
+        self.run_deployment_case('verified_source')
+
     def run_deployment_case(self, scenario):
         original = Path.cwd()
         with tempfile.TemporaryDirectory() as directory:
@@ -79,6 +85,8 @@ class DeploymentTests(unittest.TestCase):
             try:
                 Path('storage').mkdir()
                 Path('index.php').write_text('<?php')
+                Path('src').mkdir()
+                Path('src/RecipeVariationService.php').write_text('<?php // variation')
                 private = Mock(headers={})
                 public = Mock(headers={})
                 uploaded = Mock()
@@ -87,6 +95,9 @@ class DeploymentTests(unittest.TestCase):
                 extracted.json.return_value = {'cpanelresult': {'event': {'result': 1},
                     'data': [{'result': 1, 'dest': '/wrong' if scenario == 'destination' else deploy.DIRECTORY}]}}
                 private.post.side_effect = [uploaded, extracted, uploaded]
+                source = Mock()
+                source.json.return_value = {'status': 1, 'data': {'content': '<?php // stale' if scenario == 'stale_source' else '<?php // variation'}}
+                private.get.return_value = source
                 health = Mock()
                 health.json.return_value = {'status': 'failed' if scenario == 'health' else 'ok'}
                 forbidden = Mock(status_code=403)
@@ -97,14 +108,16 @@ class DeploymentTests(unittest.TestCase):
                     headers={'Access-Control-Allow-Origin': 'http://localhost'})
                 with patch.dict(os.environ, CPANEL_USER='fixture', CPANEL_API_TOKEN='fixture-secret'), \
                         patch.object(deploy.subprocess, 'check_output', return_value=b'a' * 40), \
-                        patch.object(deploy, 'runtime_files', return_value=[Path('index.php')]), \
+                        patch.object(deploy, 'runtime_files', return_value=[Path('index.php')] + ([Path('src/RecipeVariationService.php')] if scenario in ('stale_source','verified_source') else [])), \
                         patch.object(deploy.requests, 'Session', side_effect=[private, public]):
-                    if scenario == 'success':
+                    if scenario in ('success','verified_source'):
                         deploy.deploy()
                         self.assertEqual(private.post.call_count, 3)
                         self.assertEqual(public.get.call_count, 6)
                         self.assertNotIn('Authorization', public.headers)
                         self.assertTrue(private.post.call_args_list[0].kwargs['data']['dir'].endswith('/storage'))
+                        if scenario == 'verified_source':
+                            private.get.assert_called_once()
                     else:
                         with self.assertRaises(RuntimeError):
                             deploy.deploy()
