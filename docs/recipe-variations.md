@@ -120,3 +120,10 @@ unreadable source images, pixel transmission, fresh identities, attribution,
 cache invalidation, source immutability and independent file/database persistence.
 All 17 Flutter variation tests pass, including preview/save of an approved cover.
 Mocked tests sent no live provider requests or email.
+Live validation: backend 8f35ae3 deployed successfully on the second Linux attempt
+(the first encountered a connection error after all checks passed). The hosted
+receipt and source hashes matched. In the localhost app, requested a mild jerk
+marinade variation of Smoked Jerk Chicken Thighs. The AI returned Mild Jerk Smoked
+Chicken Thighs, explained in English that the parent cover still represented the
+smoked, sauced thighs, and included the same picture as Photo 1 / Cover. Verified
+its image preview in Photos. The draft remains unsaved; the parent was unchanged.
