@@ -102,7 +102,7 @@ try {
         expectVariation($data['original_recipe']['title']==='Curry de pollo' && $data['original_recipe']['original_language']==='es','Spanish source language reaches provider even with English request');
         return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
             'recipe'=>['title'=>'Curry de garbanzos','original_language'=>'es','ingredients'=>[['original_text'=>'1 lata de garbanzos']],'steps'=>[['instruction'=>'Cocina los garbanzos.']]],
-            'questions'=>[], 'variation_label'=>'chickpeas','change_description'=>'Se sustituye el pollo por garbanzos cocidos y se reduce el tiempo de cocción.',
+            'questions'=>[], 'variation_label'=>'garbanzos','change_description'=>'Se sustituye el pollo por garbanzos cocidos y se reduce el tiempo de cocción.',
         ])]]]]])];
     });
     $spanish=$spanishService->analyze($spanishSource,array_replace($body,['request_id'=>str_repeat('d',32)]),'user-a','house-a');

@@ -146,3 +146,9 @@ renamed by this generation change. The cache fingerprint was advanced.
 Validation passed 87 variation checks and 79 relationship checks, including
 provider-title replacement, nested root selection, existing dashes, and rejection
 of missing, empty, non-string or overlong labels.
+Live validation after bcb7800 deployment: the Linux workflow and hosted source
+hashes/receipt matched. Requested `uses boneless thighs` from Smoked Jerk Chicken
+Thighs in a separate localhost test tab. The review heading and editable recipe
+name both showed exactly `Smoked Jerk Chicken Thighs - boneless thighs`. The test
+draft was not saved and the original recipe was unchanged. All 599 PHP fixture
+checks passed; the Spanish fixture also uses a recipe-language variation label.
