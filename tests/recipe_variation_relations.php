@@ -88,6 +88,7 @@ $variation['source_type']='ai_variation';
 $variation['source_text']='Make it gingery';
 $variation['import_key']=hash('sha256','variation-1');
 $variation['is_variation']=false; // A client flag never controls the read marker.
+$variation['change_description']='Temporary comparison: added ginger for warmth.';
 $countBefore = $pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn();
 relationExpect($countBefore==2,'Draft construction unexpectedly wrote a recipe.');
 $pdo->queries=[];
@@ -98,6 +99,7 @@ relationExpect($saved['is_variation']===true && $original['is_variation']===fals
 relationExpect($saved['ingredients'][0]['id']!==$original['ingredients'][0]['id'] && $saved['steps'][0]['id']!==$original['steps'][0]['id'],'Variation reused original child IDs.');
 relationExpect(relationSnapshot($pdo,$original['id'])===$originalBefore,'Saving a variation changed its original.');
 relationExpect(!isset($saved['source_text']) && !isset($saved['import_key']),'Private draft bookkeeping escaped the response.');
+relationExpect(!str_contains(json_encode(relationSnapshot($pdo,$saved['id'])),'Temporary comparison') && !isset($saved['change_description']),'Review explanation is not persisted even if supplied by a client');
 $locking = array_values(array_filter($saveQueries,fn($sql)=>str_contains($sql,'FOR UPDATE')));
 relationExpect($locking[0]==='SELECT id FROM households WHERE id=? FOR UPDATE','Household serialization must precede every recipe lock.');
 relationExpect(in_array('SELECT parent_recipe_id,deleted_at FROM recipes WHERE household_id=? AND id=? FOR UPDATE',$locking,true),'Ancestor reads are not locking current reads.');
