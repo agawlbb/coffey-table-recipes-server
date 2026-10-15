@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/RecipeSourceLinks.php';
 
 /** Public display fields only; never embed the private recipe/edit payload. */
 function recipeStructuredData(array $r): ?array {
@@ -67,7 +68,7 @@ function recipeSharePage(array $r): string {
 main{max-width:900px;margin:auto;padding:40px 24px 24px}.recipe-header{margin-bottom:24px}h1{font-size:clamp(34px,5vw,48px);line-height:1.15;font-weight:600;letter-spacing:-.025em;margin:0 0 18px}
 .branding{display:flex;align-items:center;gap:12px;color:#465334;font-size:14px}.brand{width:64px;height:64px;object-fit:cover;mix-blend-mode:multiply}.branding span{letter-spacing:.035em}
 h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-bottom:8px;border-bottom:1px solid #dfd1bb}h3{font-size:16px;font-weight:600;margin:12px 0 8px}p{white-space:pre-wrap;margin:8px 0 16px}.ingredient{margin:12px 0}.step{margin-bottom:20px;line-height:1.6}
-.photos{display:flex;gap:16px;overflow-x:auto;margin:24px 0}.photos figure{margin:0;flex:0 0 100%}.photos img{width:100%;height:340px;object-fit:contain;border-radius:12px;background:transparent}figcaption{font-size:14px}.nutrition{display:flex;gap:8px 16px;flex-wrap:wrap}.source{overflow-wrap:anywhere}.warning{color:#a12c21}
+.photos{display:flex;gap:16px;overflow-x:auto;margin:24px 0}.photos figure{margin:0;flex:0 0 100%}.photos img{width:100%;height:340px;object-fit:contain;border-radius:12px;background:transparent}figcaption{font-size:14px}.nutrition{display:flex;gap:8px 16px;flex-wrap:wrap}.source{overflow-wrap:anywhere}.source a{color:#465334;text-decoration:underline}.source a:focus-visible{outline:2px solid currentColor;outline-offset:3px}.warning{color:#a12c21}
 @media(max-width:600px){main{padding:28px 24px}.photos img{height:260px}}@media print{.branding{display:none}.photos{display:block}.photos figure{break-inside:avoid}body{background:white}}
 </style></head><body><main><header class="recipe-header">
 <h1><?= $e($r['title']) ?></h1>
@@ -98,7 +99,7 @@ h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-botto
 <?php if ($n['stale'] ?? false): ?><p class="warning">This estimate needs recalculation after recipe changes.</p><?php endif ?>
 <div class="nutrition"><?php foreach (['calories_kcal'=>'Calories (kcal)','protein_g'=>'Protein (g)','carbohydrate_g'=>'Carbohydrates (g)','fat_g'=>'Fat (g)','saturated_fat_g'=>'Saturated fat (g)','fiber_g'=>'Fiber (g)','sugar_g'=>'Sugar (g)','sodium_mg'=>'Sodium (mg)'] as $key=>$label): if (isset($n[$key])): ?><span><?= $e($label) ?>: <?= $e($number($n[$key])) ?></span><?php endif; endforeach ?></div><p>Method: <?= $e($n['method'] ?? '') ?></p><?php endif ?>
 <?php foreach (['related'=>'Recipe family','pairings'=>'Serve alongside'] as $key=>$heading): if (!empty($r[$key])): ?><h2><?= $heading ?></h2><?php foreach ($r[$key] as $row): ?><p><?= $e($row['title']) ?><?php if ($key === 'related'): ?><br><?= $row['id'] === ($r['parent_recipe_id'] ?? null) ? 'Parent recipe' : 'Variation' ?><?php endif ?></p><?php endforeach; endif; endforeach ?>
-<?php $source=array_filter(array_map(static fn($key)=>$r[$key] ?? null, ['source_title','source_author','source_url','source_reference']), static fn($v)=>$v!==null); if ($source): ?><h2>Source</h2><?php foreach ($source as $value): ?><p class="source"><?= $e($value) ?></p><?php endforeach; endif ?>
+<?php $source=array_filter(array_map(static fn($key)=>$r[$key] ?? null, ['source_title','source_author','source_url','source_reference']), static fn($v)=>$v!==null); if ($source): ?><h2>Source</h2><?php foreach ($source as $value): ?><p class="source"><?= recipeSourceHtml((string)$value) ?></p><?php endforeach; endif ?>
 <footer><a href="https://github.com/agawlbb/coffey-table-recipes-server">Source code (AGPL-3.0)</a></footer></main></body></html>
 <?php return ob_get_clean();
 }
