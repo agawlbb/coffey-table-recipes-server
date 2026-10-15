@@ -66,9 +66,38 @@ final class RecipeEditorService
         $creating = $recipeId === '';
         $this->pdo->beginTransaction();
         try {
+            // All editor writes in one household take this lock before recipe
+            // locks. Otherwise two concurrent edits could each validate the old
+            // ancestry and create A -> B -> A despite locking their own rows.
+            $q = $this->pdo->prepare('SELECT id FROM households WHERE id=? FOR UPDATE');
+            $q->execute([$householdId]);
+            if ($q->fetchColumn() === false) throw new HttpError(404, 'household_not_found', 'Household not found.');
+            $parent = $body['parent_recipe_id'] ?? null;
+            if ($parent === '') $parent = null;
+            if ($parent !== null) {
+                if ((!is_string($parent) && !is_int($parent)) || !preg_match('/^[1-9][0-9]{0,18}$/D', (string) $parent)) $this->invalid('Choose an original recipe from this household.');
+                $parent = (string) $parent;
+            }
             if ($recipeId === '') {
                 $source = $this->fields($body, ['source_text'=>'60000','import_key'=>'191']);
                 if ($source['import_key'] !== null && !preg_match('/^[a-f0-9]{64}$/', $source['import_key'])) $this->invalid('Invalid import identifier.');
+                $variation = $this->fields($body, ['source_type'=>'40'])['source_type'] === 'ai_variation';
+                if ($variation && ($parent === null || $source['import_key'] === null)) $this->invalid('A variation needs an original recipe and its draft identifier.');
+                if ($variation) {
+                    // A successful save whose response was lost is safe to retry.
+                    // Return the committed result, never apply a retry's content
+                    // to either it or the original. Ordinary imports retain their
+                    // existing duplicate-import conflict behavior.
+                    $q = $this->pdo->prepare('SELECT id,parent_recipe_id,source_type,deleted_at FROM recipes WHERE household_id=? AND import_key=? FOR UPDATE');
+                    $q->execute([$householdId,$source['import_key']]);
+                    $saved = $q->fetch(PDO::FETCH_ASSOC);
+                    if ($saved) {
+                        if ($saved['source_type'] !== 'ai_variation' || (string) $saved['parent_recipe_id'] !== $parent) throw new HttpError(409, 'recipe_already_imported', 'This draft identifier is already used by a different recipe. Start a new variation.');
+                        if ($saved['deleted_at'] !== null) throw new HttpError(409, 'recipe_already_imported', 'This variation was already saved and moved to Recently deleted. Restore it or start a new variation.');
+                        $this->pdo->commit();
+                        return (new RecipeService($this->pdo,$this->households))->detail($userId,$householdId,(string) $saved['id']);
+                    }
+                }
                 if ($source['import_key'] !== null) {
                     // Re-importing must not be blocked by recoverable trash. Transfer
                     // only the duplicate reservation, in the same save transaction.
@@ -89,17 +118,18 @@ final class RecipeEditorService
                 'yield_text'=>'200','servings'=>'positive','prep_minutes'=>'integer','cook_minutes'=>'integer','total_minutes'=>'integer','notes'=>'60000',
             ]);
             if ($recipe['source_url'] !== null && !preg_match('#^https?://[^\s]+$#i', $recipe['source_url'])) $this->invalid('Source URL must start with http:// or https://.');
-            $parent = $body['parent_recipe_id'] ?? null;
-            if ($parent === '') $parent = null;
             if ($parent !== null) {
-                // Walk ancestors to prevent cycles and cross-household relationships.
+                // Locking reads see the latest committed ancestry even under
+                // MySQL REPEATABLE READ, and keep the selected parent live until
+                // this save commits. A deleted ancestor is traversed for cycles,
+                // but only the directly selected parent must still be live.
                 $ancestor = (string) $parent; $visited = [$recipeId => true];
                 while ($ancestor !== '') {
                     if (isset($visited[$ancestor])) $this->invalid('The original recipe cannot form a circular relationship.');
                     $visited[$ancestor] = true;
-                    $q = $this->pdo->prepare('SELECT parent_recipe_id FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=?');
+                    $q = $this->pdo->prepare('SELECT parent_recipe_id,deleted_at FROM recipes WHERE household_id=? AND id=? FOR UPDATE');
                     $q->execute([$householdId, $ancestor]); $r = $q->fetch(PDO::FETCH_ASSOC);
-                    if (!$r) $this->invalid('Choose an original recipe from this household.');
+                    if (!$r || ($ancestor === $parent && $r['deleted_at'] !== null)) $this->invalid('Choose an original recipe from this household.');
                     $ancestor = (string) ($r['parent_recipe_id'] ?? '');
                 }
             }

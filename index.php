@@ -102,6 +102,26 @@ try {
             if ($stored['photos']!==[]) throw new HttpError(409,'photo_exists','This recipe already has photos.');
         }
         respond(200,(new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'))->generate($recipe,$user['id'],$photoMatch[1]));
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/variation$#', $route, $variationMatch)) {
+        if ($method !== 'POST') throw new HttpError(405,'method_not_allowed','Use POST.');
+        $identity = authenticatedIdentity($config); $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $households->membership($user['id'],$variationMatch[1]);
+        $policy = RecipeVariationService::accessPolicy($config['recipe_ai']);
+        if ($policy === 'ai_images') {
+            try { $households->requireAiImages($user['id'],$variationMatch[1]); }
+            catch (HttpError $error) {
+                if ($error->errorCode !== 'ai_images_disabled') throw $error;
+                throw new HttpError(403,'variations_disabled','AI recipe variations are disabled for this household. Ask the application administrator to enable them.');
+            }
+        }
+        $recipes = new RecipeService($pdo,$households);
+        $source = $recipes->detail($user['id'],$variationMatch[1],$variationMatch[2]);
+        $options = $recipes->editOptions($user['id'],$variationMatch[1]);
+        $draft = (new RecipeVariationService($config['recipe_ai'],__DIR__.'/storage'))->analyze($source,requestBody(100000),$user['id'],$variationMatch[1],$options['categories']);
+        $draft['recipe']['edit_options'] = $options;
+        respond(200,$draft);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-import$#', $route, $importMatch)) {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);
