@@ -225,3 +225,25 @@ food image all returned appropriate picture suggestions. The separate-image PDF
 returned full-image bounds, rather than PDF-page placement coordinates. Offline
 extraction/crop tests and typed-category review tests passed; no hosted recipe
 was created during testing.
+
+## Dish descriptions (October 15, 2026)
+
+Future imports write or rewrite descriptions in the recipe's original language,
+including when the source already supplies a description. The prompt and strict
+schema share `RecipeImportService::descriptionInstruction()`: one or two concise
+sentences describing the finished dish to a dinner guest or on a straightforward
+menu. Flavor, texture and style must be supported by the ingredients and method.
+Preparation recaps, ingredient inventories, hype and unsupported claims are
+excluded. Optional ingredients and alternative choices must not become definite
+claims. The model checks its description against the recipe before returning it.
+The configured model remains `gpt-5.4-mini`; requests retain `store:false`.
+
+Validation: `php tests/recipe_ai.php` and `php tests/recipe_descriptions.php`.
+The latter exercises supplied and missing descriptions, original-language and
+other-field preservation, and checks the outbound prompt/schema for contradictory
+preservation instructions. These are offline transport tests, not a guarantee of
+model prose quality; actual generated text still needs factual review.
+
+Existing database recipes are not modified by this code change. The separate
+description backfill requires a verified household inventory, private rollback
+backup, conflict checks and description-only verification before execution.
