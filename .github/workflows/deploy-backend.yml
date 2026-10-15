@@ -45,6 +45,7 @@ jobs:
           php tests/recipe_photo.php
           php tests/source_photos.php
           php tests/recipe_ai.php
+          php tests/recipe_descriptions.php
           php tests/website_import.php
           php tests/website_photos.php
       - run: python3 -m pip install requests==2.32.5
