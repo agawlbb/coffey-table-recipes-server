@@ -6,13 +6,15 @@ Generation saves a private review draft, not a recipe. Only approval through the
 
 ## Model and access policy
 
-The provider remains the existing OpenAI Responses integration with `store:false`. No new key, fallback provider, or automatic paid fallback is introduced. `recipe_ai.variation_model` independently selects the model; default `gpt-5.4-mini`. `variation_access` defaults to `disabled`, so deployment alone does not enable spending.
+The provider remains the existing OpenAI Responses integration with `store:false`. No new key or provider is introduced. `recipe_ai.variation_model` independently selects the model; default `gpt-5.4-mini`.
 
-- `disabled`: generation unavailable.
-- `ai_images`: exactly the existing server-side `HouseholdService::requireAiImages` family allowlist.
-- `all_members`: ordinary household members, but only when `variation_billing` explicitly equals `complimentary_verified`.
+Variations default to `all_members`: every authenticated household member can generate variations of recipes they can access. Billing configuration does not restrict this access or imply complimentary usage. Existing household membership and source-recipe authorization remain required.
 
-`variation_billing` defaults to `paid`; paid, missing, or unknown values force the image allowlist even if `all_members` is configured. Before opting into complimentary access, the operator must verify account enrollment, model eligibility, daily limits, data-sharing terms and overage behavior. A model listed as eligible does not prove this account has free requests. No runtime claim of free usage or automatic billing guarantee is made. The endpoint does not alter billing or data-sharing settings.
+An explicit `variation_access: disabled` still disables generation, and `ai_images` retains the existing image-generation household allowlist when an operator deliberately selects it. Unknown access values fail closed.
+
+## Access correction (2026-10-15)
+
+Enabled variations for all household members by default, as requested. Removed the billing-dependent fallback to the image allowlist. The 43 mocked variation checks and 61 relationship checks passed; no paid provider requests were sent during validation.
 
 ## Validation
 

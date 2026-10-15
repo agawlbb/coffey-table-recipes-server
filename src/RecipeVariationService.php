@@ -7,12 +7,11 @@ final class RecipeVariationService
     public function __construct(private array $config, private string $storage, private $transport = null) {}
 
     public static function accessPolicy(array $config): string {
-        $policy = $config['variation_access'] ?? 'disabled';
+        $policy = $config['variation_access'] ?? 'all_members';
         if (!in_array($policy, ['disabled', 'ai_images', 'all_members'], true)) $policy = 'disabled';
         if ($policy === 'disabled') throw new HttpError(503, 'variation_unavailable', 'Recipe variations are not enabled yet.');
-        // Paid/unknown billing always uses the existing image-generation family allowlist.
-        // Only an operator's verified complimentary configuration may allow every member.
-        return ($config['variation_billing'] ?? 'paid') === 'complimentary_verified' ? $policy : 'ai_images';
+        // Household membership is enforced by the endpoint, independently of billing.
+        return $policy;
     }
 
     public function analyze(array $source, array $body, string $userId, string $householdId, array $categories = []): array {
