@@ -6,9 +6,11 @@ require dirname(__DIR__).'/src/RecipeVariationService.php';
 $checks=0;
 function expectVariation(bool $value,string $message): void { global $checks; if (!$value) throw new RuntimeException($message); $checks++; }
 function variationError(callable $operation,string $code): void { try { $operation(); } catch (HttpError $error) { expectVariation($error->errorCode===$code,'Expected '.$code.', got '.$error->errorCode); return; } throw new RuntimeException('Expected '.$code); }
-variationError(fn()=>RecipeVariationService::accessPolicy([]),'variation_unavailable');
+expectVariation(RecipeVariationService::accessPolicy([])==='all_members','Every household member has access by default');
+variationError(fn()=>RecipeVariationService::accessPolicy(['variation_access'=>'disabled']),'variation_unavailable');
 variationError(fn()=>RecipeVariationService::accessPolicy(['variation_access'=>'typo']),'variation_unavailable');
-expectVariation(RecipeVariationService::accessPolicy(['variation_access'=>'all_members'])==='ai_images','Unknown/paid billing uses image allowlist');
+expectVariation(RecipeVariationService::accessPolicy(['variation_access'=>'all_members'])==='all_members','Missing billing does not restrict membership access');
+expectVariation(RecipeVariationService::accessPolicy(['variation_access'=>'all_members','variation_billing'=>'paid'])==='all_members','Paid billing does not restrict membership access');
 expectVariation(RecipeVariationService::accessPolicy(['variation_access'=>'all_members','variation_billing'=>'complimentary_verified'])==='all_members','Explicit verified complimentary config');
 expectVariation(RecipeVariationService::accessPolicy(['variation_access'=>'ai_images','variation_billing'=>'complimentary_verified'])==='ai_images','Narrow policy preserved');
 $directory=sys_get_temp_dir().'/variation-tests-'.bin2hex(random_bytes(8)); mkdir($directory,0700);
