@@ -19,6 +19,10 @@ return [
     'recipe_ai' => [
         'api_key' => '', // Set only in ignored config/local.php or OPENAI_API_KEY.
         'model' => 'gpt-5.4-mini',
+        // Enable only after choosing model/budget policy; never infer complimentary eligibility.
+        'variation_model' => 'gpt-5.4-mini',
+        'variation_billing' => 'paid', // paid | complimentary_verified; verify account eligibility first
+        'variation_access' => 'disabled', // disabled | ai_images (same family allowlist) | all_members
         'image_model' => 'gpt-image-2.5-flare', // Low-quality 816x816 draft photos.
         'pdftotext' => '', // Optional absolute Poppler pdftotext executable path.
         'tesseract' => '', // Optional absolute Tesseract executable path.
