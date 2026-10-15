@@ -16,11 +16,41 @@ final class RecipeService
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
-    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0, string $category = '', string $scope = '', bool $tree = false): array {
+    /** Include deleted links when finding a family, but never return deleted members. */
+    private function variationFamilies(string $householdId): array {
+        $rows=$this->rows('SELECT id,title,parent_recipe_id,deleted_at FROM recipes WHERE household_id=? ORDER BY id',[$householdId]);
+        $byId=array_column($rows,null,'id'); $roots=[]; $families=[];
+        foreach ($rows as $row) {
+            $id=$row['id']; $path=[];
+            while (isset($byId[$id]) && !isset($roots[$id]) && !isset($path[$id])) {
+                $path[$id]=true;
+                $parent=$byId[$id]['parent_recipe_id'];
+                if ($parent===null || !isset($byId[$parent])) break;
+                $id=$parent;
+            }
+            $root=$roots[$id] ?? $id;
+            foreach ($path as $member=>$_) $roots[$member]=$root;
+            if ($row['deleted_at']!==null) continue;
+            unset($row['deleted_at']);
+            $row['is_variation']=$row['parent_recipe_id']!==null;
+            $families[$root][]=$row;
+        }
+        // Prefer the original; if it is deleted, keep one live family member visible.
+        foreach ($families as $root=>&$members) {
+            usort($members,static fn($a,$b)=>(($a['id']==$root ? 0 : 1)<=>($b['id']==$root ? 0 : 1)) ?: (strlen($a['id'])<=>strlen($b['id']) ?: strcmp($a['id'],$b['id'])));
+        } unset($members);
+        return $families;
+    }
+
+    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0, string $category = '', string $scope = '', bool $tree = false, bool $familiesOnly = false): array {
         $this->households->membership($userId, $householdId);
         if (mb_strlen($query) > 200 || mb_strlen($category) > 120 || $offset < 0 || $offset > 100000) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
         $parameters = [$householdId];
         $where = 'r.household_id = ? AND r.deleted_at IS NULL';
+        $representatives=[];
+        foreach ($this->variationFamilies($householdId) as $members) {
+            foreach ($members as $member) $representatives[$member['id']]=$members[0]['id'];
+        }
         $node = null;
         if ($scope !== '') {
             if (!preg_match('/^[1-9][0-9]{0,18}$/', $scope)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
@@ -30,12 +60,20 @@ final class RecipeService
             array_push($parameters, $scope, $scope);
         }
         if ($tree && $query === '' && ($node === null || $node['parent_id'] === null)) {
-            $nodes = $this->rows('SELECT c.id,c.parent_id,c.slug,c.label,c.image_key,COUNT(DISTINCT active.id) AS recipe_count
+            $count='COUNT(DISTINCT active.id)'; $countParameters=[]; $cases=[];
+            if ($familiesOnly) {
+                foreach ($representatives as $id=>$representative) {
+                    if ((string)$id===$representative) continue;
+                    $cases[]='WHEN ? THEN ?'; array_push($countParameters,(string)$id,$representative);
+                }
+                if ($cases) $count='COUNT(DISTINCT CASE active.id '.implode(' ',$cases).' ELSE active.id END)';
+            }
+            $nodes = $this->rows("SELECT c.id,c.parent_id,c.slug,c.label,c.image_key,$count AS recipe_count
                 FROM recipe_categories c LEFT JOIN recipe_categories child ON child.parent_id=c.id
                 LEFT JOIN recipe_category_assignments a ON (a.category_id=c.id OR a.category_id=child.id) AND a.household_id=?
                 LEFT JOIN recipes active ON active.id=a.recipe_id AND active.household_id=a.household_id AND active.deleted_at IS NULL
                 WHERE c.parent_id <=> ? GROUP BY c.id,c.parent_id,c.slug,c.label,c.image_key,c.position
-                HAVING c.parent_id IS NULL OR COUNT(DISTINCT active.id)>0 ORDER BY c.position,c.label,c.id', [$householdId, $scope === '' ? null : $scope]);
+                HAVING c.parent_id IS NULL OR recipe_count>0 ORDER BY c.position,c.label,c.id", [...$countParameters, $householdId, $scope === '' ? null : $scope]);
             foreach ($nodes as &$categoryNode) {
                 $categoryNode['image_url']=str_starts_with($categoryNode['image_key'],'ai-') ? rtrim($this->mediaUrl,'/').'/category-'.$categoryNode['id'].'.jpg' : null;
                 $categoryNode['needs_ai_image']=str_starts_with($categoryNode['slug'],'import-') && $categoryNode['image_url']===null && $this->households->aiImagesEnabled($userId, $householdId);
@@ -52,11 +90,19 @@ final class RecipeService
             $where .= " AND (r.title LIKE ? ESCAPE '!' OR r.description LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM recipe_ingredients i WHERE i.recipe_id=r.id AND i.ingredient_name LIKE ? ESCAPE '!') OR EXISTS (SELECT 1 FROM recipe_tags t WHERE t.recipe_id=r.id AND t.label LIKE ? ESCAPE '!') OR EXISTS (SELECT 1 FROM recipe_category_assignments a JOIN recipe_categories c ON c.id=a.category_id LEFT JOIN recipe_categories p ON p.id=c.parent_id WHERE a.household_id=r.household_id AND a.recipe_id=r.id AND (c.label LIKE ? ESCAPE '!' OR p.label LIKE ? ESCAPE '!')))";
             array_push($parameters, $like, $like, $like, $like, $like, $like);
         }
+        if ($familiesOnly) {
+            // Search/filter all members first, then paginate their family representatives.
+            $matching=$this->rows("SELECT r.id FROM recipes r WHERE $where",$parameters);
+            $ids=array_values(array_unique(array_map(static fn($row)=>$representatives[$row['id']] ?? $row['id'],$matching)));
+            $where='r.household_id=? AND r.deleted_at IS NULL'.($ids ? ' AND r.id IN ('.implode(',',array_fill(0,count($ids),'?')).')' : ' AND 1=0');
+            $parameters=[$householdId,...$ids];
+        }
         $items = $this->rows("SELECT r.id,r.title,r.description,r.original_language,r.servings,r.yield_text,r.prep_minutes,r.cook_minutes,r.total_minutes,r.parent_recipe_id,
             (SELECT source_url FROM recipe_photos p WHERE p.recipe_id=r.id ORDER BY p.is_cover DESC,p.position LIMIT 1) AS photo_url,
             (SELECT storage_key FROM recipe_photos p WHERE p.recipe_id=r.id ORDER BY p.is_cover DESC,p.position LIMIT 1) AS photo_storage_key
             FROM recipes r WHERE $where ORDER BY r.title,r.id LIMIT 31 OFFSET $offset", $parameters);
         foreach ($items as &$item) {
+            $item['family_representative_id']=$representatives[$item['id']] ?? $item['id'];
             $item['is_variation'] = $item['parent_recipe_id'] !== null;
             if (preg_match('#^media/recipes/([a-f0-9]{48}\.(?:jpg|png|webp))$#',(string)($item['photo_storage_key'] ?? ''),$match)) $item['photo_url']=rtrim($this->mediaUrl,'/').'/'.$match[1];
             unset($item['photo_storage_key']);
@@ -94,6 +140,14 @@ final class RecipeService
             $related['relationship'] = $related['id'] === $parent ? 'parent' : ($related['parent_recipe_id'] === $recipeId ? 'child' : 'sibling');
         } unset($related);
         $recipe['pairings'] = $this->rows('SELECT r.id,r.title,p.notes FROM recipe_pairings p JOIN recipes r ON r.deleted_at IS NULL AND r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END AND r.household_id=p.household_id WHERE p.household_id=? AND (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$recipeId, $householdId, $recipeId, $recipeId]);
+        $recipe['variation_family']=[];
+        foreach ($this->variationFamilies($householdId) as $members) {
+            if (in_array($recipeId,array_column($members,'id'),true)) {
+                $recipe['variation_family']=$members;
+                $recipe['family_representative_id']=$members[0]['id'];
+                break;
+            }
+        }
         $recipe['category_assignments'] = $this->rows('SELECT category_id FROM recipe_category_assignments WHERE household_id=? AND recipe_id=? ORDER BY category_id', [$householdId, $recipeId]);
         $recipe['edit_options'] = $this->editOptions($userId, $householdId, $recipeId);
         return $recipe;

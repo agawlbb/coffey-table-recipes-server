@@ -78,7 +78,7 @@ def deploy():
         raise RuntimeError('Extraction did not confirm the intended application directory')
     # A receipt alone cannot prove archive extraction replaced existing PHP files.
     # Read back the variation runtime source privately; never log its contents.
-    for name in ('src/RecipeImportService.php', 'src/RecipeVariationService.php'):
+    for name in ('src/RecipeImportService.php', 'src/RecipeVariationService.php', 'src/RecipeService.php'):
         if name not in manifest:
             continue
         response = session.get(HOST + '/execute/Fileman/get_file_content',

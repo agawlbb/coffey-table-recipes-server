@@ -172,10 +172,12 @@ try {
             $category = $_GET['category'] ?? '';
             $scope = $_GET['scope'] ?? '';
             $tree = $_GET['tree'] ?? '0';
+            $families = $_GET['families'] ?? '0';
+            if (!is_string($families) || !in_array($families,['0','1'],true)) throw new HttpError(400,'invalid_filter','Invalid recipe family filter.');
             if (!is_string($query) || !is_string($offset) || !preg_match('/^[0-9]{1,6}$/', $offset)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
             if (!is_string($category)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe category.');
             if (!is_string($scope) || !is_string($tree) || !in_array($tree, ['0', '1'], true)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
-            respond(200, $recipes->browse($user['id'], $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1'));
+            respond(200, $recipes->browse($user['id'], $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1', $families === '1'));
         }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/([1-9][0-9]{0,18})/invitations$#', $route, $inviteMatch)
         || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {

@@ -22,6 +22,25 @@ Enabled variations for all household members by default, as requested. Removed t
 
 ## Validation
 
+## Family browsing (2026-10-15)
+
+GET recipe collections accept `families=1` to search/filter all live members and
+paginate one family representative per match. Category counts also count a
+family once. The original represents a family while live; otherwise its oldest
+live member does. Default collection behavior remains ungrouped for full offline
+inventory synchronization. Each row supplies `family_representative_id`.
+
+Detail responses add `variation_family`, including the current recipe and all
+live ancestors, siblings, cousins and nested descendants in its connected family.
+Deleted nodes may connect live descendants but are never returned; all graph
+lookups remain household scoped. The app uses this list in a dropdown beneath
+the recipe title. Existing immediate `related` relationships remain unchanged.
+
+Validation passed all 569 PHP fixture checks and 65 mocked Python deployment
+checks, including nested family completeness, shared dropdown membership,
+variation-title search returning the original, category counts, grouped paging,
+and fallback to a live representative after deleting the original.
+
 The complete-adaptation and explanation update passed all 550 PHP fixture checks
 and tracked PHP syntax validation locally. Variation fixtures cover changed title,
 method, timer and overall timing, explanation validation, clarification/retry

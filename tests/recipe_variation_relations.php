@@ -141,6 +141,21 @@ $originalRelated=$read->detail('1','1',$original['id'])['related'];
 relationExpect(count(array_filter($originalRelated,fn($row)=>$row['relationship']!=='child'))===0,'An original recipe has spurious sibling links.');
 $browse=array_column($read->browse('1','1')['recipes'],null,'id');
 relationExpect($browse[$original['id']]['is_variation']===false && $browse[$saved['id']]['is_variation']===true,'Browse markers are incorrect.');
+$family=$current['variation_family'];
+relationExpect(count($family)===6 && in_array($grandchildSaved['id'],array_column($family,'id'),true),'Family must include nested descendants');
+relationExpect($family[0]['id']===$original['id'] && $current['family_representative_id']===$original['id'],'Family representative must be the original');
+relationExpect($read->detail('1','1',$grandchildSaved['id'])['variation_family']===$family,'Every family member must expose the same complete family');
+$grouped=$read->browse('1','1','',0,'','',false,true);
+relationExpect(array_column($grouped['recipes'],'id')===[$original['id']],'Grouped browsing must show one family entry');
+relationExpect($grouped['next_offset']===null,'Grouped pagination must count families');
+relationExpect(array_column($read->browse('1','1','Pepper',0,'','',false,true)['recipes'],'id')===[$original['id']],'Searching a variation must return its family representative');
+$pdo->exec("INSERT INTO recipe_categories (id,slug,label,image_key,position) VALUES (200,'soups','Soups','soups',0)");
+$q=$pdo->prepare('INSERT INTO recipe_category_assignments (household_id,recipe_id,category_id) VALUES (1,?,200)');
+$q->execute([$saved['id']]); $q->execute([$siblingSaved['id']]);
+$tree=$read->browse('1','1','',0,'','',true,true);
+relationExpect((int)$tree['category_nodes'][0]['recipe_count']===1,'Category counts must count a variation family once');
+relationExpect(array_column($read->browse('1','1','',0,'','200',false,true)['recipes'],'id')===[$original['id']],'Variation-only category must resolve to the family representative');
+$savedBefore=relationSnapshot($pdo,$saved['id']);
 
 $countBefore=$pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn();
 foreach ([$foreign['id'],'999999',true,0,-1,1.5,[],['id'=>$original['id']],'01','1e0',"1\n","1\r\n",'1 ',null] as $parent) {
@@ -180,6 +195,8 @@ relationExpect($read->detail('1','1',$b['id'])['parent_recipe_id']===null,'Overl
 $q=$pdo->prepare("UPDATE recipes SET deleted_at='2026-10-15 00:00:00' WHERE id=?"); $q->execute([$original['id']]);
 $hidden=$read->detail('1','1',$saved['id']);
 relationExpect(!in_array($original['id'],array_column($hidden['related'],'id'),true),'Deleted parent leaked into related recipes.');
+relationExpect(!in_array($original['id'],array_column($hidden['variation_family'],'id'),true) && in_array($grandchildSaved['id'],array_column($hidden['variation_family'],'id'),true),'Deleted ancestors must not hide live descendants or appear in dropdown');
+relationExpect(array_values(array_intersect(array_column($read->browse('1','1','',0,'','',false,true)['recipes'],'id'),array_column($family,'id')))===[$saved['id']],'Deleting original must leave one live family representative visible');
 relationExpect($hidden['is_variation']===true,'A temporarily deleted original erased the variation marker.');
 $invalid=$variation; $invalid['import_key']=hash('sha256','deleted-parent');
 relationReject(fn()=>$editor->save('1','1','',$invalid),422);
