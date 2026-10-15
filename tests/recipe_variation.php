@@ -18,7 +18,9 @@ $payloads=[];
 $config=['api_key'=>'mock-only','model'=>'gpt-5.4-mini','variation_model'=>'fixture-model','variation_access'=>'ai_images'];
 $transport=static function(array $payload) use (&$payloads): array {
     $payloads[]=$payload;
-    $result=['recipe'=>['title'=>'Chickpea curry','ingredients'=>[['original_text'=>'1 can chickpeas','ingredient_name'=>'chickpeas']],'steps'=>[['instruction'=>'Simmer the chickpeas.']]],'questions'=>count($payloads)===1 ? ['How spicy?'] : []];
+    $result=['recipe'=>['title'=>'Chickpea curry','description'=>'A mild chickpea curry.','prep_minutes'=>5,'cook_minutes'=>10,'total_minutes'=>15,'ingredients'=>[['original_text'=>'1 can chickpeas','ingredient_name'=>'chickpeas']],'steps'=>[['instruction'=>'Simmer the chickpeas for 10 minutes.','actions'=>[['action_type'=>'timer','duration_seconds'=>600]]]]],
+        'change_description'=>'Replaced raw chicken with canned chickpeas, renamed the curry and shortened simmering to 10 minutes because the chickpeas are already cooked.',
+        'questions'=>count($payloads)===1 ? ['How spicy?'] : []];
     return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode($result)]]]]])];
 };
 $service=new RecipeVariationService($config,$directory,$transport);
@@ -36,6 +38,9 @@ try {
     expectVariation(count($payloads)===1,'One mock call');
     expectVariation($payloads[0]['model']==='fixture-model' && $payloads[0]['store']===false,'Configured model and no response storage');
     expectVariation(str_contains($payloads[0]['instructions'],'Create ONE practical recipe variation'),'Variation task instructions');
+    $format=$payloads[0]['text']['format']['schema'];
+    expectVariation(in_array('change_description',$format['required'],true) && !isset($format['properties']['recipe']['properties']['change_description']),'Explanation required outside recipe schema');
+    expectVariation(!isset(RecipeImportService::responseFormat()['schema']['properties']['change_description']),'Ordinary imports keep their response contract');
     $serialized=json_encode($payloads[0]);
     foreach(['secret-household','secret-person','secret-other-recipe','secret-url','secret-ingredient-id','secret-step-id','secret-group-1','secret-group-2','secret-ingredient-2','secret-action-1','secret-action-2'] as $secret) expectVariation(!str_contains($serialized,$secret),'Only cooking content sent');
     $content=$payloads[0]['input'][0]['content'][0]['text'];
@@ -46,10 +51,15 @@ try {
     expectVariation($draft['recipe']['parent_recipe_id']==='4' && !isset($draft['recipe']['id']),'Server owns relationship; new draft');
     expectVariation($draft['recipe']['source_type']==='ai_variation' && $draft['recipe']['is_variation']===true,'Explicit variation provenance');
     expectVariation($draft['recipe']['photos']===[] && $draft['recipe']['nutrition']===null,'No copied photos or nutrition');
+    expectVariation(str_contains($draft['change_description'],'already cooked') && !isset($draft['recipe']['change_description']),'Explanation returned separately');
+    expectVariation($draft['recipe']['description']==='A mild chickpea curry.' && ($draft['recipe']['notes'] ?? null)===null,'Recipe description and notes do not contain comparison');
+    expectVariation($draft['recipe']['title']==='Chickpea curry' && $draft['recipe']['cook_minutes']===10 && $draft['recipe']['total_minutes']===15,'Revised title and timing survive normalization');
+    expectVariation($draft['recipe']['steps'][0]['instruction']==='Simmer the chickpeas for 10 minutes.' && $draft['recipe']['actions'][0]['duration_seconds']===600,'Revised method and timer survive normalization');
     expectVariation($service->analyze($source,$body,'user-a','house-a')===$draft && count($payloads)===1,'Retry reuses draft');
     $answered=$body+['answers'=>[['question'=>'How spicy?','answer'=>'Mild']]];
     $ready=$service->analyze($source,$answered,'user-a','house-a');
     expectVariation($ready['questions']===[] && count($payloads)===2,'Answers produce next draft');
+    expectVariation($ready['change_description']===$draft['change_description'],'Clarification result retains explanation');
     expectVariation($ready['recipe']['import_key']===$draft['recipe']['import_key'],'Stable save identity across clarification');
     expectVariation($service->analyze($source,$body,'user-a','house-a')===$draft && count($payloads)===2,'Earlier round retry cached');
     $other=$service->analyze($source,$body,'user-b','house-a');
@@ -63,6 +73,12 @@ try {
     variationError(fn()=>$failed->analyze($source,$retryBody,'user-a','house-a'),'ai_unavailable');
     $retry=$service->analyze($source,$retryBody,'user-a','house-a');
     expectVariation(isset($retry['recipe']['import_key']),'Failure does not poison retry');
+    foreach ([null,[], '', '   ',str_repeat('x',4001)] as $invalidDescription) {
+        $invalidService=new RecipeVariationService($config,$directory,static fn()=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
+            'recipe'=>['title'=>'Invalid explanation','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'change_description'=>$invalidDescription,
+        ])]]]]])]);
+        variationError(fn()=>$invalidService->analyze($source,array_replace($body,['request_id'=>bin2hex(random_bytes(16))]),'user-a','house-a'),'invalid_ai_reply');
+    }
     $roundBody=array_replace($body,['request_id'=>str_repeat('c',32)]);
     for ($round=0;$round<8;$round++) $service->analyze($source,$roundBody+['answers'=>[['question'=>'Preference?','answer'=>(string)$round]]],'user-a','house-a');
     variationError(fn()=>$service->analyze($source,$roundBody+['answers'=>[['question'=>'Preference?','answer'=>'ninth']]],'user-a','house-a'),'variation_limit');
