@@ -145,6 +145,7 @@ $family=$current['variation_family'];
 relationExpect(count($family)===6 && in_array($grandchildSaved['id'],array_column($family,'id'),true),'Family must include nested descendants');
 relationExpect($family[0]['id']===$original['id'] && $current['family_representative_id']===$original['id'],'Family representative must be the original');
 relationExpect($read->detail('1','1',$grandchildSaved['id'])['variation_family']===$family,'Every family member must expose the same complete family');
+relationExpect($read->detail('1','1',$grandchildSaved['id'])['variation_base_title']===$original['title'],'Nested generations must retain the root recipe title');
 $grouped=$read->browse('1','1','',0,'','',false,true);
 relationExpect(array_column($grouped['recipes'],'id')===[$original['id']],'Grouped browsing must show one family entry');
 relationExpect($grouped['next_offset']===null,'Grouped pagination must count families');
@@ -225,7 +226,7 @@ try {
         relationExpect(count(array_filter($payload['input'][0]['content'],fn($part)=>$part['type']==='input_image'))===1,'Real local cover bytes must reach the provider request');
         return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
             'recipe'=>['title'=>'Mild original soup','ingredients'=>[['original_text'=>'1 litre water']],'steps'=>[['instruction'=>'Simmer.']]],'questions'=>[],
-            'change_description'=>'Milder seasoning; the cover still fits and is reused.','parent_cover_appropriate'=>true,'parent_cover_reason'=>'Appearance is unchanged.',
+            'variation_label'=>'chickpeas','change_description'=>'Milder seasoning; the cover still fits and is reused.','parent_cover_appropriate'=>true,'parent_cover_reason'=>'Appearance is unchanged.',
         ])]]]]])];
     });
     $draft=$generation->analyze($photoParent,['changes'=>'Make it mild','request_id'=>str_repeat('4',32)],'1','1');

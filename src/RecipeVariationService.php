@@ -80,12 +80,13 @@ final class RecipeVariationService
                 ]));
             }
         }
-        $input = ['original_recipe'=>$original,'requested_changes'=>trim($changes),'clarification_answers'=>$answers];
+        $baseTitle=(string)($source['variation_base_title'] ?? $source['title']);
+        $input = ['main_recipe_title'=>$baseTitle,'original_recipe'=>$original,'requested_changes'=>trim($changes),'clarification_answers'=>$answers];
         $text = json_encode($input, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if (strlen($text)>60000) throw new HttpError(422,'invalid_variation','This recipe is too long to vary automatically.');
         $cover=$this->parentCover($source);
         $coverIdentity=$cover===null ? null : [hash('sha256',$cover['image_base64']),$cover['caption'],$cover['attribution']];
-        $fingerprint = hash('sha256', json_encode(['variation-parent-cover-review-v5',$text,$this->config['variation_model'] ?? $this->config['model'],$categories,$coverIdentity], JSON_THROW_ON_ERROR));
+        $fingerprint = hash('sha256', json_encode(['variation-main-title-label-v6',$text,$this->config['variation_model'] ?? $this->config['model'],$categories,$coverIdentity], JSON_THROW_ON_ERROR));
         $directory = $this->storage.'/variation-drafts';
         if (!is_dir($directory) && !mkdir($directory,0700,true) && !is_dir($directory)) throw new RuntimeException('Cannot prepare variation draft storage.');
         $path = $directory.'/'.$identity.'.json';
@@ -105,6 +106,7 @@ final class RecipeVariationService
                 $config['variation_language']=$language;
             }
             $config['variation_original_title']=(string)$source['title'];
+            $config['variation_base_title']=$baseTitle;
             if ($cover!==null) $config['variation_cover_image']='data:'.$cover['_mime'].';base64,'.$cover['image_base64'];
             elseif (!empty($source['photos'])) $config['variation_cover_unavailable']=true;
             $draft = (new RecipeImportService($config,$this->storage,$this->transport))->analyze(['kind'=>'text','text'=>$text],$userId,$categories,true);

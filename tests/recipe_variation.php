@@ -19,7 +19,7 @@ $config=['api_key'=>'mock-only','model'=>'gpt-5.4-mini','variation_model'=>'fixt
 $transport=static function(array $payload) use (&$payloads): array {
     $payloads[]=$payload;
     $result=['recipe'=>['title'=>'Chickpea curry','description'=>'A mild chickpea curry.','original_language'=>'en','prep_minutes'=>5,'cook_minutes'=>10,'total_minutes'=>15,'ingredients'=>[['original_text'=>'1 can chickpeas','ingredient_name'=>'chickpeas']],'steps'=>[['instruction'=>'Simmer the chickpeas for 10 minutes.','actions'=>[['action_type'=>'timer','duration_seconds'=>600]]]]],
-        'change_description'=>'Replaced raw chicken with canned chickpeas, renamed the curry and shortened simmering to 10 minutes because the chickpeas are already cooked.',
+        'variation_label'=>'chickpeas','change_description'=>'Replaced raw chicken with canned chickpeas, renamed the curry and shortened simmering to 10 minutes because the chickpeas are already cooked.',
         'questions'=>count($payloads)===1 ? ['How spicy?'] : []];
     return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode($result)]]]]])];
 };
@@ -59,7 +59,8 @@ try {
     expectVariation($draft['recipe']['photos']===[] && $draft['recipe']['nutrition']===null,'No copied photos or nutrition');
     expectVariation(str_contains($draft['change_description'],'already cooked') && !isset($draft['recipe']['change_description']),'Explanation returned separately');
     expectVariation($draft['recipe']['description']==='A mild chickpea curry.' && ($draft['recipe']['notes'] ?? null)===null,'Recipe description and notes do not contain comparison');
-    expectVariation($draft['recipe']['title']==='Chickpea curry' && $draft['recipe']['cook_minutes']===10 && $draft['recipe']['total_minutes']===15,'Revised title and timing survive normalization');
+    expectVariation($draft['recipe']['title']==='Chicken curry - chickpeas' && $draft['recipe']['cook_minutes']===10 && $draft['recipe']['total_minutes']===15,'Revised title and timing survive normalization');
+    expectVariation(in_array('variation_label',$format['required'],true) && !isset(RecipeImportService::responseFormat()['schema']['properties']['variation_label']),'Short variation label is required only for variations');
     expectVariation($draft['recipe']['steps'][0]['instruction']==='Simmer the chickpeas for 10 minutes.' && $draft['recipe']['actions'][0]['duration_seconds']===600,'Revised method and timer survive normalization');
     expectVariation($service->analyze($source,$body,'user-a','house-a')===$draft && count($payloads)===1,'Retry reuses draft');
     $answered=$body+['answers'=>[['question'=>'How spicy?','answer'=>'Mild']]];
@@ -81,7 +82,7 @@ try {
     expectVariation(isset($retry['recipe']['import_key']),'Failure does not poison retry');
     foreach ([null,[], '', '   ',str_repeat('x',4001)] as $invalidDescription) {
         $invalidService=new RecipeVariationService($config,$directory,static fn()=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
-            'recipe'=>['title'=>'Invalid explanation','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'change_description'=>$invalidDescription,
+            'recipe'=>['title'=>'Invalid explanation','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'variation_label'=>'chickpeas','change_description'=>$invalidDescription,
         ])]]]]])]);
         variationError(fn()=>$invalidService->analyze($source,array_replace($body,['request_id'=>bin2hex(random_bytes(16))]),'user-a','house-a'),'invalid_ai_reply');
     }
@@ -101,13 +102,13 @@ try {
         expectVariation($data['original_recipe']['title']==='Curry de pollo' && $data['original_recipe']['original_language']==='es','Spanish source language reaches provider even with English request');
         return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
             'recipe'=>['title'=>'Curry de garbanzos','original_language'=>'es','ingredients'=>[['original_text'=>'1 lata de garbanzos']],'steps'=>[['instruction'=>'Cocina los garbanzos.']]],
-            'questions'=>[], 'change_description'=>'Se sustituye el pollo por garbanzos cocidos y se reduce el tiempo de cocción.',
+            'questions'=>[], 'variation_label'=>'chickpeas','change_description'=>'Se sustituye el pollo por garbanzos cocidos y se reduce el tiempo de cocción.',
         ])]]]]])];
     });
     $spanish=$spanishService->analyze($spanishSource,array_replace($body,['request_id'=>str_repeat('d',32)]),'user-a','house-a');
     expectVariation($spanish['recipe']['original_language']==='es' && str_starts_with($spanish['change_description'],'Se sustituye'),'Spanish recipe explanation is preserved rather than forced into English');
     $unchangedTitle=new RecipeVariationService($config,$directory,static fn()=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
-        'recipe'=>['title'=>'Chicken curry','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'change_description'=>'Changed ingredients.',
+        'recipe'=>['title'=>'Chicken curry','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'variation_label'=>'','change_description'=>'Changed ingredients.',
     ])]]]]])]);
     variationError(fn()=>$unchangedTitle->analyze($source,array_replace($body,['request_id'=>str_repeat('e',32)]),'user-a','house-a'),'invalid_ai_reply');
     $imageBytes=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC');
@@ -121,7 +122,7 @@ try {
         $coverCalls[]=$payload;
         return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
             'recipe'=>['title'=>'Mild chickpea curry','ingredients'=>[],'steps'=>[]], 'questions'=>[],
-            'change_description'=>$decision ? 'The seasoning changes; the cover still represents the dish and is reused.' : 'The appearance changes, so the parent cover is omitted.',
+            'variation_label'=>'chickpeas','change_description'=>$decision ? 'The seasoning changes; the cover still represents the dish and is reused.' : 'The appearance changes, so the parent cover is omitted.',
             'parent_cover_appropriate'=>$decision,'parent_cover_reason'=>'Visual comparison with the revised dish.',
         ])]]]]])];
     };
@@ -151,7 +152,7 @@ try {
     $withoutCover=$withCover->analyze($unsafe,array_replace($coverBody,['request_id'=>str_repeat('2',32)]),'user-a','house-a');
     expectVariation(count($readKeys)===$readsBefore && $withoutCover['recipe']['photos']===[],'Unsafe storage key is never read or reused');
     $invalidReview=new RecipeVariationService($config,$directory,static fn()=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
-        'recipe'=>['title'=>'Mild curry','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'change_description'=>'A variation.',
+        'recipe'=>['title'=>'Mild curry','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'variation_label'=>'chickpeas','change_description'=>'A variation.',
         'parent_cover_appropriate'=>'yes','parent_cover_reason'=>'Looks similar.',
     ])]]]]])],$coverReader);
     variationError(fn()=>$invalidReview->analyze($coverSource,array_replace($coverBody,['request_id'=>str_repeat('3',32)]),'user-a','house-a'),'invalid_ai_reply');
@@ -159,5 +160,19 @@ try {
     $unreadable=new RecipeVariationService($config,$directory,$coverTransport,static fn()=>false);
     $missing=$unreadable->analyze($coverSource,array_replace($coverBody,['request_id'=>str_repeat('4',32)]),'user-a','house-a');
     expectVariation($missing['recipe']['photos']===[] && !array_filter(end($coverCalls)['input'][0]['content'],fn($part)=>$part['type']==='input_image'),'Unreadable parent covers are omitted without pretending to review pixels');
+    $nestedSource=$source;
+    $nestedSource['title']='Main recipe - existing variation';
+    $nestedSource['variation_base_title']='Main recipe';
+    $nested=$service->analyze($nestedSource,array_replace($body,['request_id'=>str_repeat('5',32)]),'user-a','house-a');
+    expectVariation($nested['recipe']['title']==='Main recipe - chickpeas','Nested variation uses the main title without stacking parent titles');
+    $nestedSource['variation_base_title']='Main recipe - house style';
+    $withDash=$service->analyze($nestedSource,array_replace($body,['request_id'=>str_repeat('6',32)]),'user-a','house-a');
+    expectVariation($withDash['recipe']['title']==='Main recipe - house style - chickpeas','Dashes belonging to the real main title are preserved');
+    foreach ([null,[], '   ',str_repeat('x',121)] as $invalidLabel) {
+        $invalidLabelService=new RecipeVariationService($config,$directory,static fn()=>['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
+            'recipe'=>['title'=>'Any title','ingredients'=>[],'steps'=>[]], 'questions'=>[], 'variation_label'=>$invalidLabel,'change_description'=>'Changed ingredients.',
+        ])]]]]])]);
+        variationError(fn()=>$invalidLabelService->analyze($source,array_replace($body,['request_id'=>bin2hex(random_bytes(16))]),'user-a','house-a'),'invalid_ai_reply');
+    }
 } finally { foreach(glob($directory.'/variation-drafts/*') ?: [] as $file) unlink($file); if(is_dir($directory.'/variation-drafts'))rmdir($directory.'/variation-drafts'); rmdir($directory); }
 echo "$checks recipe variation checks passed.\n";
