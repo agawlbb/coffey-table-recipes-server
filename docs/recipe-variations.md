@@ -127,3 +127,22 @@ marinade variation of Smoked Jerk Chicken Thighs. The AI returned Mild Jerk Smok
 Chicken Thighs, explained in English that the parent cover still represented the
 smoked, sauced thighs, and included the same picture as Photo 1 / Cover. Verified
 its image preview in Photos. The draft remains unsaved; the parent was unchanged.
+
+## Variation title format (2026-10-15)
+
+New generated titles use the main family recipe title followed by a literal
+` - ` and a short variation phrase, for example `Smoked Jerk Chicken Thighs -
+boneless thighs`. The AI returns a required `variation_label` (1–120 characters,
+in the recipe language); the server builds the title from the trusted family
+base title and this label, regardless of the provider's full-title suggestion.
+Nested variations retain the same main title; their label describes cumulative
+changes. A main title containing a dash is retained verbatim, not split by text.
+The complete resulting title must fit the existing 500-character title limit.
+
+Recipe detail/family metadata supplies `variation_base_title` from the actual
+root, including when that root has been soft-deleted. No client-supplied title
+prefix is accepted by the variation endpoint. Existing saved recipes are not
+renamed by this generation change. The cache fingerprint was advanced.
+Validation passed 87 variation checks and 79 relationship checks, including
+provider-title replacement, nested root selection, existing dashes, and rejection
+of missing, empty, non-string or overlong labels.

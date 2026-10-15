@@ -33,6 +33,7 @@ final class RecipeService
             if ($row['deleted_at']!==null) continue;
             unset($row['deleted_at']);
             $row['is_variation']=$row['parent_recipe_id']!==null;
+            $row['variation_base_title']=$byId[$root]['title'] ?? $row['title'];
             $families[$root][]=$row;
         }
         // Prefer the original; if it is deleted, keep one live family member visible.
@@ -145,6 +146,7 @@ final class RecipeService
             if (in_array($recipeId,array_column($members,'id'),true)) {
                 $recipe['variation_family']=$members;
                 $recipe['family_representative_id']=$members[0]['id'];
+                $recipe['variation_base_title']=$members[0]['variation_base_title'];
                 break;
             }
         }
