@@ -212,4 +212,35 @@ $q=$pdo->prepare('SELECT import_key FROM recipes WHERE id=?'); $q->execute([$sib
 relationExpect($q->fetchColumn()===$sibling['import_key'],'Rejected replay released the deleted variation key.');
 relationExpect($editor->save('1','1','',$variation)['id']===$saved['id'],'Retry did not return a still-live variation after its original was trashed.');
 
+$photoRoot=sys_get_temp_dir().'/variation-photo-save-'.bin2hex(random_bytes(8));
+mkdir($photoRoot.'/media/recipes',0700,true); mkdir($photoRoot.'/storage',0700);
+try {
+    $photoEditor=new RecipeEditorService($pdo,$households,$photoRoot.'/media/recipes','https://example.test/media');
+    $image='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC';
+    $photoBase=$base;
+    $photoBase['photos']=[['id'=>'new-original-cover','image_base64'=>$image,'is_cover'=>1,'caption'=>'Original cover','attribution'=>'Original photographer']];
+    $photoParent=$photoEditor->save('1','1','',$photoBase);
+    $parentSnapshot=relationSnapshot($pdo,$photoParent['id']);
+    $generation=new RecipeVariationService(['api_key'=>'mock','model'=>'mock','variation_access'=>'all_members'],$photoRoot.'/storage',static function(array $payload): array {
+        relationExpect(count(array_filter($payload['input'][0]['content'],fn($part)=>$part['type']==='input_image'))===1,'Real local cover bytes must reach the provider request');
+        return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode([
+            'recipe'=>['title'=>'Mild original soup','ingredients'=>[['original_text'=>'1 litre water']],'steps'=>[['instruction'=>'Simmer.']]],'questions'=>[],
+            'change_description'=>'Milder seasoning; the cover still fits and is reused.','parent_cover_appropriate'=>true,'parent_cover_reason'=>'Appearance is unchanged.',
+        ])]]]]])];
+    });
+    $draft=$generation->analyze($photoParent,['changes'=>'Make it mild','request_id'=>str_repeat('4',32)],'1','1');
+    $photoVariation=$photoEditor->save('1','1','',array_replace($base,$draft['recipe']));
+    relationExpect($photoVariation['photos'][0]['id']!==$photoParent['photos'][0]['id'] && $photoVariation['photos'][0]['storage_key']!==$photoParent['photos'][0]['storage_key'],'Cover reuse must create an independent photo record and file');
+    $parentPath=$photoRoot.'/'.$photoParent['photos'][0]['storage_key'];
+    $variationPath=$photoRoot.'/'.$photoVariation['photos'][0]['storage_key'];
+    relationExpect(file_get_contents($parentPath)===file_get_contents($variationPath),'Reused cover pixels must match the original');
+    relationExpect($photoVariation['photos'][0]['attribution']==='Original photographer','Saved reused cover must preserve attribution');
+    relationExpect(relationSnapshot($pdo,$photoParent['id'])===$parentSnapshot,'Saving reused cover must not modify original recipe or photo');
+    relationExpect(!isset($photoVariation['parent_cover_review']),'Cover assessment is not persisted in the recipe');
+} finally {
+    foreach (glob($photoRoot.'/media/recipes/*') ?: [] as $file) unlink($file);
+    foreach (glob($photoRoot.'/storage/variation-drafts/*') ?: [] as $file) unlink($file);
+    if (is_dir($photoRoot.'/storage/variation-drafts')) rmdir($photoRoot.'/storage/variation-drafts');
+    rmdir($photoRoot.'/storage'); rmdir($photoRoot.'/media/recipes'); rmdir($photoRoot.'/media'); rmdir($photoRoot);
+}
 echo "$checks recipe variation relationship fixture checks passed.\n";

@@ -4,7 +4,33 @@ declare(strict_types=1);
 /** Creates cached review drafts only; the ordinary editor is the sole save path. */
 final class RecipeVariationService
 {
-    public function __construct(private array $config, private string $storage, private $transport = null) {}
+    public function __construct(private array $config, private string $storage, private $transport = null, private $coverReader = null) {}
+
+    /** Read only the authorized recipe's locally hosted cover, never arbitrary URLs. */
+    private function parentCover(array $source): ?array {
+        $photos=$source['photos'] ?? [];
+        $cover=null;
+        foreach ($photos as $photo) if (!empty($photo['is_cover'])) { $cover=$photo; break; }
+        $cover ??= $photos[0] ?? null;
+        if (!is_array($cover)) return null;
+        $key=$cover['storage_key'] ?? '';
+        if (!is_string($key) || !preg_match('#^media/(?:recipes/[a-f0-9]{48}|recipe-photos/[a-f0-9]{64})\.(?:jpg|png|webp)$#D',$key)) return null;
+        if ($this->coverReader!==null) {
+            $bytes=($this->coverReader)($key);
+        } else {
+            $root=realpath(dirname($this->storage).'/media');
+            $path=realpath(dirname($this->storage).'/'.$key);
+            if ($root===false || $path===false || !str_starts_with(str_replace('\\','/',$path),rtrim(str_replace('\\','/',$root),'/').'/') || !is_readable($path)) return null;
+            $bytes=@file_get_contents($path,false,null,0,5*1024*1024+1);
+        }
+        if (!is_string($bytes) || strlen($bytes)>5*1024*1024) return null;
+        $info=@getimagesizefromstring($bytes);
+        if (!$info || !in_array($info['mime'],['image/jpeg','image/png','image/webp'],true) || $info[0]*$info[1]>24000000) return null;
+        return ['id'=>'new-parent-cover','image_base64'=>base64_encode($bytes),'is_cover'=>1,
+            'caption'=>is_string($cover['caption'] ?? null) ? $cover['caption'] : null,
+            'attribution'=>is_string($cover['attribution'] ?? null) ? $cover['attribution'] : null,
+            '_mime'=>$info['mime']];
+    }
 
     public static function accessPolicy(array $config): string {
         $policy = $config['variation_access'] ?? 'all_members';
@@ -57,7 +83,9 @@ final class RecipeVariationService
         $input = ['original_recipe'=>$original,'requested_changes'=>trim($changes),'clarification_answers'=>$answers];
         $text = json_encode($input, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if (strlen($text)>60000) throw new HttpError(422,'invalid_variation','This recipe is too long to vary automatically.');
-        $fingerprint = hash('sha256', json_encode(['variation-explicit-language-and-title-v4',$text,$this->config['variation_model'] ?? $this->config['model'],$categories], JSON_THROW_ON_ERROR));
+        $cover=$this->parentCover($source);
+        $coverIdentity=$cover===null ? null : [hash('sha256',$cover['image_base64']),$cover['caption'],$cover['attribution']];
+        $fingerprint = hash('sha256', json_encode(['variation-parent-cover-review-v5',$text,$this->config['variation_model'] ?? $this->config['model'],$categories,$coverIdentity], JSON_THROW_ON_ERROR));
         $directory = $this->storage.'/variation-drafts';
         if (!is_dir($directory) && !mkdir($directory,0700,true) && !is_dir($directory)) throw new RuntimeException('Cannot prepare variation draft storage.');
         $path = $directory.'/'.$identity.'.json';
@@ -77,6 +105,8 @@ final class RecipeVariationService
                 $config['variation_language']=$language;
             }
             $config['variation_original_title']=(string)$source['title'];
+            if ($cover!==null) $config['variation_cover_image']='data:'.$cover['_mime'].';base64,'.$cover['image_base64'];
+            elseif (!empty($source['photos'])) $config['variation_cover_unavailable']=true;
             $draft = (new RecipeImportService($config,$this->storage,$this->transport))->analyze(['kind'=>'text','text'=>$text],$userId,$categories,true);
             $draft['recipe']['parent_recipe_id'] = $parent;
             $draft['recipe']['is_variation'] = true;
@@ -87,6 +117,10 @@ final class RecipeVariationService
             $draft['recipe']['import_key'] = $identity;
             $draft['recipe']['tags'] = [['kind'=>'category','label'=>'Variation']];
             $draft['recipe']['photos'] = [];
+            if ($cover!==null && ($draft['parent_cover_review']['appropriate'] ?? false)===true) {
+                unset($cover['_mime']);
+                $draft['recipe']['photos']=[$cover];
+            }
             $draft['recipe']['nutrition'] = null;
             $draft['preprocessing'] = 'AI recipe variation';
             $stored['changes'] = $base;

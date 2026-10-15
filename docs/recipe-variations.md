@@ -6,7 +6,7 @@ Generation reviews the complete adaptation: title, description, ingredient quant
 
 `change_description` is a required, nonblank string of at most 4,000 characters, in the same language as the original recipe prose, explaining actual changes and their cooking implications. It belongs only to the response envelope, never recipe description, notes or database fields. The private draft retry cache includes it; the editor receives it as temporary review information outside the recipe/save payload. Invalid explanations fail generation without poisoning retries. A versioned cache fingerprint prevents pre-explanation drafts from being reused under the updated contract. Ordinary import responses are unchanged.
 
-Generation saves a private review draft, not a recipe. Only approval through the ordinary recipe-create editor creates the variation. Originals are never written by generation. Drafts have `source_type: ai_variation`, server-selected parent, a Variation tag, no photos/nutrition copied from the original, and a stable import key for save retries. A new request ID deliberately creates a distinct variation. Generation retries, including earlier clarification rounds, reuse the cached result; up to eight distinct rounds are allowed per request. Cancellation leaves no recipe. Private draft cache is under `storage/variation-drafts` (excluded from Git and public HTTP by the existing storage protection); remove old draft files under the deployment's retention policy only when no request is using them.
+Generation saves a private review draft, not a recipe. Only approval through the ordinary recipe-create editor creates the variation. Originals are never written by generation. Drafts have `source_type: ai_variation`, server-selected parent, a Variation tag, no original nutrition and only a visually approved parent cover, and a stable import key for save retries. A new request ID deliberately creates a distinct variation. Generation retries, including earlier clarification rounds, reuse the cached result; up to eight distinct rounds are allowed per request. Cancellation leaves no recipe. Private draft cache is under `storage/variation-drafts` (excluded from Git and public HTTP by the existing storage protection); remove old draft files under the deployment's retention policy only when no request is using them.
 
 ## Model and access policy
 
@@ -89,3 +89,34 @@ removal of bone/skin handling. The method used a 35–45 minute smoke stage with
 matching 45-minute timer and no skin-side-down or bone-probe instructions. The
 review draft remains unsaved in the built-in browser; the original was not edited.
 Unlike the earlier mocked checks, this verification used actual provider output.
+
+## Parent cover review (2026-10-15)
+
+When the authorized parent has a readable hosted JPEG, PNG or WebP cover, the
+variation request includes its actual pixels in the same existing AI call. Only
+validated local media/recipes or media/recipe-photos keys are read; arbitrary URLs
+and private filesystem paths are never fetched. Image bounds match recipe-save
+limits (5 MB and 24 megapixels). The explicitly flagged cover is used, falling
+back to the first photo only when no cover is flagged.
+
+The model assesses whether the picture still represents the complete variation.
+It must return a boolean parent_cover_appropriate and a short parent_cover_reason
+in the recipe language, and explain reuse/omission in change_description. Visible
+ingredient, cut, skin, texture, shape, garnish or method mismatches and uncertainty
+must reject reuse. This is an AI assessment, not an additional user confirmation
+or image-generation request. Missing/unreadable covers are omitted and the model
+is told not to claim a visual review.
+
+An approved cover enters the recipe draft as a new photo with image_base64 and
+its original caption/attribution. The ordinary editor previews it and Save writes
+an independent photo record and file. Cancellation writes no recipe or photo.
+The parent is never modified. parent_cover_review stays outside the saved recipe.
+The private retry cache retains the assessed result; its fingerprint includes
+image bytes and attribution, so changing the cover triggers a new assessment.
+
+Validation: all 591 PHP fixture checks and tracked PHP syntax checks passed.
+Coverage includes approval, rejection, malformed/missing assessment, unsafe and
+unreadable source images, pixel transmission, fresh identities, attribution,
+cache invalidation, source immutability and independent file/database persistence.
+All 17 Flutter variation tests pass, including preview/save of an approved cover.
+Mocked tests sent no live provider requests or email.
