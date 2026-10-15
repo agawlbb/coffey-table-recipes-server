@@ -52,3 +52,19 @@ Deployed sharing from commit `1a395f7` to the verified `/home/hosting_account/co
 Previous files and private configuration are backed up under protected `storage/before-recipe-sharing-20261011-123837`, with private backups set to 0600. A guarded one-use installer performed the deployment and removed itself; its former URL returns 404.
 
 The existing **Mint Chip Ice Cream** recipe returned 200 through its signed public link. Built-in-browser inspection confirmed the photograph, cream background, green branding, ingredients, method, action chips and source. Hosted checks also confirmed invalid/missing links return 404, the authenticated sharing API rejects anonymous requests with 401, health returns 200, configuration and backup URLs return 403, and public recipe responses include no-store, no-referrer and noindex headers. Example-link details are retained in the ignored local deployment result; no signing keys are recorded in Git.
+
+## Clickable source websites
+
+Individual recipe pages now render recognized HTTP/HTTPS addresses in source
+titles, authors, URLs and references as links while preserving their visible
+text. Clear `www.` addresses and standalone bare domains use HTTPS. Ordinary
+citations and invalid/unsupported addresses remain escaped plain text. Both link
+targets and labels are HTML escaped, and new-tab links use `noopener noreferrer`.
+The new helper does not fetch URLs or change stored recipe data.
+
+Validation: 53 source-link checks and 43 existing sharing checks passed, plus PHP
+syntax and diff checks. URL cases are mirrored in the Flutter test fixtures.
+Coverage includes multiple links, punctuation, non-web sources, malformed and
+dangerous schemes, credential URLs, HTML injection and every public source field.
+The backend validation workflow includes the new test. No deployment or live
+recipe mutation was performed.
