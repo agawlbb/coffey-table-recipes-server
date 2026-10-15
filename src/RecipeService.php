@@ -57,6 +57,7 @@ final class RecipeService
             (SELECT storage_key FROM recipe_photos p WHERE p.recipe_id=r.id ORDER BY p.is_cover DESC,p.position LIMIT 1) AS photo_storage_key
             FROM recipes r WHERE $where ORDER BY r.title,r.id LIMIT 31 OFFSET $offset", $parameters);
         foreach ($items as &$item) {
+            $item['is_variation'] = $item['parent_recipe_id'] !== null;
             if (preg_match('#^media/recipes/([a-f0-9]{48}\.(?:jpg|png|webp))$#',(string)($item['photo_storage_key'] ?? ''),$match)) $item['photo_url']=rtrim($this->mediaUrl,'/').'/'.$match[1];
             unset($item['photo_storage_key']);
         } unset($item);
@@ -71,6 +72,7 @@ final class RecipeService
         $rows = $this->rows('SELECT * FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=?', [$householdId, $recipeId]);
         if (!$rows) throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
         $recipe = $rows[0];
+        $recipe['is_variation'] = $recipe['parent_recipe_id'] !== null;
         // Keep raw extracted source text and import bookkeeping out of the display response.
         unset($recipe['source_text'], $recipe['import_key']);
         foreach (['ingredients' => 'recipe_ingredients', 'groups' => 'recipe_ingredient_groups', 'steps' => 'recipe_steps', 'photos' => 'recipe_photos'] as $key => $table) {
@@ -86,7 +88,11 @@ final class RecipeService
         $recipe['nutrition'] = $nutrition[0] ?? null;
         if ($recipe['nutrition'] !== null) $recipe['nutrition']['stale'] = $recipe['nutrition']['recipe_revision'] !== $recipe['revision'];
         $parent = $recipe['parent_recipe_id'];
-        $recipe['related'] = $this->rows('SELECT id,title,parent_recipe_id FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$householdId, $recipeId, $parent ?? $recipeId, $parent, $parent, $parent]);
+        $recipe['related'] = $this->rows('SELECT id,title,parent_recipe_id FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$householdId, $recipeId, $recipeId, $parent, $parent, $parent]);
+        foreach ($recipe['related'] as &$related) {
+            $related['is_variation'] = $related['parent_recipe_id'] !== null;
+            $related['relationship'] = $related['id'] === $parent ? 'parent' : ($related['parent_recipe_id'] === $recipeId ? 'child' : 'sibling');
+        } unset($related);
         $recipe['pairings'] = $this->rows('SELECT r.id,r.title,p.notes FROM recipe_pairings p JOIN recipes r ON r.deleted_at IS NULL AND r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END AND r.household_id=p.household_id WHERE p.household_id=? AND (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$recipeId, $householdId, $recipeId, $recipeId]);
         $recipe['category_assignments'] = $this->rows('SELECT category_id FROM recipe_category_assignments WHERE household_id=? AND recipe_id=? ORDER BY category_id', [$householdId, $recipeId]);
         $recipe['edit_options'] = $this->editOptions($userId, $householdId, $recipeId);
