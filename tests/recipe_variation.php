@@ -18,7 +18,7 @@ $payloads=[];
 $config=['api_key'=>'mock-only','model'=>'gpt-5.4-mini','variation_model'=>'fixture-model','variation_access'=>'ai_images'];
 $transport=static function(array $payload) use (&$payloads): array {
     $payloads[]=$payload;
-    $result=['recipe'=>['title'=>'Chickpea curry','description'=>'A mild chickpea curry.','prep_minutes'=>5,'cook_minutes'=>10,'total_minutes'=>15,'ingredients'=>[['original_text'=>'1 can chickpeas','ingredient_name'=>'chickpeas']],'steps'=>[['instruction'=>'Simmer the chickpeas for 10 minutes.','actions'=>[['action_type'=>'timer','duration_seconds'=>600]]]]],
+    $result=['recipe'=>['title'=>'Chickpea curry','description'=>'A mild chickpea curry.','original_language'=>'es','prep_minutes'=>5,'cook_minutes'=>10,'total_minutes'=>15,'ingredients'=>[['original_text'=>'1 can chickpeas','ingredient_name'=>'chickpeas']],'steps'=>[['instruction'=>'Simmer the chickpeas for 10 minutes.','actions'=>[['action_type'=>'timer','duration_seconds'=>600]]]]],
         'change_description'=>'Replaced raw chicken with canned chickpeas, renamed the curry and shortened simmering to 10 minutes because the chickpeas are already cooked.',
         'questions'=>count($payloads)===1 ? ['How spicy?'] : []];
     return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[['content'=>[['type'=>'output_text','text'=>json_encode($result)]]]]])];
@@ -33,6 +33,7 @@ $source['actions']=[
     ['id'=>'secret-action-2','step_id'=>'secret-step-id','action_type'=>'timer','label'=>'Cook','duration_seconds'=>1200],
 ];
 $body=['changes'=>'Use chickpeas instead of chicken','request_id'=>str_repeat('a',32),'parent_recipe_id'=>'999','recipe'=>['id'=>'999']];
+$source['original_language']='es';
 try {
     $draft=$service->analyze($source,$body,'user-a','house-a');
     expectVariation(count($payloads)===1,'One mock call');
@@ -41,6 +42,9 @@ try {
     $format=$payloads[0]['text']['format']['schema'];
     expectVariation(in_array('change_description',$format['required'],true) && !isset($format['properties']['recipe']['properties']['change_description']),'Explanation required outside recipe schema');
     expectVariation(!isset(RecipeImportService::responseFormat()['schema']['properties']['change_description']),'Ordinary imports keep their response contract');
+    expectVariation(str_contains($format['properties']['change_description']['description'],'in English, regardless of the original recipe language'),'Explanation schema requires English independently of source');
+    expectVariation(str_contains($payloads[0]['instructions'],'Always write change_description and follow-up questions in English'),'English user-facing language overrides recipe preservation');
+    expectVariation($draft['recipe']['original_language']==='es','English explanation does not change the recipe language');
     $serialized=json_encode($payloads[0]);
     foreach(['secret-household','secret-person','secret-other-recipe','secret-url','secret-ingredient-id','secret-step-id','secret-group-1','secret-group-2','secret-ingredient-2','secret-action-1','secret-action-2'] as $secret) expectVariation(!str_contains($serialized,$secret),'Only cooking content sent');
     $content=$payloads[0]['input'][0]['content'][0]['text'];
