@@ -35,6 +35,12 @@ try {
         $directory = new FirebaseAccountDirectory($config);
         (new VerificationService([$directory, 'verificationLink'], [new VerificationMail($config), 'send']))->send($identity);
         respond(200, ['sent' => true]);
+    } elseif ($route === '/admin/parent-categories') {
+        if (!in_array($method,['GET','POST'],true)) throw new HttpError(405,'method_not_allowed','Use GET or POST.');
+        $identity=authenticatedIdentity($config); $pdo=database($config);
+        $directory=new FirebaseAccountDirectory($config);
+        $user=(new HouseholdService($pdo,[$directory,'requireAccount']))->bootstrap($identity);
+        respond(200,(new AdministrationService($pdo,[$directory,'delete']))->parentCategories($user['id'],$method==='POST'?requestBody():null));
     } elseif ($route === '/admin/households' || preg_match('#^/admin/households/([1-9][0-9]{0,18})/ai-images$#', $route, $permissionMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);

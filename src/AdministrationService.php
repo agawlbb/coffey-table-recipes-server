@@ -179,4 +179,57 @@ final class AdministrationService
             throw $error;
         }
     }
+    private function categoryRows(string $sql, array $parameters): array {
+        $query=$this->pdo->prepare($sql);
+        $query->execute($parameters);
+        $rows=$query->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) if (isset($row['id'])) $row['id']=(string)$row['id'];
+        unset($row);
+        return $rows;
+    }
+
+    /** The category catalog is shared; emptiness includes all households and trash. */
+    public function parentCategories(string $actorId, ?array $body = null): array {
+        $this->authorize($actorId);
+        if ($body !== null) {
+            $action = $body['action'] ?? null;
+            if (!in_array($action, ['add','rename','delete'], true)) throw new HttpError(422,'invalid_action','Choose a category action.');
+            $label = $body['label'] ?? null;
+            if ($action !== 'delete' && (!is_string($label) || trim($label)==='' || mb_strlen(trim($label))>120)) throw new HttpError(422,'invalid_label','Enter a category name of 1 to 120 characters.');
+            $id = $body['id'] ?? '';
+            if ($action !== 'add' && (!is_string($id) || !preg_match('/^[1-9][0-9]{0,18}$/',$id))) throw new HttpError(422,'invalid_category','Choose a parent category.');
+            $this->pdo->beginTransaction();
+            try {
+                $parents = $this->categoryRows('SELECT id,label FROM recipe_categories WHERE parent_id IS NULL ORDER BY id FOR UPDATE', []);
+                if ($action !== 'add' && !in_array($id,array_column($parents,'id'),true)) throw new HttpError(404,'category_not_found','Parent category not found.');
+                if ($action === 'delete') {
+                    $used = $this->categoryRows('SELECT id FROM recipe_categories WHERE parent_id=? LIMIT 1',[$id]);
+                    $assigned = $this->categoryRows('SELECT category_id FROM recipe_category_assignments WHERE category_id=? LIMIT 1',[$id]);
+                    if ($used || $assigned) throw new HttpError(409,'category_not_empty','Only empty parent categories can be deleted. Remove their subcategories and recipe assignments first.');
+                    $statement=$this->pdo->prepare('DELETE FROM recipe_categories WHERE id=? AND parent_id IS NULL');
+                    $statement->execute([$id]);
+                } else {
+                    $label=trim($label);
+                    $duplicate=$this->categoryRows('SELECT id FROM recipe_categories WHERE parent_id IS NULL AND label=? AND id<>? LIMIT 1',[$label,$action==='add'?'0':$id]);
+                    if ($duplicate) throw new HttpError(409,'duplicate_category','A parent category with that name already exists.');
+                    if ($action==='add') {
+                        $statement=$this->pdo->prepare('INSERT INTO recipe_categories (parent_id,slug,label,image_key,position) VALUES (NULL,?,?,?,?)');
+                        $statement->execute(['custom-'.bin2hex(random_bytes(16)),$label,'',count($parents)+1]);
+                    } else {
+                        $statement=$this->pdo->prepare('UPDATE recipe_categories SET label=? WHERE id=? AND parent_id IS NULL');
+                        $statement->execute([$label,$id]);
+                    }
+                }
+                $this->pdo->commit();
+            } catch (Throwable $error) {
+                if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+                if ($error instanceof PDOException && ($error->errorInfo[1] ?? null)===1451) throw new HttpError(409,'category_not_empty','Only empty parent categories can be deleted.');
+                throw $error;
+            }
+        }
+        $categories=$this->categoryRows('SELECT c.id,c.label,(SELECT COUNT(*) FROM recipe_categories child WHERE child.parent_id=c.id) AS child_count,(SELECT COUNT(*) FROM recipe_category_assignments a WHERE a.category_id=c.id) AS assignment_count FROM recipe_categories c WHERE c.parent_id IS NULL ORDER BY c.position,c.label,c.id',[]);
+        foreach ($categories as &$category) $category['can_delete']=(int)$category['child_count']===0 && (int)$category['assignment_count']===0;
+        unset($category);
+        return ['categories'=>$categories];
+    }
 }
