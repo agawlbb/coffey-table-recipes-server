@@ -247,3 +247,5 @@ model prose quality; actual generated text still needs factual review.
 Existing database recipes are not modified by this code change. The separate
 description backfill requires a verified household inventory, private rollback
 backup, conflict checks and description-only verification before execution.
+
+2026-10-15: Import drafts resolve existing category labels and parents to trusted catalog IDs. AI receives the complete parent/child catalog and must reuse suitable categories before proposing additions. Time ranges preserve instruction text and use one lower-endpoint timer, including when AI returns both endpoints. Regression checks: `php tests/recipe_ai.php`.
