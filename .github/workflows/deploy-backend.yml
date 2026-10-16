@@ -52,6 +52,7 @@ jobs:
           php tests/recipe_ai.php
           php tests/reviewed_groups.php
           php tests/recipe_descriptions.php
+          php tests/recipe_wording.php
           php tests/recipe_variation.php
           php tests/recipe_variation_relations.php
           php tests/website_import.php

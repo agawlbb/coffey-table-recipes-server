@@ -405,3 +405,27 @@ A live one-pan crab/mushroom mixture remained ungrouped. Replaying the captured
 breakfast-ring draft through Flutter import review showed both group headings
 and counts. Tests made no persistent recipe/database changes. No Flutter rebuild
 is required because the editor/save response contract is unchanged.
+
+
+## Polished recipe instructions (October 16, 2026)
+
+Import and variation instructions rewrite conversational sources into concise,
+polished recipe language in the source language. The prompt and each strict step
+instruction schema share methodWritingInstruction(): imperative sentences,
+standard culinary verbs, clear references, and no transcript-style filler or
+first-person narration. Ingredient lines and practical notes receive the same
+impersonal editing. Facts remain authoritative: quantities and approximate
+qualifiers, ingredient additions and order, equipment, consistency/doneness cues,
+optional choices, temperatures and durations. Stages must not be merged just to
+shorten the writing. Ambiguous references still require clarification; polishing
+must not invent missing cooking details. The raw source_text stays unchanged.
+
+Validation: 25 wording policy/source/fact/language checks plus 256 recipe AI,
+18 description, 87 variation, 166 reviewed-grouping and 19 website checks passed.
+The exact informal breakfast-ring live test produced eight polished stages,
+including “Microwave the ring for 5 minutes,” “Stir the butter-sugar mixture,”
+and an instruction to invert the pan onto a plate. Dough (4), Sauce (3), the
+quarter-cup amounts, and the single 300-second timer remained intact. The personal
+source and live response stay in ignored storage; no saved recipes were changed.
+The deployment workflow now runs the wording checks. This is backend-only and
+requires no Flutter rebuild.
