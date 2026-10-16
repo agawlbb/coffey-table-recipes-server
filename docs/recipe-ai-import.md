@@ -1,5 +1,20 @@
 # AI recipe imports
 
+US quantity cleanup (2026-10-16): the import prompt requests familiar kitchen
+fractions and separate records for explicit shared-per-ingredient amounts.
+ImportIngredientQuantities also normalizes these cases locally after AI output,
+without another API call: `.25 cups each of x and y` becomes `1/4 cup x` and
+`1/4 cup y`, each retaining the full amount and unique draft IDs. Exact quantity
+fields and displayed lines agree. Common halves, thirds, quarters, eighths and
+sixteenths use fractions/mixed numbers when within 0.00005 of the supplied amount.
+Metric amounts, quantity ranges, conflicting exact values and arbitrary decimal
+quantities are preserved. Deterministic splitting requires explicit "each" and
+a simple conjunction; alternatives and comma/preparation ambiguities are left
+to the model and normal review. Original import source text is unchanged.
+Validation: 152 AI preprocessing checks, 87 variation checks and 19 website import
+checks passed. A live gpt-5.4-mini import returned separate quarter-cup walnut and
+almond entries, 1 1/4 cups oats and 1/2 cup peanut butter; no database write occurred.
+
 Current action policy (October 11, 2026): AI imports generate ONLY explicit
 positive-duration timers (including timed rests) and commands to set an appliance
 to a numeric C/F temperature. The strict schema permits only timer and
