@@ -21,6 +21,18 @@ the update. No recipe text, amounts, steps, pictures or categories are replaced;
 current nutrition freshness is preserved. The temporary cron job is removed on
 success or failure. No other recipe is changed.
 
+Validation on 2026-10-16: 158 import checks, 87 variation checks, 43 sharing
+checks, 19 website-import checks and the mocked hosting-job safeguards passed.
+Deployment d50efdb and its live grouping job completed successfully. The hosted
+receipt confirms Breakfast Ring (recipe 46) now has Dough (4 ingredients) and
+Sauce (3 ingredients); all seven original ingredient lines and the method were
+preserved and a protected backup was recorded. The first full-import attempt
+aborted without writes when formatting changed; the successful grouping-only
+request returned labels for trusted ingredient positions. Temporary cron cleanup
+succeeded. A direct local HTTP display check was unavailable because DNS lookup
+failed; saved-group verification uses the hosted transaction and receipt, while
+the existing renderer's group support is covered by sharing tests.
+
 US quantity cleanup (2026-10-16): the import prompt requests familiar kitchen
 fractions and separate records for explicit shared-per-ingredient amounts.
 ImportIngredientQuantities also normalizes these cases locally after AI output,
