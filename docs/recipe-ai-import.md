@@ -345,3 +345,5 @@ description backfill requires a verified household inventory, private rollback
 backup, conflict checks and description-only verification before execution.
 
 2026-10-15: Import drafts resolve existing category labels and parents to trusted catalog IDs. AI receives the complete parent/child catalog and must reuse suitable categories before proposing additions. Time ranges preserve instruction text and use one lower-endpoint timer, including when AI returns both endpoints. Regression checks: `php tests/recipe_ai.php`.
+
+2026-10-16 category corrections: self-named child suggestions (for example Main Dish / Main Dish) resolve to the existing root. The save endpoint also reuses the root for these proposals, preventing a duplicate child even from older clients. Explicit category IDs take precedence over proposal metadata. In-memory save regressions cover both cases; import normalization covers trimmed and case-varied self labels.

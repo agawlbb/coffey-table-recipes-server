@@ -228,8 +228,12 @@ final class RecipeEditorService
                         $q->execute([$labels['parent_label']]); $parent = $q->fetch(PDO::FETCH_ASSOC);
                         if (!$parent) $this->invalid('Choose an existing parent category.');
                     }
-                    $q = $this->pdo->prepare('SELECT id FROM recipe_categories WHERE label=? AND parent_id <=> ?');
-                    $q->execute([$labels['label'],$parent['id'] ?? null]); $id = (string)($q->fetchColumn() ?: '');
+                    if ($parent && mb_strtolower($labels['label'])===mb_strtolower($labels['parent_label'])) {
+                        $id=(string)$parent['id'];
+                    } else {
+                        $q = $this->pdo->prepare('SELECT id FROM recipe_categories WHERE label=? AND parent_id <=> ?');
+                        $q->execute([$labels['label'],$parent['id'] ?? null]); $id = (string)($q->fetchColumn() ?: '');
+                    }
                     if ($id === '') {
                         if (!$parent) $this->invalid('New categories need an existing parent category.');
                         $slug = 'import-'.hash('sha256',$parent['id'].'|'.mb_strtolower($labels['label']));
