@@ -34,6 +34,12 @@ foreach (['10 to 15 minutes','10–15 minutes','10-15 minutes','10 minutes to 15
     $actions=RecipeImportService::draft($ranged)['recipe']['actions'];
     aiExpect(count($actions)===1 && $actions[0]['duration_seconds']===600,'Wrong range timer: '.$range);
 }
+$selfCategory=$input;
+$selfCategory['recipe']['categories']=[['label'=>' Main Dish ','parent_label'=>'main dish']];
+$selfDraft=RecipeImportService::draft($selfCategory,[['id'=>'10','label'=>'Main Dish','parent_label'=>null]])['recipe'];
+aiExpect($selfDraft['category_assignments']===[['category_id'=>'10','label'=>'Main Dish','parent_label'=>'']],'Self-named child was not resolved to its root.');
+$selfCategory['recipe']['categories'][]=['label'=>'Main Dish','parent_label'=>''];
+aiExpect(count(RecipeImportService::draft($selfCategory)['recipe']['category_assignments'])===1,'Root and self-named child were not deduplicated.');
 $heat=$input;
 $heat['recipe']['steps'][0]['actions']=[['action_type'=>'appliance_temperature','label'=>'Simmer over low heat','temperature_value'=>null,'temperature_unit'=>'F']];
 aiExpect(RecipeImportService::draft($heat)['recipe']['actions']===[], 'Qualitative heat should not create an action.');

@@ -128,5 +128,15 @@ checkTrash($recovered['id']===$original['id'] && $recovered['title']==='Soup','O
 checkTrash($read->detail('1','1',$replacement['id'])['title']==='Soup','Restoring original replaced the new recipe');
 $distinct=$draft; $distinct['import_key']=hash('sha256','different-soup-source');
 checkTrash($editor->save('1','1','',$distinct)['title']==='Soup','Distinct source with same title rejected');
+// Category review regressions use this disposable in-memory database too.
+$categoryDraft=$draft; $categoryDraft['import_key']=hash('sha256','category-choice-fixture');
+$categoryDraft['category_assignments']=[['category_id'=>'2','label'=>'Rejected AI category','parent_label'=>'Meals']];
+$categorySaved=$editor->save('1','1','',$categoryDraft);
+checkTrash((string)$categorySaved['category_assignments'][0]['category_id']==='2','Explicit existing category selection was overwritten by proposal text');
+$categoryDraft['import_key']=hash('sha256','self-category-fixture');
+$categoryDraft['category_assignments']=[['label'=>'Meals','parent_label'=>'Meals']];
+$categorySaved=$editor->save('1','1','',$categoryDraft);
+checkTrash((string)$categorySaved['category_assignments'][0]['category_id']==='1','Self-named category proposal did not save as the root');
+checkTrash((int)$pdo->query('SELECT COUNT(*) FROM recipe_categories')->fetchColumn()===2,'Self-named category created a child');
 echo "$checks recipe deletion fixture checks passed.\n";
 
