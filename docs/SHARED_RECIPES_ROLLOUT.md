@@ -2,6 +2,8 @@
 
 This is a coordinated client/backend feature change. Nothing here authorizes deployment. Joe merges and deploys from his laptop. Do not push main or tags, run distribution workflows, or apply a hosted migration as part of reviewing these branches.
 
+The prepared guarded manual procedure is in [MANUAL_SHARED_ROLLOUT.md](MANUAL_SHARED_ROLLOUT.md). It supports publishing a reviewed feature commit without merging main, and preserves the existing hosted web build. Preparing or testing that tooling does not deploy it.
+
 ## Data model and authorization
 
 Migration `011_shared_recipes.sql` adds `recipe_households`, backfills every existing recipe (including trash), and records which household owns a final-removal recovery window. The existing `recipes.household_id` remains an immutable legacy storage partition for recipe children, not an owner or an authorization boundary. Households have lists of canonical recipes. Attaching a recipe does not copy it or transfer its child rows. Removed household attachments are retained as tombstones until the canonical recipe is purged.

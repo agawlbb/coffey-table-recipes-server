@@ -44,6 +44,29 @@ def require_http(response, operation):
         raise RuntimeError(f'{operation} failed with HTTP {response.status_code}; response details omitted') from None
 
 
+def require_shared_rollout_ready(session):
+    migrations = [Path('database/migrations') / name for name in
+                  ('011_shared_recipes.sql', '012_canonical_relationships.sql')]
+    if not migrations[-1].is_file():
+        return  # Older package; no new schema dependency.
+    response = session.get(HOST + '/execute/Fileman/get_file_content',
+        params={'dir': DIRECTORY + '/storage/shared-rollout', 'file': 'state.json'}, timeout=30)
+    require_success(response, 'Shared rollout readiness')
+    try:
+        state = json.loads(response.json()['data']['content'])
+        expected = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in migrations}
+        if (state.get('phase') not in ('migrated', 'verified', 'resumed') or
+                state.get('applied_checksums') != expected or
+                state.get('backup', {}).get('restore_verified') is not True):
+            raise ValueError('unprepared')
+    except (KeyError, TypeError, ValueError):
+        raise RuntimeError('Verified shared-recipe migration/restore drill required before publishing') from None
+    if state['phase'] != 'resumed':
+        response = session.get(HOST + '/execute/Fileman/get_file_content',
+            params={'dir': DIRECTORY + '/storage', 'file': 'shared-rollout-maintenance'}, timeout=30)
+        require_success(response, 'Maintenance marker verification')
+
+
 def deploy():
     if not all(os.environ.get(name) for name in ('CPANEL_USER', 'CPANEL_API_TOKEN')):
         raise RuntimeError('Configure CPANEL_USER and CPANEL_API_TOKEN repository secrets')
@@ -60,6 +83,7 @@ def deploy():
             archive.write(path, path.as_posix())
     session = requests.Session()
     session.headers['Authorization'] = f"cpanel {os.environ['CPANEL_USER']}:{os.environ['CPANEL_API_TOKEN']}"
+    require_shared_rollout_ready(session)
     # Upload into protected storage, never into a publicly downloadable archive.
     with output.open('rb') as stream:
         require_success(session.post(HOST + '/execute/Fileman/upload_files',
