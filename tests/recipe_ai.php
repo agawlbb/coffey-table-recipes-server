@@ -153,4 +153,10 @@ $g=RecipeImportService::draft($grouped)['recipe'];
 aiExpect(count($g['ingredients'])===2 && array_column($g['ingredients'],'group_id')===['new-groups-0','new-groups-0'],'Split ingredients lost their component.');
 aiExpect(array_key_exists('group_title',$format['schema']['properties']['recipe']['properties']['ingredients']['items']['properties']),'Strict AI schema lacks ingredient groups.');
 
+
+foreach (['Decoration','Garnish','For decoration','Assembly','Dry ingredients','Wet ingredients'] as $title) {
+    $g=$input; $g['recipe']['ingredients'][0]['group_title']=$title;
+    $draftGroup=RecipeImportService::draft($g)['recipe'];
+    aiExpect($draftGroup['groups']===[] && $draftGroup['ingredients'][0]['group_id']===null,'Unnecessary stage/finishing group persisted: '.$title);
+}
 echo "$checks recipe AI preprocessing and validation checks passed.\n";
