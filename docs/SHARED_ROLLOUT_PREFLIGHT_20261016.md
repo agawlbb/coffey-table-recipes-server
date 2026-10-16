@@ -60,6 +60,14 @@ preservation, and interrupted-migration failure checks. Both harnesses removed
 only their generated synthetic schemas and test backups. Other database
 versions remain rejected.
 
+Packaging review found Windows checkout line endings in migrations 010 and
+012. Restored those working files to the existing Git LF bytes and added
+`.gitattributes` so future Windows checkouts preserve migration hashes.
+Migration 010 now matches the hosted ledger (SHA-256
+`6d3c9b2a879af81f1252ec6e5ef6392f44e30c73dcf39b51edca3008f5dca64b`).
+The Git source of the SQL itself has not changed. Deployment must use LF
+bytes consistently for both helper staging and the final backend package.
+
 The separate app repo's iOS build at `61610fb` also passed on Xcode 27:
 https://github.com/agawlbb/coffey-table-recipes/actions/runs/38954806173
 This was unsigned compilation/package verification, not distribution or a
