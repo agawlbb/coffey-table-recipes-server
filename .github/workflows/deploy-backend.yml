@@ -50,6 +50,7 @@ jobs:
           php tests/recipe_photo.php
           php tests/source_photos.php
           php tests/recipe_ai.php
+          php tests/reviewed_groups.php
           php tests/recipe_descriptions.php
           php tests/recipe_variation.php
           php tests/recipe_variation_relations.php
@@ -102,6 +103,19 @@ jobs:
         with:
           name: parent-cover-report
           path: storage/parent-cover-report.json
+          if-no-files-found: ignore
+      - name: Apply reviewed conservative recipe groups and cleanup
+        if: env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[reviewed-groups]')
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/apply-reviewed-recipe-groups.py
+      - name: Record reviewed grouping result
+        if: always() && env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[reviewed-groups]')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: reviewed-groups-report
+          path: storage/reviewed-groups-report.json
           if-no-files-found: ignore
       - name: Read-only recipe grouping inventory
         if: env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[grouping-audit]')

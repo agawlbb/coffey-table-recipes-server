@@ -1,5 +1,28 @@
 # AI recipe imports
 
+Conservative grouping correction (2026-10-16): groups require distinct ingredients
+and separate component preparation, not ordinary cooking stages. The prompt
+explicitly distinguishes cake/frosting and chicken/separately prepared orange
+sauce from a single crab-and-mushroom dish. Decorations stay with their component
+or ungrouped. Purchased assembly ingredients can remain ungrouped. Normalization
+drops standalone decoration, garnish, assembly and dry/wet ingredient groups.
+Live model checks returned Cake/Frosting only and no crab component groups.
+
+The user-approved [reviewed-groups] job applies the reviewed plan to exactly nine
+hosted recipes, pinning revisions and ingredient/method fingerprints. It backs
+up complete recipe, ingredient, step, group and nutrition records in protected
+storage before making one atomic update. Ordinary grouping preserves ingredient
+records and nutrition freshness; no pictures, categories or actions are replaced.
+Key Lime Pie gets 3 yolks in filling and 3 whites in meringue (three eggs total),
+with the purchased shell ungrouped. The mojito's stated equal sugar/water ratio
+and one bunch mint per cup water become a batch of 1 cup sugar, 1 cup water and
+1 bunch mint, with explicit method quantities. Cocktail amounts stay unchanged,
+servings is one drink, and notes distinguish the batch from the 1/2 oz syrup used
+per drink. Nutrition is left stale for these two cleanup edits. Ice cream and
+Cool Whip remain ungrouped; cake curls stay with frosting. No previously withdrawn
+grouping candidates or Breakfast Ring are modified. Temporary cron cleanup runs
+on success/failure. The plan and hosting safeguards have dedicated tests.
+
 Existing-recipe review: [grouping-audit] opts a deployment into a CLI-only hosted
 inventory. audit-recipe-groups.php explicitly opens a read-only transaction and
 selects active recipe titles, ingredient lines, steps and current groups, without
