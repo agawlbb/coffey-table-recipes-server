@@ -33,8 +33,8 @@ final class SharedRecipeRollout {
     }
     public function inspect(): array {
         $engine=(string)$this->pdo->query('SELECT VERSION()')->fetchColumn();
-        // The exact engine version rehearsed by this tool. Expand only after rehearsal.
-        if (!preg_match('/^10\.4\.32-MariaDB/',$engine)) throw new RuntimeException('Hosted engine needs a matching disposable rehearsal before this tool can apply migrations.');
+        // Exact engine versions rehearsed by this tool. Expand only after rehearsal.
+        if (!preg_match('/^(?:10\.4\.32|10\.11\.19)-MariaDB(?:[-+].*)?$/D',$engine)) throw new RuntimeException('Hosted engine needs a matching disposable rehearsal before this tool can apply migrations.');
         foreach($this->pdo->query('SHOW TABLE STATUS',PDO::FETCH_ASSOC) as $table) if($table['Engine']!=='InnoDB') throw new RuntimeException('Only InnoDB base tables are supported.');
         if($this->pdo->query('SHOW TRIGGERS')->fetch()) throw new RuntimeException('Triggers require an expanded backup plan.');
         foreach(['ROUTINES','EVENTS'] as $kind) if((int)$this->pdo->query("SELECT COUNT(*) FROM information_schema.$kind WHERE ".($kind==='ROUTINES'?'ROUTINE_SCHEMA':'EVENT_SCHEMA').'=DATABASE()')->fetchColumn()) throw new RuntimeException('Stored routines/events require an expanded backup plan.');
