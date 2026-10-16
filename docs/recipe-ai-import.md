@@ -13,8 +13,9 @@ already render the saved component headings.
 
 The authorized Breakfast Ring test uses a CLI-only, exact-title hosted job,
 opted in only with [breakfast-groups] in the deployment commit. It backs up the
-original recipe and assignments in protected storage, requires unchanged
-ingredients/order and exactly Dough/Sauce from a live import, then atomically
+original recipe and assignments in protected storage, requests only Dough/Sauce
+labels for every existing ingredient position (no rewritten ingredient fields),
+requires unique complete assignments, then atomically
 adds groups and assigns existing ingredient IDs. Concurrent recipe changes abort
 the update. No recipe text, amounts, steps, pictures or categories are replaced;
 current nutrition freshness is preserved. The temporary cron job is removed on
