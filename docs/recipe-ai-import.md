@@ -7,6 +7,14 @@ account details or raw import source. It never updates recipe data or calls AI.
 Results stay in protected storage and an access-controlled, one-day Actions
 artifact, not Git. The temporary cron entry is removed after success/failure.
 
+2026-10-16 inventory verification: the hosted audit completed successfully and
+returned 34 active recipes. Their ingredient lines and complete methods were
+reviewed; Breakfast Ring was the only recipe already grouped. The review found
+10 clear candidates, 3 candidates needing ingredient-line clarification/splitting,
+and 1 optional candidate. No recipe records were changed by this review. The
+temporary cron entry was removed and all deployment checks passed. Full cooking
+content and the private inventory remain outside Git.
+
 Ingredient components (2026-10-16): each AI ingredient has a nullable group_title.
 Imports preserve source headings and can infer clearly separate components from
 the method, such as Dough and Sauce. Ambiguous allocation prompts a question;
