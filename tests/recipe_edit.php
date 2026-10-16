@@ -90,7 +90,7 @@ try {
     editExpect($read->detail($a['id'],$h,$id)===$saved,'Invalid save was not rolled back.');
     $bad=$saved; $bad['ingredients'][0]['id']=$foreign;
     editReject(fn()=>$edit->save($a['id'],$h,$id,$bad),422);
-    $bad=$saved; $bad['parent_recipe_id']=$foreign;
+    $bad=$saved; $bad['parent_recipe_id']='999999999999';
     editReject(fn()=>$edit->save($a['id'],$h,$id,$bad),422);
     $bad=$saved; $bad['parent_recipe_id']=$id;
     editReject(fn()=>$edit->save($a['id'],$h,$id,$bad),422);

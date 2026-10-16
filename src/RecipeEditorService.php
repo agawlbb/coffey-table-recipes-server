@@ -67,6 +67,10 @@ final class RecipeEditorService
         $viewHousehold=$householdId;
         $this->pdo->beginTransaction();
         try {
+            // Serialize canonical relationship changes before taking any recipe locks.
+            $q=$this->pdo->prepare('SELECT id FROM recipe_relationship_lock WHERE id=1 FOR UPDATE');
+            $q->execute();
+            if ($q->fetchColumn()===false) throw new RuntimeException('Relationship migration is required.');
             if (!$creating) {
                 $q=$this->pdo->prepare('SELECT household_id FROM recipes WHERE id=? AND deleted_at IS NULL FOR UPDATE');
                 $q->execute([$recipeId]); $storage=$q->fetchColumn();
@@ -76,16 +80,10 @@ final class RecipeEditorService
                 if (count($attached)>1 && ($body['confirm_shared_edit'] ?? false)!==true) throw new HttpError(409,'shared_confirmation_required','This recipe is shared. Confirm that your changes will affect every household.');
                 $householdId=(string)$storage;
             }
-            // All editor writes in one household take this lock before recipe
-            // locks. Otherwise two concurrent edits could each validate the old
-            // ancestry and create A -> B -> A despite locking their own rows.
-            $q = $this->pdo->prepare('SELECT id FROM households WHERE id=? FOR UPDATE');
-            $q->execute([$householdId]);
-            if ($q->fetchColumn() === false) throw new HttpError(404, 'household_not_found', 'Household not found.');
             $parent = $body['parent_recipe_id'] ?? null;
             if ($parent === '') $parent = null;
             if ($parent !== null) {
-                if ((!is_string($parent) && !is_int($parent)) || !preg_match('/^[1-9][0-9]{0,18}$/D', (string) $parent)) $this->invalid('Choose an original recipe from this household.');
+                if ((!is_string($parent) && !is_int($parent)) || !preg_match('/^[1-9][0-9]{0,18}$/D', (string) $parent)) $this->invalid('Choose a live original recipe.');
                 $parent = (string) $parent;
             }
             if ($recipeId === '') {
@@ -138,9 +136,9 @@ final class RecipeEditorService
                 while ($ancestor !== '') {
                     if (isset($visited[$ancestor])) $this->invalid('The original recipe cannot form a circular relationship.');
                     $visited[$ancestor] = true;
-                    $q = $this->pdo->prepare('SELECT parent_recipe_id,deleted_at FROM recipes WHERE household_id=? AND id=? FOR UPDATE');
-                    $q->execute([$householdId, $ancestor]); $r = $q->fetch(PDO::FETCH_ASSOC);
-                    if (!$r || ($ancestor === $parent && $r['deleted_at'] !== null)) $this->invalid('Choose an original recipe from this household.');
+                    $q = $this->pdo->prepare('SELECT parent_recipe_id,deleted_at FROM recipes WHERE id=? FOR UPDATE');
+                    $q->execute([$ancestor]); $r = $q->fetch(PDO::FETCH_ASSOC);
+                    if (!$r || ($ancestor === $parent && $r['deleted_at'] !== null)) $this->invalid('Choose a live original recipe.');
                     $ancestor = (string) ($r['parent_recipe_id'] ?? '');
                 }
             }
@@ -257,11 +255,11 @@ final class RecipeEditorService
                 if (!$q->fetchColumn() || isset($seen[$id])) $this->invalid('Invalid or duplicate category.'); $seen[$id] = true;
                 $this->insert('recipe_category_assignments',$base + ['category_id'=>$id]);
             }
-            $this->pdo->prepare('DELETE FROM recipe_pairings WHERE household_id=? AND (recipe_id=? OR paired_recipe_id=?)')->execute([$householdId,$recipeId,$recipeId]);
+            $this->pdo->prepare('DELETE FROM recipe_pairings WHERE recipe_id=? OR paired_recipe_id=?')->execute([$recipeId,$recipeId]);
             $seen = [];
             foreach ($lists['pairings'] as $row) {
                 $id = (string)($row['id'] ?? '');
-                $q = $this->pdo->prepare('SELECT id FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=?'); $q->execute([$householdId,$id]);
+                $q = $this->pdo->prepare('SELECT id FROM recipes WHERE deleted_at IS NULL AND id=?'); $q->execute([$id]);
                 if ($id === $recipeId || !$q->fetchColumn() || isset($seen[$id])) $this->invalid('Invalid or duplicate pairing.'); $seen[$id] = true;
                 $values = $this->fields($row,['notes'=>'60000']);
                 $this->insert('recipe_pairings',['household_id'=>$householdId,'recipe_id'=>min((int)$recipeId,(int)$id),'paired_recipe_id'=>max((int)$recipeId,(int)$id)] + $values);

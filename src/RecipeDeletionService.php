@@ -74,6 +74,9 @@ final class RecipeDeletionService
         foreach ($ids as $id) {
             $this->pdo->beginTransaction();
             try {
+            $q=$this->pdo->prepare('SELECT id FROM recipe_relationship_lock WHERE id=1 FOR UPDATE');
+            $q->execute();
+            if ($q->fetchColumn()===false) throw new RuntimeException('Relationship migration is required.');
                 $q = $this->pdo->prepare('SELECT id,title,household_id FROM recipes WHERE id=? AND deleted_at IS NOT NULL AND purge_after<=UTC_TIMESTAMP(6) FOR UPDATE');
                 $q->execute([$id]); $row = $q->fetch(PDO::FETCH_ASSOC);
                 if (!$row) { $this->pdo->commit(); continue; }

@@ -60,6 +60,7 @@ $pdo->exec("INSERT INTO recipes(id,household_id,title,revision) VALUES (1,1,'Sou
  INSERT INTO recipe_pairings VALUES(1,1,2,'Serve together');
  INSERT INTO cooking_event_recipes VALUES(1,1,1,1,'2','Good soup');
  UPDATE recipes SET parent_recipe_id=1 WHERE id=2;");
+$pdo->exec('CREATE TABLE recipe_relationship_lock(id INTEGER PRIMARY KEY); INSERT INTO recipe_relationship_lock VALUES(1)');
 $pdo->exec('CREATE TABLE recipe_households(recipe_id INTEGER,household_id INTEGER,removed_at TEXT,PRIMARY KEY(recipe_id,household_id),FOREIGN KEY(recipe_id) REFERENCES recipes(id) ON DELETE CASCADE)');
 $pdo->exec('INSERT INTO recipe_households(recipe_id,household_id) SELECT id,household_id FROM recipes');
 $households = new HouseholdService($pdo); $trash = new RecipeDeletionService($pdo,$households); $read = new RecipeService($pdo,$households);

@@ -1,0 +1,21 @@
+-- Apply after 011 with writers and purge paused. Canonical links have no household owner.
+CREATE TABLE recipe_relationship_lock (id BIGINT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO recipe_relationship_lock VALUES (1);
+SET @relationship_fk = (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recipes' AND COLUMN_NAME='parent_recipe_id' AND REFERENCED_TABLE_NAME='recipes' LIMIT 1);
+SET @relationship_sql = IF(@relationship_fk IS NULL,'SELECT 1',CONCAT('ALTER TABLE recipes DROP FOREIGN KEY ',CHAR(96),REPLACE(@relationship_fk,CHAR(96),CONCAT(CHAR(96),CHAR(96))),CHAR(96)));
+PREPARE relationship_statement FROM @relationship_sql;
+EXECUTE relationship_statement;
+DEALLOCATE PREPARE relationship_statement;
+ALTER TABLE recipes ADD CONSTRAINT recipe_canonical_parent FOREIGN KEY (parent_recipe_id) REFERENCES recipes(id);
+SET @relationship_fk = (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recipe_pairings' AND COLUMN_NAME='recipe_id' AND REFERENCED_TABLE_NAME='recipes' LIMIT 1);
+SET @relationship_sql = IF(@relationship_fk IS NULL,'SELECT 1',CONCAT('ALTER TABLE recipe_pairings DROP FOREIGN KEY ',CHAR(96),REPLACE(@relationship_fk,CHAR(96),CONCAT(CHAR(96),CHAR(96))),CHAR(96)));
+PREPARE relationship_statement FROM @relationship_sql;
+EXECUTE relationship_statement;
+DEALLOCATE PREPARE relationship_statement;
+ALTER TABLE recipe_pairings ADD CONSTRAINT pairing_canonical_recipe FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE;
+SET @relationship_fk = (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='recipe_pairings' AND COLUMN_NAME='paired_recipe_id' AND REFERENCED_TABLE_NAME='recipes' LIMIT 1);
+SET @relationship_sql = IF(@relationship_fk IS NULL,'SELECT 1',CONCAT('ALTER TABLE recipe_pairings DROP FOREIGN KEY ',CHAR(96),REPLACE(@relationship_fk,CHAR(96),CONCAT(CHAR(96),CHAR(96))),CHAR(96)));
+PREPARE relationship_statement FROM @relationship_sql;
+EXECUTE relationship_statement;
+DEALLOCATE PREPARE relationship_statement;
+ALTER TABLE recipe_pairings ADD CONSTRAINT pairing_canonical_partner FOREIGN KEY (paired_recipe_id) REFERENCES recipes(id) ON DELETE CASCADE;
