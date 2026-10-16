@@ -1,5 +1,25 @@
 # AI recipe imports
 
+Ingredient components (2026-10-16): each AI ingredient has a nullable group_title.
+Imports preserve source headings and can infer clearly separate components from
+the method, such as Dough and Sauce. Ambiguous allocation prompts a question;
+ordinary single-component recipes stay ungrouped. Draft normalization creates
+ordered, unique local groups and maps ingredients to them without trusting AI
+database IDs. Repeated ingredients and quantities are preserved. The same response
+format supports variations and existing component titles supplied with them.
+Split "each" ingredient rows retain the component. Group names are bounded and
+case-insensitive duplicates coalesce. Existing app, cooking and share displays
+already render the saved component headings.
+
+The authorized Breakfast Ring test uses a CLI-only, exact-title hosted job,
+opted in only with [breakfast-groups] in the deployment commit. It backs up the
+original recipe and assignments in protected storage, requires unchanged
+ingredients/order and exactly Dough/Sauce from a live import, then atomically
+adds groups and assigns existing ingredient IDs. Concurrent recipe changes abort
+the update. No recipe text, amounts, steps, pictures or categories are replaced;
+current nutrition freshness is preserved. The temporary cron job is removed on
+success or failure. No other recipe is changed.
+
 US quantity cleanup (2026-10-16): the import prompt requests familiar kitchen
 fractions and separate records for explicit shared-per-ingredient amounts.
 ImportIngredientQuantities also normalizes these cases locally after AI output,
