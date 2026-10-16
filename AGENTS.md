@@ -13,9 +13,9 @@ The user requests that all future project changes be committed to Git.
 - Deploying and pushing changes to the hosted backend and database are authorized without additional permission within the requested work, including Git pushes needed for backend deployment.
 - Changes to the app itself are developed and tested locally, using coffeybean.com as the backend. Flutter source changes belong in `C:\Users\developer\StudioProjects\coffey_table_recipes`.
 - Update the hosted app only when the user explicitly asks and a new version is tagged. A tag alone does not authorize deployment.
-- Outside an instruction to "create a release", obtain explicit permission before pushing or deploying the hosted app. An instruction to "create a release" authorizes hosted app deployment; macOS GitHub Actions builds still require separate approval every time.
+- Outside an instruction to "create a release", obtain explicit permission before pushing or deploying the hosted app. An instruction to "create a release" authorizes hosted app deployment. iOS builds require no separate approval.
 - Use coffeybean.com as the testing backend. Retain the local PHP source for development. The backend and persistent MySQL database are hosted exclusively; the outdated local recipe database was retired on 2026-10-11.
 - Use the Codex built-in browser for work whenever possible. Use Chrome only to investigate Chrome-specific problems identified by the user.
 - Deploy only to the verified coffeybean.com document root and a dedicated recipe database; this cPanel account hosts other domains.
 
-- Backend deployment may run automatically after pushes to main. macOS runner builds still require explicit approval in the Flutter repository.
+- Backend deployment may run automatically after pushes to main. iOS builds require no separate explicit approval within requested work, including macOS GitHub Actions runs, reruns, and pushes or tags that trigger iOS builds. Other macOS runner builds still require explicit approval because they cost money.
