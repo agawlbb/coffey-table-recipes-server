@@ -134,4 +134,23 @@ $r['recipe']['measurement_system']='us';
 $r['recipe']['ingredients']=[['original_text'=>'0.25 cups sugar','ingredient_name'=>'sugar','quantity_decimal'=>'0.25','quantity_max_decimal'=>'0.5']];
 aiExpect(RecipeImportService::draft($r)['recipe']['ingredients'][0]['quantity_max_decimal']==='0.5','Range endpoint lost.');
 
+
+$grouped=$input;
+$grouped['recipe']['ingredients']=[
+    ['original_text'=>'2 cups flour','ingredient_name'=>'flour','group_title'=>'Dough','group_id'=>'untrusted'],
+    ['original_text'=>'1 cup milk','ingredient_name'=>'milk','group_title'=>' dough '],
+    ['original_text'=>'1/2 cup sugar','ingredient_name'=>'sugar','group_title'=>'Sauce'],
+    ['original_text'=>'Salt','ingredient_name'=>'salt','group_title'=>null],
+];
+$g=RecipeImportService::draft($grouped)['recipe'];
+aiExpect($g['groups']===[['id'=>'new-groups-0','title'=>'Dough'],['id'=>'new-groups-1','title'=>'Sauce']],'Group titles were lost, duplicated or accepted untrusted IDs.');
+aiExpect(array_column($g['ingredients'],'group_id')===['new-groups-0','new-groups-0','new-groups-1',null],'Ingredients assigned to wrong groups.');
+aiExpect(!array_key_exists('group_title',$g['ingredients'][0]),'AI-only group field leaked into database draft.');
+$grouped['recipe']['ingredients'][0]['group_title']=str_repeat('a',201);
+aiReject(fn()=>RecipeImportService::draft($grouped),502);
+$grouped['recipe']['ingredients']=[['original_text'=>'.25 cups each of x and y','ingredient_name'=>'x and y','group_title'=>'Sauce']];
+$g=RecipeImportService::draft($grouped)['recipe'];
+aiExpect(count($g['ingredients'])===2 && array_column($g['ingredients'],'group_id')===['new-groups-0','new-groups-0'],'Split ingredients lost their component.');
+aiExpect(array_key_exists('group_title',$format['schema']['properties']['recipe']['properties']['ingredients']['items']['properties']),'Strict AI schema lacks ingredient groups.');
+
 echo "$checks recipe AI preprocessing and validation checks passed.\n";
