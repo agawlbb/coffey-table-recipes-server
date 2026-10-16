@@ -47,6 +47,7 @@ foreach (['003_recipes.sql','005_recipe_categories.sql'] as $name) {
         $pdo->exec('CREATE TABLE '.$table[1].' ('.implode(',',$columns).')');
     }
 }
+$pdo->exec('CREATE TABLE recipe_households(recipe_id INTEGER,household_id INTEGER,removed_at TEXT,PRIMARY KEY(recipe_id,household_id))');
 $checks = 0;
 function relationExpect(bool $condition,string $message): void {
     global $checks;

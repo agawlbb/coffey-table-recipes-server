@@ -24,6 +24,7 @@ try {
     $q->execute([$h,'Original','Private extraction','private-key']); $id = $pdo->lastInsertId();
     $q->execute([$h,'Pair',null,null]); $pair = $pdo->lastInsertId();
     $q->execute([$other,'Foreign',null,null]); $foreign = $pdo->lastInsertId();
+    $pdo->exec('INSERT INTO recipe_households(recipe_id,household_id) SELECT id,household_id FROM recipes');
     $read = new RecipeService($pdo,$households); $edit = new RecipeEditorService($pdo,$households,$media,'https://example.test/media/recipes');
     $new = ['title'=>'Imported soup','original_language'=>'en','measurement_system'=>'unspecified','source_text'=>'My soup description','import_key'=>hash('sha256','test-import'),
         'ingredients'=>[['id'=>'new-i','original_text'=>'Water','ingredient_name'=>'water','scale_quantity'=>1]],

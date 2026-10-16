@@ -4,6 +4,7 @@ require_once __DIR__ . '/HttpError.php';
 require_once __DIR__ . '/FirebaseIdentity.php';
 require_once __DIR__ . '/HouseholdService.php';
 require_once __DIR__ . '/RecipeService.php';
+require_once __DIR__ . '/RecipeMembership.php';
 require_once __DIR__ . '/RecipeDeletionService.php';
 require_once __DIR__ . '/RecipeEditorService.php';
 require_once __DIR__ . '/RecipeImportService.php';

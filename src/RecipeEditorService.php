@@ -64,8 +64,18 @@ final class RecipeEditorService
         $this->households->membership($userId, $householdId);
         $createdFiles = [];
         $creating = $recipeId === '';
+        $viewHousehold=$householdId;
         $this->pdo->beginTransaction();
         try {
+            if (!$creating) {
+                $q=$this->pdo->prepare('SELECT household_id FROM recipes WHERE id=? AND deleted_at IS NULL FOR UPDATE');
+                $q->execute([$recipeId]); $storage=$q->fetchColumn();
+                $q=$this->pdo->prepare('SELECT household_id FROM recipe_households WHERE recipe_id=? AND removed_at IS NULL');
+                $q->execute([$recipeId]); $attached=array_map('strval',$q->fetchAll(PDO::FETCH_COLUMN));
+                if ($storage===false || !in_array($viewHousehold,$attached,true)) throw new HttpError(404,'recipe_not_found','Recipe not in this household.');
+                if (count($attached)>1 && ($body['confirm_shared_edit'] ?? false)!==true) throw new HttpError(409,'shared_confirmation_required','This recipe is shared. Confirm that your changes will affect every household.');
+                $householdId=(string)$storage;
+            }
             // All editor writes in one household take this lock before recipe
             // locks. Otherwise two concurrent edits could each validate the old
             // ancestry and create A -> B -> A despite locking their own rows.
@@ -105,6 +115,7 @@ final class RecipeEditorService
                     $q->execute([$householdId,$source['import_key']]);
                 }
                 $recipeId = $this->insert('recipes', ['household_id'=>$householdId,'title'=>'New recipe','created_by_user_id'=>$userId,'updated_by_user_id'=>$userId] + $source);
+                $this->pdo->prepare('INSERT INTO recipe_households(recipe_id,household_id) VALUES (?,?)')->execute([$recipeId,$householdId]);
                 $body['revision'] = 1;
             }
             $q = $this->pdo->prepare('SELECT revision FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id=? FOR UPDATE');
@@ -276,6 +287,6 @@ final class RecipeEditorService
             if ($error instanceof PDOException && in_array($error->getCode(),['23000','22003','22001'],true)) $this->invalid('Some recipe values are invalid or too large. Please check your entries.');
             throw $error;
         }
-        return (new RecipeService($this->pdo,$this->households))->detail($userId,$householdId,$recipeId);
+        return (new RecipeService($this->pdo,$this->households))->detail($userId,$viewHousehold,$recipeId);
     }
 }

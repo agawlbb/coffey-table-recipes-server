@@ -83,6 +83,7 @@ try {
     expectSchema($pdo->query("SELECT COUNT(*) FROM cooking_event_recipes WHERE event_id=$event")->fetchColumn() == 2, 'Meal history cannot group recipes.');
     schemaReject($pdo, "INSERT INTO cooking_event_recipes (household_id,event_id,recipe_id,recipe_revision) VALUES ($h1,$event,$foreign,1)");
     $pdo->exec("DELETE FROM cooking_events WHERE id=$event");
+    $pdo->exec('INSERT INTO recipe_households(recipe_id,household_id) SELECT id,household_id FROM recipes');
     $service = new RecipeService($pdo, $households);
     $breakfast = (string) $pdo->query("SELECT id FROM recipe_categories WHERE slug='breakfast'")->fetchColumn();
     $pdo->exec("INSERT INTO recipe_categories(parent_id,slug,label,image_key) VALUES ($breakfast,'breakfast-pancakes','Pancakes','pancakes')");
@@ -124,6 +125,7 @@ try {
     for ($i=0; $i<31; $i++) {
         $insert->execute([$h1, sprintf('Paging %02d', $i), 'en', null, null]);
         $pagingId = $pdo->lastInsertId();
+        $pdo->prepare('INSERT INTO recipe_households(recipe_id,household_id) VALUES (?,?)')->execute([$pagingId,$h1]);
         $pdo->exec("INSERT INTO recipe_category_assignments VALUES ($h1,$pagingId,$pancakes)");
     }
     $page = $service->browse($a['id'], $h1, 'Paging', 0, '', $pancakes, true);

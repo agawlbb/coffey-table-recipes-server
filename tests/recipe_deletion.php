@@ -43,7 +43,7 @@ foreach (['003_recipes.sql','005_recipe_categories.sql'] as $name) {
         if ($table[1]==='recipes') {
             $columns = array_filter($columns,fn($c)=>!str_starts_with($c,'id '));
             array_unshift($columns,'id INTEGER PRIMARY KEY');
-            array_push($columns,'deleted_at TEXT','purge_after TEXT','deleted_by_user_id INTEGER','UNIQUE(household_id,id)','FOREIGN KEY (parent_recipe_id) REFERENCES recipes(id)');
+            array_push($columns,'deleted_at TEXT','purge_after TEXT','deleted_by_user_id INTEGER','trash_household_id INTEGER','UNIQUE(household_id,id)','FOREIGN KEY (parent_recipe_id) REFERENCES recipes(id)');
         } elseif (!in_array($table[1],['recipe_categories','cooking_events'],true)) {
             // Fixture cleanup mirrors the production recipe cascades.
             $columns[] = 'FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE';
@@ -60,6 +60,8 @@ $pdo->exec("INSERT INTO recipes(id,household_id,title,revision) VALUES (1,1,'Sou
  INSERT INTO recipe_pairings VALUES(1,1,2,'Serve together');
  INSERT INTO cooking_event_recipes VALUES(1,1,1,1,'2','Good soup');
  UPDATE recipes SET parent_recipe_id=1 WHERE id=2;");
+$pdo->exec('CREATE TABLE recipe_households(recipe_id INTEGER,household_id INTEGER,removed_at TEXT,PRIMARY KEY(recipe_id,household_id),FOREIGN KEY(recipe_id) REFERENCES recipes(id) ON DELETE CASCADE)');
+$pdo->exec('INSERT INTO recipe_households(recipe_id,household_id) SELECT id,household_id FROM recipes');
 $households = new HouseholdService($pdo); $trash = new RecipeDeletionService($pdo,$households); $read = new RecipeService($pdo,$households);
 $checks=0;
 function checkTrash(bool $ok,string $message): void { global $checks; if (!$ok) throw new RuntimeException($message); $checks++; }
