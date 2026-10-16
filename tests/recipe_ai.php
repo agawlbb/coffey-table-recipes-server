@@ -104,4 +104,34 @@ try {
 } finally {
     unlink($legacyCounter); rmdir($limitStorage.'/recipe-ai'); rmdir($limitStorage);
 }
+
+// Familiar US fractions and explicit "each" quantities remain database-ready.
+foreach (['.25'=>'1/4', '0.5'=>'1/2', '1.25'=>'1 1/4', '0.3333'=>'1/3'] as $decimal=>$display) {
+    $r=$input;
+    $r['recipe']['measurement_system']='us';
+    $r['recipe']['ingredients']=[['original_text'=>$decimal.' cups sugar','ingredient_name'=>'sugar','quantity_decimal'=>(string)$decimal,'original_unit'=>'cups']];
+    $q=RecipeImportService::draft($r)['recipe']['ingredients'][0];
+    aiExpect($q['quantity_text']===$display && str_starts_with($q['original_text'],$display.' '),'US fraction display failed: '.$decimal);
+    aiExpect($q['quantity_decimal']===null && $q['quantity_denominator']>0,'US fraction exact fields conflict.');
+}
+$r=$input;
+$r['recipe']['measurement_system']='us';
+$r['recipe']['ingredients']=[['original_text'=>'.25 cups each of x and y','ingredient_name'=>'x and y','quantity_decimal'=>'0.25','original_unit'=>'cups']];
+$parts=RecipeImportService::draft($r)['recipe']['ingredients'];
+aiExpect(array_column($parts,'original_text')===['1/4 cup x','1/4 cup y'],'Explicit each ingredients were not separated.');
+aiExpect(array_column($parts,'id')===['new-ingredients-0','new-ingredients-1'],'Split ingredients need unique IDs.');
+foreach ($parts as $part) aiExpect($part['quantity_numerator']===1 && $part['quantity_denominator']===4 && $part['quantity_decimal']===null,'Each amount was divided or invalid.');
+foreach (['.25 cups x and y','.25 cups each of butter or margarine','.25 cups each of x and y, chopped','0.3 cups sugar'] as $line) {
+    $r['recipe']['ingredients']=[['original_text'=>$line,'ingredient_name'=>'source','quantity_decimal'=>null]];
+    $parts=RecipeImportService::draft($r)['recipe']['ingredients'];
+    aiExpect(count($parts)===1,'Ambiguous or alternative ingredients were split.');
+    if (str_starts_with($line,'0.3 ')) aiExpect($parts[0]['original_text']===$line,'Arbitrary decimal was rounded.');
+}
+$r['recipe']['measurement_system']='metric';
+$r['recipe']['ingredients']=[['original_text'=>'0.25 liters water','ingredient_name'=>'water','quantity_decimal'=>'0.25','original_unit'=>'liters']];
+aiExpect(RecipeImportService::draft($r)['recipe']['ingredients'][0]['original_text']==='0.25 liters water','Metric quantity changed.');
+$r['recipe']['measurement_system']='us';
+$r['recipe']['ingredients']=[['original_text'=>'0.25 cups sugar','ingredient_name'=>'sugar','quantity_decimal'=>'0.25','quantity_max_decimal'=>'0.5']];
+aiExpect(RecipeImportService::draft($r)['recipe']['ingredients'][0]['quantity_max_decimal']==='0.5','Range endpoint lost.');
+
 echo "$checks recipe AI preprocessing and validation checks passed.\n";
