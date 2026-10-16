@@ -347,3 +347,28 @@ backup, conflict checks and description-only verification before execution.
 2026-10-15: Import drafts resolve existing category labels and parents to trusted catalog IDs. AI receives the complete parent/child catalog and must reuse suitable categories before proposing additions. Time ranges preserve instruction text and use one lower-endpoint timer, including when AI returns both endpoints. Regression checks: `php tests/recipe_ai.php`.
 
 2026-10-16 category corrections: self-named child suggestions (for example Main Dish / Main Dish) resolve to the existing root. The save endpoint also reuses the root for these proposals, preventing a duplicate child even from older clients. Explicit category IDs take precedence over proposal metadata. In-memory save regressions cover both cases; import normalization covers trimmed and case-varied self labels.
+
+
+## Conversational import checks (October 16, 2026)
+
+The importer keeps gpt-5.4-mini with a low reasoning budget for following the
+combined extraction rules. The strict schema asks for component_titles before
+ingredients, helping it identify independently prepared dough/sauce components
+without explicit source headings. This planning field is stripped from the
+review/save draft; ingredient group_title remains the authoritative association.
+Qualitative water/seasoning amounts stay unstructured when the source supplies a
+consistency or taste cue. Unknown ingredient amounts do not suppress estimated
+servings, yield or overall times.
+
+A live test with the user's informal breakfast-ring description returned seven
+ingredients, Dough (4) and Sauce (3), quarter-cup butter and brown sugar,
+unmeasured water/cinnamon, and one 300-second microwave timer. The captured draft
+opened in Flutter review. The personal source and captured responses remain in
+ignored local test storage. No recipe or database data was changed.
+
+The same investigation found a local hostname lookup failure for coffeybean.com.
+Public DNS returned the hosting address and an HTTPS request to that address,
+with hostname/certificate verification retained, reached the authenticated API.
+Both the exact text and a control request returned the expected unauthenticated
+401 response with localhost CORS headers, rather than a text-content rejection.
+This is distinct from AI extraction quality and is not fixed by changing prompts.

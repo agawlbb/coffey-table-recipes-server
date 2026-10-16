@@ -8,6 +8,7 @@ function aiReject(callable $action, int $status): void {
     try { $action(); } catch (HttpError $e) { aiExpect($e->status === $status, 'Unexpected status.'); return; }
     throw new RuntimeException('Unsafe input was accepted.');
 }
+aiExpect(str_contains(RecipeImportService::groupingInstruction(),'conversational input has no headings'),'Conversational component grouping policy missing.');
 $html = '<html><script type="application/ld+json">{"@graph":[{"@type":["Recipe"],"name":"Soup","recipeIngredient":["2 cups water"],"recipeInstructions":[{"@type":"HowToStep","text":"Boil"}],"advertising":"junk"}]}</script><nav>Ads</nav><main>Body</main></html>';
 $text = RecipeImportService::websiteText($html);
 aiExpect(str_contains($text,'Soup') && str_contains($text,'2 cups water') && !str_contains($text,'advertising'), 'Structured recipe extraction failed.');
@@ -17,6 +18,8 @@ foreach (['127.0.0.1','10.0.0.1','192.168.1.5','169.254.169.254','::1','::ffff:1
 aiExpect(RecipeImportService::cleanText('&#x20;1/3 cup &amp; lime')==='1/3 cup & lime','Pasted HTML entities were not decoded.');
 $input = ['recipe'=>['title'=>'Soup','ingredients'=>[['original_text'=>'Water','ingredient_name'=>'water','id'=>'999','scale_quantity'=>1]],'steps'=>[['instruction'=>'Boil']],'household_id'=>'another','nutrition'=>['calories'=>99]],'questions'=>['How much water?']];
 $draft = RecipeImportService::draft($input);
+$planned=$input; $planned['recipe']['component_titles']=['Dough','Sauce'];
+aiExpect(!isset(RecipeImportService::draft($planned)['recipe']['component_titles']),'AI component planning leaked into the saved draft.');
 $timed = $input;
 $timed['recipe']['steps'][0]['actions'] = [['id'=>'999','step_id'=>'999','action_type'=>'timer','label'=>'Simmer','duration_seconds'=>120]];
 $timed['recipe']['categories'] = [['label'=>'Cookies','parent_label'=>'Desserts','category_id'=>'999']];
@@ -94,6 +97,9 @@ $calls = 0;
 $repeatService = new RecipeImportService(['api_key'=>'test-fixture','model'=>'test-model'],$limitStorage,
     static function(array $payload) use (&$calls,$input,$catalog): array {
         $calls++;
+        aiExpect(($payload['reasoning']['effort'] ?? null)==='low','Conversational extraction reasoning budget missing.');
+        aiExpect(isset($payload['text']['format']['schema']['properties']['recipe']['properties']['component_titles']),'Component planning schema missing.');
+        aiExpect(str_contains($payload['instructions'],'Conversational amounts:'),'Qualitative amount policy missing.');
         aiExpect(str_contains($payload['instructions'],'exactly ONE timer') && str_contains($payload['instructions'],'full parent and child category catalog'),'Missing range/category prompt rules.');
         aiExpect(str_contains(json_encode($payload['input']), 'Cookies'),'Category catalog missing from AI request.');
         return ['status'=>200,'body'=>json_encode(['status'=>'completed','output'=>[
