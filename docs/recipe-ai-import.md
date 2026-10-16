@@ -23,6 +23,16 @@ Cool Whip remain ungrouped; cake curls stay with frosting. No previously withdra
 grouping candidates or Breakfast Ring are modified. Temporary cron cleanup runs
 on success/failure. The plan and hosting safeguards have dedicated tests.
 
+Hosted verification: deployment e79beda and its reviewed-groups job completed
+successfully on 2026-10-16. The protected receipt confirms all nine recipes were
+updated atomically, with two prepared-component groups each. Key Lime Pie has
+13 ingredient rows (9 filling, 3 meringue, 1 ungrouped shell); the mojito has
+3 syrup-batch and 4 cocktail rows. Ice Cream Cake retains 2 ungrouped assembly
+ingredients. The before-edit backup was written, preservation checks passed,
+and the temporary cron entry was removed. Local validation passed 164 import,
+166 plan, 87 variation and 43 sharing checks plus hosting-runner safeguards;
+live model examples confirmed Cake/Frosting without decoration and ungrouped crab.
+
 Existing-recipe review: [grouping-audit] opts a deployment into a CLI-only hosted
 inventory. audit-recipe-groups.php explicitly opens a read-only transaction and
 selects active recipe titles, ingredient lines, steps and current groups, without
