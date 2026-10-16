@@ -1,5 +1,12 @@
 # AI recipe imports
 
+Existing-recipe review: [grouping-audit] opts a deployment into a CLI-only hosted
+inventory. audit-recipe-groups.php explicitly opens a read-only transaction and
+selects active recipe titles, ingredient lines, steps and current groups, without
+account details or raw import source. It never updates recipe data or calls AI.
+Results stay in protected storage and an access-controlled, one-day Actions
+artifact, not Git. The temporary cron entry is removed after success/failure.
+
 Ingredient components (2026-10-16): each AI ingredient has a nullable group_title.
 Imports preserve source headings and can infer clearly separate components from
 the method, such as Dough and Sauce. Ambiguous allocation prompts a question;
