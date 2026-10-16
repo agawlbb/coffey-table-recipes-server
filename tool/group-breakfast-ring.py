@@ -34,7 +34,7 @@ def generate():
             if result.get('status') == 1:
                 receipt = json.loads(result['data']['content'])
                 if receipt.get('status') != 'ok':
-                    raise RuntimeError('Hosted Breakfast Ring grouping failed: ' + str(receipt.get('error', 'inspect protected receipt')) + '')
+                    raise RuntimeError('Hosted Breakfast Ring grouping failed: ' + str(receipt.get('error', 'inspect protected receipt')))
                 if receipt.get('title', '').strip().lower() != 'breakfast ring' or set(receipt.get('groups', {})) != {'Dough', 'Sauce'}:
                     raise RuntimeError('Unexpected grouping result')
                 Path('storage/breakfast-groups-report.json').write_text(json.dumps(receipt, indent=2))
