@@ -97,8 +97,8 @@ $calls = 0;
 $repeatService = new RecipeImportService(['api_key'=>'test-fixture','model'=>'test-model'],$limitStorage,
     static function(array $payload) use (&$calls,$input,$catalog): array {
         $calls++;
-        aiExpect(($payload['reasoning']['effort'] ?? null)==='low','Conversational extraction reasoning budget missing.');
-        aiExpect(isset($payload['text']['format']['schema']['properties']['recipe']['properties']['component_titles']),'Component planning schema missing.');
+        aiExpect(($payload['reasoning']['effort'] ?? null)==='medium','Conversational extraction reasoning budget missing.');
+        aiExpect(isset($payload['text']['format']['schema']['properties']['recipe']['properties']['ingredient_groups']),'Component membership schema missing.');
         aiExpect(str_contains($payload['instructions'],'Conversational amounts:'),'Qualitative amount policy missing.');
         aiExpect(str_contains($payload['instructions'],'exactly ONE timer') && str_contains($payload['instructions'],'full parent and child category catalog'),'Missing range/category prompt rules.');
         aiExpect(str_contains(json_encode($payload['input']), 'Cookies'),'Category catalog missing from AI request.');
@@ -163,8 +163,45 @@ aiReject(fn()=>RecipeImportService::draft($grouped),502);
 $grouped['recipe']['ingredients']=[['original_text'=>'.25 cups each of x and y','ingredient_name'=>'x and y','group_title'=>'Sauce']];
 $g=RecipeImportService::draft($grouped)['recipe'];
 aiExpect(count($g['ingredients'])===2 && array_column($g['ingredients'],'group_id')===['new-groups-0','new-groups-0'],'Split ingredients lost their component.');
-aiExpect(array_key_exists('group_title',$format['schema']['properties']['recipe']['properties']['ingredients']['items']['properties']),'Strict AI schema lacks ingredient groups.');
+aiExpect(isset($format['schema']['properties']['recipe']['properties']['ingredient_groups']['items']['properties']['ingredient_positions']),'Strict AI schema lacks group membership lists.');
 
+
+// Explicit component membership is authoritative even with missing/contradictory legacy per-row labels.
+$mapped=$input;
+$mapped['recipe']['ingredients']=[
+ ['original_text'=>'2 cups flour','ingredient_name'=>'flour','group_title'=>null],
+ ['original_text'=>'Water as needed','ingredient_name'=>'water','group_title'=>'Wrong legacy label'],
+ ['original_text'=>'1/4 cup butter','ingredient_name'=>'butter'],
+ ['original_text'=>'1/4 cup sugar','ingredient_name'=>'sugar'],
+ ['original_text'=>'Purchased pastry shell','ingredient_name'=>'pastry shell'],
+];
+$mapped['recipe']['ingredient_groups']=[['title'=>'Dough','ingredient_positions'=>[1,2]],['title'=>'Sauce','ingredient_positions'=>[3,4]]];
+$m=RecipeImportService::draft($mapped)['recipe'];
+aiExpect(array_column($m['groups'],'title')===['Dough','Sauce'],'Explicit components disappeared.');
+aiExpect(array_column($m['ingredients'],'group_id')===['new-groups-0','new-groups-0','new-groups-1','new-groups-1',null],'Explicit memberships were not assigned exactly.');
+aiExpect(!isset($m['ingredient_groups']),'AI membership plan leaked into review/save draft.');
+// Re-normalizing an editor/clarification draft must preserve every group reference.
+$again=RecipeImportService::draft(['recipe'=>$m,'questions'=>[]])['recipe'];
+aiExpect($again['groups']===$m['groups'] && array_column($again['ingredients'],'group_id')===array_column($m['ingredients'],'group_id'),'Clarification draft lost groups.');
+$split=$input;
+$split['recipe']['ingredients']=[['original_text'=>'.25 cups each of x and y','ingredient_name'=>'x and y'],['original_text'=>'1 cup flour','ingredient_name'=>'flour']];
+$split['recipe']['ingredient_groups']=[['title'=>'Sauce','ingredient_positions'=>[1]],['title'=>'Dough','ingredient_positions'=>[2]]];
+$m=RecipeImportService::draft($split)['recipe'];
+aiExpect(array_column($m['ingredients'],'group_id')===['new-groups-0','new-groups-0','new-groups-1'],'Quantity splitting shifted explicit group membership.');
+foreach ([null,'invalid',[['title'=>'Dough','ingredient_positions'=>'invalid']],[['title'=>'Dough','ingredient_positions'=>[0,999,'1',true]]]] as $badGroups) {
+ $bad=$mapped; $bad['recipe']['ingredient_groups']=$badGroups;
+ $m=RecipeImportService::draft($bad)['recipe'];
+ aiExpect(count($m['ingredients'])===5 && $m['groups']===[] && !empty($m['import_warnings']),'Invalid membership discarded the recipe or invented assignments.');
+}
+$overlap=$mapped;
+$overlap['recipe']['ingredient_groups'][1]['ingredient_positions'][]=2;
+$m=RecipeImportService::draft($overlap)['recipe'];
+aiExpect($m['ingredients'][1]['group_id']===null && !empty($m['import_warnings']),'Conflicting membership guessed ownership.');
+$single=$mapped; $single['recipe']['ingredient_groups']=[];
+$m=RecipeImportService::draft($single)['recipe'];
+aiExpect($m['groups']===[] && count(array_filter(array_column($m['ingredients'],'group_id')))===0,'Explicit single-mixture recipe retained stale groups.');
+$finish=$mapped; $finish['recipe']['ingredient_groups']=[['title'=>'Decoration','ingredient_positions'=>[5]]];
+aiExpect(RecipeImportService::draft($finish)['recipe']['groups']===[],'Explicit mapping bypassed conservative finishing-group rules.');
 
 foreach (['Decoration','Garnish','For decoration','Assembly','Dry ingredients','Wet ingredients'] as $title) {
     $g=$input; $g['recipe']['ingredients'][0]['group_title']=$title;

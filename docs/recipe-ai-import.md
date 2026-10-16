@@ -372,3 +372,36 @@ with hostname/certificate verification retained, reached the authenticated API.
 Both the exact text and a control request returned the expected unauthenticated
 401 response with localhost CORS headers, rather than a text-content rejection.
 This is distinct from AI extraction quality and is not fixed by changing prompts.
+
+
+## Explicit component membership (October 16, 2026)
+
+Follow-up testing reproduced intermittent empty groups despite the earlier
+successful live import. Component names and nullable per-ingredient labels were
+separate AI decisions; the server discarded planned titles without memberships.
+Clarification normalization also failed to reconstruct editor group_id links.
+
+The strict AI response now returns ingredient_groups, each with a title and
+1-based ingredient_positions. The server maps these onto ingredients before
+quantity cleanup can split a shared-quantity line, then returns the existing
+review/save groups + group_id contract. It still reads legacy group_title fields
+and reconstructs groups from editor drafts during clarification. Invalid or
+overlapping memberships retain the ingredients with visible review warnings;
+they never guess ownership or discard the recipe. The existing conservative
+filter still excludes decoration, garnish, assembly and ordinary mixing stages.
+
+Low reasoning still omitted groups in repeated live tests. Requests retain the
+same gpt-5.4-mini model with medium reasoning to follow the combined extraction
+rules. No second AI repair call is added. New regression cases cover explicit
+memberships, legacy/editor round trips, split-quantity membership, missing or
+conflicting positions, single mixtures, and decoration exclusions. Personal
+source and captured AI replies stay in ignored local test storage.
+
+Validation: 256 recipe AI normalization/request checks, 87 variation checks,
+18 description checks, 166 reviewed-grouping checks and 19 website import checks
+passed. Three independent medium-reasoning imports of the exact informal
+breakfast-ring source each returned Dough (4), Sauce (3) and one 300-second timer.
+A live one-pan crab/mushroom mixture remained ungrouped. Replaying the captured
+breakfast-ring draft through Flutter import review showed both group headings
+and counts. Tests made no persistent recipe/database changes. No Flutter rebuild
+is required because the editor/save response contract is unchanged.
