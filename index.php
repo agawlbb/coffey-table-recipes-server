@@ -187,9 +187,13 @@ try {
         $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
         $user=$households->bootstrap(authenticatedIdentity($config));
         $service=new RecipeService($pdo,$households);
-        if ($method==='GET') respond(200,$service->favorites($user['id'],$favoriteMatch[1],$favoriteMatch[2]));
-        if ($method==='POST') respond(200,$service->setFavorite($user['id'],$favoriteMatch[1],$favoriteMatch[2],requestBody()));
-        throw new HttpError(405,'method_not_allowed','Use GET or POST.');
+        if ($method==='GET') {
+            respond(200,$service->favorites($user['id'],$favoriteMatch[1],$favoriteMatch[2]));
+        } elseif ($method==='POST') {
+            respond(200,$service->setFavorite($user['id'],$favoriteMatch[1],$favoriteMatch[2],requestBody()));
+        } else {
+            throw new HttpError(405,'method_not_allowed','Use GET or POST.');
+        }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $pdo = database($config);
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
