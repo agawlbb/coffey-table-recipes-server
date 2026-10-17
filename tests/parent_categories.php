@@ -82,6 +82,10 @@ try {
     // Existing household child-image permission remains independent of admin generation.
     $pdo->exec("CREATE TABLE household_memberships(household_id INTEGER,user_id INTEGER,role TEXT);
         CREATE TABLE households(id INTEGER,ai_images_enabled INTEGER);
+        CREATE TABLE recipes(id INTEGER PRIMARY KEY,deleted_at TEXT);
+        CREATE TABLE recipe_households(recipe_id INTEGER,household_id INTEGER,removed_at TEXT);
+        INSERT INTO recipes VALUES(100,NULL);
+        INSERT INTO recipe_households VALUES(100,42,NULL);
         INSERT INTO households VALUES(42,0);
         INSERT INTO household_memberships VALUES(42,2,'owner');
         UPDATE recipe_categories SET slug='import-soup' WHERE id=2;
