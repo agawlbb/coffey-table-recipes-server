@@ -14,6 +14,7 @@ return [
         'password' => '',
     ],
     'firebase_project_id' => '',
+    'timer_push_service_account_file' => __DIR__ . '/timer-push.local.json',
     'firebase_service_account_file' => dirname(__DIR__) . '/config/firebase-admin.local.json',
     'app_url' => 'https://coffeybean.com/CoffeyTableRecipes/app/',
     'recipe_ai' => [

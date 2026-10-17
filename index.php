@@ -31,7 +31,18 @@ try {
     } elseif (preg_match('#^/recipes/([1-9][0-9]{0,18})$#', $route, $publicRecipe)) {
         if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
         $pdo=database($config);
-        respond(200,['recipe'=>(new RecipeService($pdo,new HouseholdService($pdo)))->detail('','0',$publicRecipe[1],true)]);    } elseif ($route === '/me/verification-email') {
+        respond(200,['recipe'=>(new RecipeService($pdo,new HouseholdService($pdo)))->detail('','0',$publicRecipe[1],true)]);    } elseif (in_array($route, ['/me/timer-devices', '/me/timer-devices/remove', '/me/timers'], true)) {
+        if (!in_array($method, ['GET','POST'], true) || ($route !== '/me/timers' && $method !== 'POST')) throw new HttpError(405,'method_not_allowed','Unsupported timer request.');
+        $identity=authenticatedIdentity($config); $pdo=database($config);
+        $directory=new FirebaseAccountDirectory($config);
+        $user=(new HouseholdService($pdo,[$directory,'requireAccount']))->bootstrap($identity);
+        $service=new TimerSyncService($pdo,[new TimerPush($config),'send']);
+        if ($route === '/me/timer-devices') $result=$service->device($user['id'],requestBody());
+        elseif ($route === '/me/timer-devices/remove') $result=$service->unregister($user['id'],requestBody());
+        elseif ($method === 'GET') $result=$service->list($user['id']);
+        else $result=$service->change($user['id'],$identity['uid'],requestBody());
+        respond(200,$result);
+    } elseif ($route === '/me/verification-email') {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);
         requestBody();
