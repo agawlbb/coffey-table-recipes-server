@@ -90,6 +90,7 @@ final class RecipeEditorService
                 if (count($attached)>1 && ($body['confirm_shared_edit'] ?? false)!==true) throw new HttpError(409,'shared_confirmation_required','This recipe is shared. Confirm that your changes will affect every household.');
                 $householdId=(string)$storage;
             }
+            if (!empty($body['_import_method_choice_required'])) $this->invalid('Choose which cooking method to import before saving this recipe.');
             $parent = $body['parent_recipe_id'] ?? null;
             if ($parent === '') $parent = null;
             if ($parent !== null) {
