@@ -76,7 +76,7 @@ h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-botto
 <div class="branding"><img class="brand" src="assets/email/coffey_table.jpg" alt="Coffey Table Recipes"><span>Coffey Table Recipes</span></div>
 </header>
 <?php if ($summary): ?><p><?= $e(implode(' · ', $summary)) ?></p><?php endif ?>
-<?php if (isset($r['description'])): ?><p><?= $e($r['description']) ?></p><?php endif ?>
+<?php if (isset($r['description'])): ?><p><strong><?= $e($r['description']) ?></strong></p><?php endif ?>
 <div class="photos">
 <?php $seen = []; foreach ($r['photos'] ?? [] as $photo): $url = $photo['source_url'] ?? ''; if (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower(parse_url($url, PHP_URL_SCHEME) ?? ''), ['http','https'], true) || isset($seen[$url])) continue; $seen[$url] = true; ?>
 <figure><img src="<?= $e($url) ?>" alt="<?= $e($photo['caption'] ?? $r['title']) ?>" loading="lazy"><?php if (!empty($photo['caption'])): ?><figcaption><?= $e($photo['caption']) ?></figcaption><?php endif ?></figure>
