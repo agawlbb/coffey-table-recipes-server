@@ -74,3 +74,18 @@ passed. No live push or email was sent by these tests. App source validation:
 297 Flutter unit/widget tests passed and Flutter analysis reported no issues.
 
 Hosted credential verification (2026-10-17): timer-push-sender uses the project custom role recipeTimerPushSender containing only cloudmessaging.messages.create. The dedicated uploaded key expires 2027-10-17; rotate it before expiration. The protected config file is mode 0600 and anonymous HTTP access returned 403. Running bin/check-timer-push.php on hosted PHP 8.4 verified OAuth and FCM validate-only authorization without delivering a notification. The exact temporary cron entry was removed, preserving the daily purge job. Both unused Google-generated download keys were deleted after verification; temporary local sender private-key files were removed. Backend 778ddb0 was verified deployed.
+
+Operator test sender: `php bin/send-test-timer.php EMAIL UNIQUE_RUN_HEX` is
+CLI-only and requires a verified active Firebase account with exactly one recent
+opted-in Android registration. It creates a two-minute timer through the existing
+sync service, stores a private exclusive-create receipt to prevent duplicate cron
+sends, and removes only its synthetic source registration. Receipts exclude push
+tokens and account identifiers. FCM acceptance is not device acknowledgement.
+Use only after the account owner requests a live test; remove its exact temporary
+cron entry after reading the receipt. Syntax validation passed locally.
+
+Live owner-authorized test on 2026-10-17: exactly one opted-in Android
+registration was found. A two-minute timer was saved through TimerSyncService;
+FCM accepted one delivery, due 21:48:02 UTC. The synthetic source registration
+was removed and the exact temporary cron job removed; the purge job remained.
+Device receipt, alarm sound and OS permission state await the user's report.
