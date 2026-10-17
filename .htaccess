@@ -13,6 +13,12 @@ Options -Indexes
     Header onsuccess unset Access-Control-Allow-Headers
 </IfModule>
 RewriteEngine On
+# Shared rollout maintenance: frontend assets stay available.
+RewriteCond %{DOCUMENT_ROOT}/CoffeyTableRecipes/storage/shared-rollout-maintenance -f
+RewriteCond %{REQUEST_URI} ^/CoffeyTableRecipes/api/v1
+RewriteCond %{REQUEST_URI} !^/CoffeyTableRecipes/api/v1/health$
+RewriteCond %{REQUEST_METHOD} !^OPTIONS$
+RewriteRule ^ - [R=503,L]
 RewriteRule (^|/)\. - [F,L]
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 RewriteRule ^$ /CoffeyTableRecipes/app/ [R=302,L]

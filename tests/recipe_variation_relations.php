@@ -18,7 +18,7 @@ final class VariationRelationDatabase extends PDO {
     public array $queries = [];
     public function prepare(string $query, array $options = []): PDOStatement|false {
         $this->queries[] = $query;
-        return parent::prepare(str_replace([' FOR UPDATE',' <=> '],['',' IS '],$query),$options);
+        return parent::prepare(str_replace([' FOR UPDATE',' <=> ','UTC_TIMESTAMP(6)'],['',' IS ',"datetime('now')"],$query),$options);
     }
 }
 $pdo = new VariationRelationDatabase('sqlite::memory:');
@@ -39,14 +39,19 @@ foreach (['003_recipes.sql','005_recipe_categories.sql'] as $name) {
             $columns[] = $m[1].' '.(in_array($m[2],['BIGINT','INT','BOOLEAN'],true) ? 'INTEGER' : 'TEXT').($m[1]==='revision' ? ' DEFAULT 1' : '');
         }
         if ($table[1]==='recipes') {
-            array_push($columns,'deleted_at TEXT','purge_after TEXT','deleted_by_user_id INTEGER','UNIQUE(household_id,id)',
-                'UNIQUE(household_id,import_key)','FOREIGN KEY (household_id,parent_recipe_id) REFERENCES recipes(household_id,id)');
+            array_push($columns,'deleted_at TEXT','purge_after TEXT','deleted_by_user_id INTEGER','trash_household_id INTEGER','UNIQUE(household_id,id)',
+                'UNIQUE(household_id,import_key)','FOREIGN KEY (parent_recipe_id) REFERENCES recipes(id)');
+        } elseif ($table[1]==='recipe_pairings') {
+            $columns[]='FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE';
+            $columns[]='FOREIGN KEY (paired_recipe_id) REFERENCES recipes(id) ON DELETE CASCADE';
         } elseif (!in_array($table[1],['recipe_categories','cooking_events'],true)) {
             $columns[] = 'FOREIGN KEY (household_id,recipe_id) REFERENCES recipes(household_id,id) ON DELETE CASCADE';
         }
         $pdo->exec('CREATE TABLE '.$table[1].' ('.implode(',',$columns).')');
     }
 }
+$pdo->exec('CREATE TABLE recipe_relationship_lock(id INTEGER PRIMARY KEY); INSERT INTO recipe_relationship_lock VALUES(1)');
+$pdo->exec('CREATE TABLE recipe_households(recipe_id INTEGER,household_id INTEGER,removed_at TEXT,PRIMARY KEY(recipe_id,household_id))');
 $checks = 0;
 function relationExpect(bool $condition,string $message): void {
     global $checks;
@@ -101,8 +106,8 @@ relationExpect(relationSnapshot($pdo,$original['id'])===$originalBefore,'Saving 
 relationExpect(!isset($saved['source_text']) && !isset($saved['import_key']),'Private draft bookkeeping escaped the response.');
 relationExpect(!str_contains(json_encode(relationSnapshot($pdo,$saved['id'])),'Temporary comparison') && !isset($saved['change_description']),'Review explanation is not persisted even if supplied by a client');
 $locking = array_values(array_filter($saveQueries,fn($sql)=>str_contains($sql,'FOR UPDATE')));
-relationExpect($locking[0]==='SELECT id FROM households WHERE id=? FOR UPDATE','Household serialization must precede every recipe lock.');
-relationExpect(in_array('SELECT parent_recipe_id,deleted_at FROM recipes WHERE household_id=? AND id=? FOR UPDATE',$locking,true),'Ancestor reads are not locking current reads.');
+relationExpect($locking[0]==='SELECT id FROM recipe_relationship_lock WHERE id=1 FOR UPDATE','Canonical serialization must precede every recipe lock.');
+relationExpect(in_array('SELECT parent_recipe_id,deleted_at FROM recipes WHERE id=? FOR UPDATE',$locking,true),'Ancestor reads are not locking current reads.');
 
 $savedBefore=relationSnapshot($pdo,$saved['id']);
 $retry=$variation; $retry['title']='Do not apply this replay'; $retry['ingredients']=[];
@@ -159,7 +164,7 @@ relationExpect(array_column($read->browse('1','1','',0,'','200',false,true)['rec
 $savedBefore=relationSnapshot($pdo,$saved['id']);
 
 $countBefore=$pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn();
-foreach ([$foreign['id'],'999999',true,0,-1,1.5,[],['id'=>$original['id']],'01','1e0',"1\n","1\r\n",'1 ',null] as $parent) {
+foreach (['999999',true,0,-1,1.5,[],['id'=>$original['id']],'01','1e0',"1\n","1\r\n",'1 ',null] as $parent) {
     $invalid=$variation; $invalid['parent_recipe_id']=$parent; $invalid['import_key']=hash('sha256','invalid-'.json_encode($parent));
     relationReject(fn()=>$editor->save('1','1','',$invalid),422);
 }
@@ -244,4 +249,6 @@ try {
     if (is_dir($photoRoot.'/storage/variation-drafts')) rmdir($photoRoot.'/storage/variation-drafts');
     rmdir($photoRoot.'/storage'); rmdir($photoRoot.'/media/recipes'); rmdir($photoRoot.'/media'); rmdir($photoRoot);
 }
+require __DIR__.'/canonical_relationship_cases.php';
+canonicalRelationshipCases($pdo,$households,'1','1','2','2','relationExpect');
 echo "$checks recipe variation relationship fixture checks passed.\n";
