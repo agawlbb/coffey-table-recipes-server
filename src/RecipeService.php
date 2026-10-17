@@ -70,7 +70,7 @@ final class RecipeService
         return $this->favorites($userId,$householdId,$recipeId);
     }
 
-    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0, string $category = '', string $scope = '', bool $tree = false, bool $familiesOnly = false, bool $publicRead = false, string $favoritePeople = ''): array {
+    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0, string $category = '', string $scope = '', bool $tree = false, bool $familiesOnly = false, bool $publicRead = false, string $favoritePeople = '', bool $blankOnly = false): array {
         if (!$publicRead) $this->households->membership($userId, $householdId);
         if (mb_strlen($query) > 200 || mb_strlen($category) > 120 || $offset < 0 || $offset > 100000) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
         $parameters = [$householdId];
@@ -84,6 +84,10 @@ final class RecipeService
                 $where.=' AND EXISTS (SELECT 1 FROM recipe_favorites f WHERE f.recipe_id=r.id AND f.household_id=? AND f.person_id=?)';
                 array_push($parameters,$householdId,$person);
             }
+            $tree=false; $familiesOnly=false;
+        }
+        if ($blankOnly) {
+            $where.=" AND r.source_type='blank'";
             $tree=false; $familiesOnly=false;
         }
         $representatives=[];

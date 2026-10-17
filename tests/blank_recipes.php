@@ -155,4 +155,17 @@ $bad=$edit; $bad['revision']='0'; $bad['category_assignments']=[];
 relationReject(fn()=>$autoEditor->save('1','1',$automatic['id'],$bad),409);
 relationExpect($autoCalls===1,'Stale edit incurred AI.');
 
+
+$onlyBlank=$read->browse('1','1','',0,'','',true,true,false,'',true);
+relationExpect($onlyBlank['view']==='recipes' && count($onlyBlank['recipes'])===2,'Blank filter returned nonblanks or category tree.');
+relationExpect(array_column($onlyBlank['recipes'],'id')===[$automatic['id'],$manualSaved['id']],'Blank filter lost or replaced IDs.');
+relationExpect(count($read->browse('1','1','Wedding',0,'','',false,false,false,'',true)['recipes'])===0,'Blank search included a converted recipe.');
+relationExpect(count($read->browse('1','1','Birthday',0,'','1',false,false,false,'',true)['recipes'])===2,'Blank scope/search failed.');
+relationExpect(count($read->browse('1','1','',1,'','',false,false,false,'',true)['recipes'])===1,'Blank pagination failed.');
+relationExpect(count($read->browse('1','1','',0,'','',false,false,false)['recipes'])===3,'Default browse hid blanks or complete recipes.');
+$pdo->exec('CREATE TABLE household_invitations(person_id INTEGER,status TEXT,expires_at TEXT,email TEXT)');
+$pdo->sqliteCreateFunction('UTC_TIMESTAMP',fn($precision)=>'2026-10-17');
+$favoritedBlanks=$read->browse('1','1','',0,'','',false,false,false,'1',true);
+relationExpect(array_column($favoritedBlanks['recipes'],'id')===[$manualSaved['id']],'Blank filter did not intersect favorites.');
+
 echo "Blank recipes: $checks checks passed.\n";
