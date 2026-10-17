@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/HttpError.php';
+require_once __DIR__ . '/TimerSyncService.php';
+require_once __DIR__ . '/TimerPush.php';
 require_once __DIR__ . '/FirebaseIdentity.php';
 require_once __DIR__ . '/HouseholdService.php';
 require_once __DIR__ . '/RecipeService.php';

@@ -42,6 +42,7 @@ jobs:
         run: |
           php tests/invitation-mail.php
           php tests/verification.php
+          php tests/timer_sync.php
           php tests/migration_checksums.php
           php tests/recipe_deletion.php
           php tests/parent_categories.php
@@ -90,6 +91,12 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/migrate-recipe-favorites.py
+      - name: Back up and migrate account timer sync
+        if: env.HOSTING_CONFIGURED == 'true'
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/migrate-timer-sync.py
       - name: Publish and verify backend
         if: env.HOSTING_CONFIGURED == 'true'
         env:
