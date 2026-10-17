@@ -25,8 +25,8 @@ final class RecipeShare
         $recipe['nutrition'] = $read('SELECT * FROM recipe_nutrition WHERE household_id=? AND recipe_id=?', [$household,$id])[0] ?? null;
         if ($recipe['nutrition'] !== null) $recipe['nutrition']['stale'] = (string)$recipe['nutrition']['recipe_revision'] !== (string)$recipe['revision'];
         $parent=$recipe['parent_recipe_id'];
-        $recipe['related'] = $read('SELECT id,title FROM recipes WHERE deleted_at IS NULL AND household_id=? AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$household,$id,$parent ?? $id,$parent,$parent,$parent]);
-        $recipe['pairings'] = $read('SELECT r.id,r.title FROM recipe_pairings p JOIN recipes r ON r.deleted_at IS NULL AND r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END AND r.household_id=p.household_id WHERE p.household_id=? AND (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$id,$household,$id,$id]);
+        $recipe['related'] = $read('SELECT id,title FROM recipes WHERE deleted_at IS NULL AND id<>? AND (parent_recipe_id=? OR id=? OR (? IS NOT NULL AND parent_recipe_id=?)) ORDER BY title,id', [$id,$id,$parent,$parent,$parent]);
+        $recipe['pairings'] = $read('SELECT r.id,r.title FROM recipe_pairings p JOIN recipes r ON r.deleted_at IS NULL AND r.id=CASE WHEN p.recipe_id=? THEN p.paired_recipe_id ELSE p.recipe_id END WHERE (p.recipe_id=? OR p.paired_recipe_id=?) ORDER BY r.title,r.id', [$id,$id,$id]);
         return $recipe;
     }
 }

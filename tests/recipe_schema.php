@@ -46,7 +46,8 @@ try {
     expectSchema($pdo->query("SELECT source_text FROM recipes WHERE id=$r1")->fetchColumn() === '250 g de farine', 'Original text lost.');
     schemaReject($pdo, "INSERT INTO recipes (household_id,title,import_key) VALUES ($h1,'Duplicate','test-crepes')");
     schemaReject($pdo, "INSERT INTO recipes (household_id,title,created_by_user_id) VALUES ($h1,'Foreign author',{$b['id']})");
-    schemaReject($pdo, "UPDATE recipes SET parent_recipe_id=$foreign WHERE id=$r2");
+    $pdo->exec("UPDATE recipes SET parent_recipe_id=$foreign WHERE id=$r2");
+    expectSchema($pdo->query("SELECT parent_recipe_id FROM recipes WHERE id=$r2")->fetchColumn() == $foreign, 'Canonical foreign-storage parent rejected.');
     $pdo->exec("UPDATE recipes SET parent_recipe_id=$r1 WHERE id=$r2");
     expectSchema($pdo->query("SELECT parent_recipe_id FROM recipes WHERE id=$r2")->fetchColumn() == $r1, 'Variation link failed.');
     $pdo->exec("INSERT INTO recipe_ingredient_groups (household_id,recipe_id,position,title) VALUES ($h1,$r1,1,'Batter')");
@@ -69,7 +70,9 @@ try {
     schemaReject($pdo, "INSERT INTO recipe_photos (household_id,recipe_id,position,storage_key,is_cover) VALUES ($h1,$r1,2,'second.jpg',1)");
     $pdo->exec("INSERT INTO recipe_photos (household_id,recipe_id,position,source_url) VALUES ($h1,$r1,2,'https://example.invalid/photo.jpg')");
     expectSchema($pdo->query("SELECT COUNT(*) FROM recipe_photos WHERE recipe_id=$r1")->fetchColumn() == 2, 'Multiple photos rejected.');
-    schemaReject($pdo, "INSERT INTO recipe_pairings (household_id,recipe_id,paired_recipe_id) VALUES ($h1,$r1,$foreign)");
+    $pdo->exec("INSERT INTO recipe_pairings (household_id,recipe_id,paired_recipe_id) VALUES ($h1,$r1,$foreign)");
+    expectSchema($pdo->query("SELECT COUNT(*) FROM recipe_pairings WHERE recipe_id=$r1 AND paired_recipe_id=$foreign")->fetchColumn()==1,'Cross-storage pairing rejected.');
+    $pdo->exec("DELETE FROM recipe_pairings WHERE recipe_id=$r1 AND paired_recipe_id=$foreign");
     $pdo->exec("INSERT INTO recipe_pairings (household_id,recipe_id,paired_recipe_id) VALUES ($h1,$r1,$r2)");
     schemaReject($pdo, "INSERT INTO recipe_pairings (household_id,recipe_id,paired_recipe_id) VALUES ($h1,$r2,$r1)");
     schemaReject($pdo, "INSERT INTO recipe_favorites (household_id,recipe_id,person_id) VALUES ($h1,$r1,$foreignPerson)");
@@ -83,6 +86,7 @@ try {
     expectSchema($pdo->query("SELECT COUNT(*) FROM cooking_event_recipes WHERE event_id=$event")->fetchColumn() == 2, 'Meal history cannot group recipes.');
     schemaReject($pdo, "INSERT INTO cooking_event_recipes (household_id,event_id,recipe_id,recipe_revision) VALUES ($h1,$event,$foreign,1)");
     $pdo->exec("DELETE FROM cooking_events WHERE id=$event");
+    $pdo->exec('INSERT INTO recipe_households(recipe_id,household_id) SELECT id,household_id FROM recipes');
     $service = new RecipeService($pdo, $households);
     $breakfast = (string) $pdo->query("SELECT id FROM recipe_categories WHERE slug='breakfast'")->fetchColumn();
     $pdo->exec("INSERT INTO recipe_categories(parent_id,slug,label,image_key) VALUES ($breakfast,'breakfast-pancakes','Pancakes','pancakes')");
@@ -124,6 +128,7 @@ try {
     for ($i=0; $i<31; $i++) {
         $insert->execute([$h1, sprintf('Paging %02d', $i), 'en', null, null]);
         $pagingId = $pdo->lastInsertId();
+        $pdo->prepare('INSERT INTO recipe_households(recipe_id,household_id) VALUES (?,?)')->execute([$pagingId,$h1]);
         $pdo->exec("INSERT INTO recipe_category_assignments VALUES ($h1,$pagingId,$pancakes)");
     }
     $page = $service->browse($a['id'], $h1, 'Paging', 0, '', $pancakes, true);

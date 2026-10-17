@@ -1,0 +1,2 @@
+# Migration checksums must match on Windows, CI, and the hosted server.
+database/migrations/*.sql text eol=lf

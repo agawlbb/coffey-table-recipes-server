@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+if (is_file(dirname(__DIR__).'/storage/shared-rollout-maintenance')) { fwrite(STDERR, "Recipe rollout maintenance: purge remains paused.\n"); exit(0); }
 require dirname(__DIR__).'/src/bootstrap.php';
 try {
     $pdo = database(configuration());

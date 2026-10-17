@@ -28,7 +28,10 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
-    } elseif ($route === '/me/verification-email') {
+    } elseif (preg_match('#^/recipes/([1-9][0-9]{0,18})$#', $route, $publicRecipe)) {
+        if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
+        $pdo=database($config);
+        respond(200,['recipe'=>(new RecipeService($pdo,new HouseholdService($pdo)))->detail('','0',$publicRecipe[1],true)]);    } elseif ($route === '/me/verification-email') {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);
         requestBody();
@@ -84,7 +87,15 @@ try {
         } else {
             throw new HttpError(405, 'method_not_allowed', 'Unsupported request method.');
         }
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/share$#', $route, $shareMatch)) {
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/edit-options$#', $route, $editOptionsMatch)) {
+        if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
+        $identity=authenticatedIdentity($config); $pdo=database($config);
+        $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
+        $user=$households->bootstrap($identity);
+        $recipe=(new RecipeService($pdo,$households))->detail($user['id'],$editOptionsMatch[1],$editOptionsMatch[2]);
+        $options=$recipe['edit_options'];
+        $options['ai_images_enabled']=$households->aiImagesEnabled($user['id'],$editOptionsMatch[1]);
+        respond(200,['edit_options'=>$options]);    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/share$#', $route, $shareMatch)) {
         if ($method !== 'GET') throw new HttpError(405, 'method_not_allowed', 'Use GET.');
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
@@ -165,14 +176,19 @@ try {
             if ($deletionMatch[3] === 'delete') respond(200, $deletion->delete($user['id'], $deletionMatch[1], $deletionMatch[2], $body));
             else respond(200, $deletion->restore($user['id'], $deletionMatch[1], $deletionMatch[2]));
         }
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/attach$#', $route, $attachMatch)) {
+        if ($method!=='POST') throw new HttpError(405,'method_not_allowed','Use POST.');
+        $identity=authenticatedIdentity($config); $pdo=database($config);
+        $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
+        $user=$households->bootstrap($identity); requestBody();
+        respond(200,(new RecipeMembership($pdo,$households))->attach($user['id'],$attachMatch[1],$attachMatch[2]));
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
-        $identity = authenticatedIdentity($config);
         $pdo = database($config);
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
-        $user = $households->bootstrap($identity);
-        $households->membership($user['id'], $recipeMatch[1]);
         $recipes = new RecipeService($pdo, $households);
         if ($method === 'POST') {
+            $user = $households->bootstrap(authenticatedIdentity($config));
+            $households->membership($user['id'], $recipeMatch[1]);
             $mediaUrl = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/') . '/media/recipes';
             $editor = new RecipeEditorService($pdo, $households, __DIR__.'/media/recipes', $mediaUrl);
             respond(isset($recipeMatch[2]) ? 200 : 201, ['recipe' => $editor->save($user['id'], $recipeMatch[1], $recipeMatch[2] ?? '', requestBody(30*1024*1024))]);
@@ -180,7 +196,7 @@ try {
             header('Allow: GET, POST, OPTIONS');
             throw new HttpError(405, 'method_not_allowed', 'Use GET or POST for a recipe.');
         } elseif (isset($recipeMatch[2])) {
-            respond(200, ['recipe' => $recipes->detail($user['id'], $recipeMatch[1], $recipeMatch[2])]);
+            respond(200, ['recipe' => $recipes->detail('', $recipeMatch[1], $recipeMatch[2], true)]);
         } else {
             $query = $_GET['q'] ?? '';
             $offset = $_GET['offset'] ?? '0';
@@ -192,7 +208,7 @@ try {
             if (!is_string($query) || !is_string($offset) || !preg_match('/^[0-9]{1,6}$/', $offset)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
             if (!is_string($category)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe category.');
             if (!is_string($scope) || !is_string($tree) || !in_array($tree, ['0', '1'], true)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
-            respond(200, $recipes->browse($user['id'], $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1', $families === '1'));
+            respond(200, $recipes->browse('', $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1', $families === '1', true));
         }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/([1-9][0-9]{0,18})/invitations$#', $route, $inviteMatch)
         || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {
