@@ -232,10 +232,12 @@ try {
             if (!is_string($query) || !is_string($offset) || !preg_match('/^[0-9]{1,6}$/', $offset)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
             if (!is_string($category)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe category.');
             if (!is_string($scope) || !is_string($tree) || !in_array($tree, ['0', '1'], true)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
+            $blank=$_GET['blank'] ?? '0';
+            if (!is_string($blank) || !in_array($blank,['0','1'],true)) throw new HttpError(400,'invalid_filter','Invalid blank recipe filter.');
             $favoritePeople=$_GET['favorite_people'] ?? '';
             if (!is_string($favoritePeople)) throw new HttpError(400,'invalid_filter','Invalid favorite filter.');
             $filterUser=$favoritePeople!=='' ? $households->bootstrap(authenticatedIdentity($config))['id'] : '';
-            respond(200, $recipes->browse($filterUser, $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1', $families === '1', true, $favoritePeople));
+            respond(200, $recipes->browse($filterUser, $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1', $families === '1', true, $favoritePeople, $blank === '1'));
         }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/([1-9][0-9]{0,18})/invitations$#', $route, $inviteMatch)
         || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {
