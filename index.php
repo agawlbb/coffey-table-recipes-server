@@ -182,6 +182,14 @@ try {
         $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
         $user=$households->bootstrap($identity); requestBody();
         respond(200,(new RecipeMembership($pdo,$households))->attach($user['id'],$attachMatch[1],$attachMatch[2]));
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/favorites$#',$route,$favoriteMatch)) {
+        $pdo=database($config);
+        $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
+        $user=$households->bootstrap(authenticatedIdentity($config));
+        $service=new RecipeService($pdo,$households);
+        if ($method==='GET') respond(200,$service->favorites($user['id'],$favoriteMatch[1],$favoriteMatch[2]));
+        if ($method==='POST') respond(200,$service->setFavorite($user['id'],$favoriteMatch[1],$favoriteMatch[2],requestBody()));
+        throw new HttpError(405,'method_not_allowed','Use GET or POST.');
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes(?:/([1-9][0-9]{0,18}))?$#', $route, $recipeMatch)) {
         $pdo = database($config);
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
@@ -208,7 +216,10 @@ try {
             if (!is_string($query) || !is_string($offset) || !preg_match('/^[0-9]{1,6}$/', $offset)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
             if (!is_string($category)) throw new HttpError(400, 'invalid_filter', 'Invalid recipe category.');
             if (!is_string($scope) || !is_string($tree) || !in_array($tree, ['0', '1'], true)) throw new HttpError(400, 'invalid_filter', 'Invalid category scope.');
-            respond(200, $recipes->browse('', $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1', $families === '1', true));
+            $favoritePeople=$_GET['favorite_people'] ?? '';
+            if (!is_string($favoritePeople)) throw new HttpError(400,'invalid_filter','Invalid favorite filter.');
+            $filterUser=$favoritePeople!=='' ? $households->bootstrap(authenticatedIdentity($config))['id'] : '';
+            respond(200, $recipes->browse($filterUser, $recipeMatch[1], trim($query), (int) $offset, trim($category), $scope, $tree === '1', $families === '1', true, $favoritePeople));
         }
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/([1-9][0-9]{0,18})/invitations$#', $route, $inviteMatch)
         || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {

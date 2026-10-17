@@ -45,6 +45,7 @@ jobs:
           php tests/migration_checksums.php
           php tests/recipe_deletion.php
           php tests/parent_categories.php
+          php tests/recipe_favorites.php
           php tests/recipe_sharing.php
           php tests/source_links.php
           php tests/recipe_photo.php
@@ -80,6 +81,12 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/migrate-recipe-deletion.py
+      - name: Back up and migrate recipe favorites
+        if: env.HOSTING_CONFIGURED == 'true'
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/migrate-recipe-favorites.py
       - name: Publish and verify backend
         if: env.HOSTING_CONFIGURED == 'true'
         env:
