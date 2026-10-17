@@ -67,7 +67,7 @@ function recipeSharePage(array $r): string {
 *{box-sizing:border-box}body{margin:0;background:#f5eddf;color:#3b2416;font:16px Roboto,Arial,sans-serif;line-height:1.5}
 main{max-width:900px;margin:auto;padding:40px 24px 24px}.recipe-header{margin-bottom:24px}h1{font-size:clamp(34px,5vw,48px);line-height:1.15;font-weight:600;letter-spacing:-.025em;margin:0 0 18px}
 .branding{display:flex;align-items:center;gap:12px;color:#465334;font-size:14px}.brand{width:64px;height:64px;object-fit:cover;mix-blend-mode:multiply}.branding span{letter-spacing:.035em}
-h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-bottom:8px;border-bottom:1px solid #dfd1bb}h3{font-size:16px;font-weight:600;margin:12px 0 8px}p{white-space:pre-wrap;margin:8px 0 16px}.ingredient{margin:12px 0}.step{margin-bottom:20px;line-height:1.6}
+h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-bottom:8px;border-bottom:1px solid #dfd1bb}h3{font-size:16px;font-weight:600;margin:12px 0 8px}p{white-space:pre-wrap;margin:8px 0 16px}.ingredient{margin:12px 0}.ingredient-group{font-weight:700}.ingredient.group-member{margin-left:16px}.step{margin-bottom:20px;line-height:1.6}
 .photos{display:flex;gap:16px;overflow-x:auto;margin:24px 0}.photos figure{margin:0;flex:0 0 100%}.photos img{width:100%;height:340px;object-fit:contain;border-radius:12px;background:transparent}figcaption{font-size:14px}.nutrition{display:flex;gap:8px 16px;flex-wrap:wrap}.source{overflow-wrap:anywhere}.source a{color:#465334;text-decoration:underline}.source a:focus-visible{outline:2px solid currentColor;outline-offset:3px}.warning{color:#a12c21}
 @media(max-width:600px){main{padding:28px 24px}.photos img{height:260px}}@media print{.branding{display:none}.photos{display:block}.photos figure{break-inside:avoid}body{background:white}}
 </style></head><body><main><header class="recipe-header">
@@ -85,8 +85,8 @@ h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-botto
 <h2>Ingredients</h2>
 <?php if (!$r['ingredients']): ?><p>No ingredients recorded.</p><?php endif ?>
 <?php foreach (array_merge([['id'=>null]], $r['groups'] ?? []) as $group): ?>
-<?php if ($group['id'] !== null): ?><h3><?= $e($group['title']) ?></h3><?php endif ?>
-<?php foreach ($r['ingredients'] as $ingredient): if (($ingredient['group_id'] ?? null) !== $group['id']) continue; ?><p class="ingredient">• <?= $e($ingredient['original_text']) ?></p><?php endforeach ?>
+<?php if ($group['id'] !== null): ?><h3 class="ingredient-group"><?= $e($group['title']) ?></h3><?php endif ?>
+<?php foreach ($r['ingredients'] as $ingredient): if (($ingredient['group_id'] ?? null) !== $group['id']) continue; ?><p class="ingredient<?= $group['id'] === null ? '' : ' group-member' ?>">• <?= $e($ingredient['original_text']) ?></p><?php endforeach ?>
 <?php endforeach ?>
 <h2>Method</h2>
 <?php if (empty($r['steps'])): ?><p>No cooking steps recorded.</p><?php endif ?>
