@@ -51,3 +51,7 @@ its 21-step cooking mode. Recipe content was not edited during these checks.
 The client feature remains unreleased. Unsigned iOS compilation passed at
 `61610fb`; physical-device alarms, widget signing/provisioning, and signed
 distribution remain outstanding. No TestFlight upload occurred.
+
+## Main merge for client 1.6.0 release
+
+At the user's explicit merge/delete/release request, `feature/shared-recipes-public-reads` was merged into main with merge commit `e859ca7`. Local fixture checks passed: 18 shared recipe checks, 97 canonical variation relationship checks and six migration checksum checks. The workflow file's normalized content matched its committed blob; refreshing its index cleared a stat-only modification without changing source. The existing verified hosted migration/restore record above remains authoritative; no repeat of the one-time migration job is requested. The corresponding client release will record deployment and signed distribution outcomes separately.
