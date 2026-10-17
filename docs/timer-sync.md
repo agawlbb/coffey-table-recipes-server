@@ -49,9 +49,9 @@ ignores stale revisions and expired starts.
 
 Apple also requires an APNs authentication key uploaded into the Firebase iOS
 app registration, the app's Push Notifications capability and matching signed
-provisioning. The Apple project had neither development nor production APNs
-credentials uploaded when inspected on 2026-10-17. Signing/account setup and
-physical-device delivery must be verified before calling this operational.
+provisioning. Development and production topic-specific APNs keys are installed
+in Firebase, and Push Notifications is enabled on the recipe App ID as of
+2026-10-17. Signed provisioning and physical-device delivery remain unverified.
 
 ## Deployment and validation
 
@@ -72,3 +72,5 @@ Validation on 2026-10-17: all 22 workflow PHP fixture scripts (including the new
 timer checks), six migration checksum checks, and all 99 Python fixture tests
 passed. No live push or email was sent by these tests. App source validation:
 297 Flutter unit/widget tests passed and Flutter analysis reported no issues.
+
+Hosted credential verification (2026-10-17): timer-push-sender uses the project custom role recipeTimerPushSender containing only cloudmessaging.messages.create. The dedicated uploaded key expires 2027-10-17; rotate it before expiration. The protected config file is mode 0600 and anonymous HTTP access returned 403. Running bin/check-timer-push.php on hosted PHP 8.4 verified OAuth and FCM validate-only authorization without delivering a notification. The exact temporary cron entry was removed, preserving the daily purge job. Both unused Google-generated download keys were deleted after verification; temporary local sender private-key files were removed. Backend 778ddb0 was verified deployed.

@@ -8,6 +8,17 @@ final class TimerPush
     private ?string $token=null;
     public function __construct(private array $config) {}
 
+    public function validateConfiguration(): void
+    {
+        // FCM validate_only checks authorization and payload without delivering
+        // any notification, and does not require an installed app/device token.
+        [$status]=$this->post('https://fcm.googleapis.com/v1/projects/'.rawurlencode($this->config['firebase_project_id']).'/messages:send',
+            json_encode(['validate_only'=>true,'message'=>['topic'=>'timer-sync-configuration-check',
+                'data'=>['kind'=>'configuration_check']]],JSON_THROW_ON_ERROR),
+            ['Content-Type: application/json','Authorization: Bearer '.$this->accessToken()]);
+        if ($status!==200) throw new RuntimeException('Timer push configuration check failed');
+    }
+
     public function send(array $device, array $timer): bool
     {
         $data=['kind'=>'recipe_timer'];
