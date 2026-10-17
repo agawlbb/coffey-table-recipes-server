@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/src/bootstrap.php';
+ob_start();
 final class FavoriteDatabase extends PDO {
  public function prepare(string $query,array $options=[]): PDOStatement|false {
   return parent::prepare(str_replace('INSERT IGNORE','INSERT OR IGNORE',$query),$options);
@@ -52,3 +53,27 @@ $s->setFavorite('1','1','5',['person_id'=>'11','favorite'=>true]);
 check(count($s->browse('1','1','',0,'','',true,true,false,'10,11')['recipes'])===1);
 try { $s->browse('1','1','',0,'','',false,false,false,'20'); throw new RuntimeException('Expected filter rejection'); } catch (HttpError $expected) {}
 echo "Recipe favorites checks passed\n";
+
+// Exercise the actual route dispatch with the real fixture service. respond()
+// returns normally, as in production: success must not fall through to a 405.
+$source=file_get_contents(dirname(__DIR__).'/index.php');
+$anchor=strpos($source, '$service=new RecipeService($pdo,$households);');
+$start=strpos($source, "        if (".'$method'."==='GET')", $anchor);
+$end=strpos($source, "    } elseif (preg_match", $start);
+$dispatch=str_replace('requestBody()', "['person_id'=>'10','favorite'=>false]", substr($source,$start,$end-$start));
+$service=$s; $user=['id'=>'1']; $favoriteMatch=[null,'1','5'];
+foreach (['GET','POST','DELETE'] as $method) {
+    $before=ob_get_level(); ob_start();
+    try {
+        eval($dispatch);
+        check($method!=='DELETE');
+        check(http_response_code()===200);
+        $response=json_decode(ob_get_contents(),true,16,JSON_THROW_ON_ERROR);
+        check(isset($response['people'],$response['current_person_id']));
+        if ($method==='POST') check((int)$pdo->query('SELECT COUNT(*) FROM recipe_favorites WHERE person_id=10')->fetchColumn()===0);
+    } catch (HttpError $error) {
+        check($method==='DELETE' && $error->status===405);
+    } finally { while (ob_get_level()>$before) ob_end_clean(); }
+}
+echo "Favorites route GET/POST/405 checks passed\n";
+ob_end_flush();
