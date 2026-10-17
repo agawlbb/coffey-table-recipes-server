@@ -10,8 +10,8 @@ verified Firebase identity and the existing account bootstrap/disabled checks.
   switch and retires duplicate tokens. Tokens are never returned or logged.
 - POST `/me/timer-devices/remove`: `installation_id`; only removes that user's
   registration.
-- GET `/me/timers`: future timer state including cancellation tombstones for
-  recovery after missed pushes. Times are UTC epoch milliseconds.
+- GET `/me/timers`: future timer state plus seven days of cancellation tombstones,
+  including expired timers, to silence ringing alarms after missed stop pushes. Times are UTC epoch milliseconds.
 - POST `/me/timers`: installation ID, namespaced `timer_id`, random
   `operation_id`, expected `revision` (0 for creation), `cancelled`, and for
   start/edit `title`, `deadline_ms`. Local duration is unrestricted, but sharing
