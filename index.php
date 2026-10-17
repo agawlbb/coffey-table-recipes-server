@@ -95,6 +95,7 @@ try {
         $recipe=(new RecipeService($pdo,$households))->detail($user['id'],$editOptionsMatch[1],$editOptionsMatch[2]);
         $options=$recipe['edit_options'];
         $options['ai_images_enabled']=$households->aiImagesEnabled($user['id'],$editOptionsMatch[1]);
+        if ($recipe['source_type']==='blank') $options['favorites']=(new RecipeService($pdo,$households))->favorites($user['id'],$editOptionsMatch[1],$editOptionsMatch[2]);
         respond(200,['edit_options'=>$options]);    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/share$#', $route, $shareMatch)) {
         if ($method !== 'GET') throw new HttpError(405, 'method_not_allowed', 'Use GET.');
         $identity = authenticatedIdentity($config);
@@ -156,6 +157,7 @@ try {
         $user = $households->bootstrap($identity);
         $options = (new RecipeService($pdo, $households))->editOptions($user['id'], $blankMatch[1]);
         $options['ai_images_enabled'] = false;
+        $options['favorites'] = (new RecipeService($pdo,$households))->newRecipeFavorites($user['id'],$blankMatch[1]);
         respond(200, ['recipe'=>['title'=>'','source_type'=>'blank','original_language'=>'en','measurement_system'=>'unspecified','edit_options'=>$options]]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-import$#', $route, $importMatch)) {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
@@ -211,7 +213,8 @@ try {
             $user = $households->bootstrap(authenticatedIdentity($config));
             $households->membership($user['id'], $recipeMatch[1]);
             $mediaUrl = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/') . '/media/recipes';
-            $editor = new RecipeEditorService($pdo, $households, __DIR__.'/media/recipes', $mediaUrl);
+            $classifier = new BlankRecipeCategoryService($config['recipe_ai'],__DIR__.'/storage');
+            $editor = new RecipeEditorService($pdo, $households, __DIR__.'/media/recipes', $mediaUrl, [$classifier,'categorize']);
             respond(isset($recipeMatch[2]) ? 200 : 201, ['recipe' => $editor->save($user['id'], $recipeMatch[1], $recipeMatch[2] ?? '', requestBody(30*1024*1024))]);
         } elseif ($method !== 'GET') {
             header('Allow: GET, POST, OPTIONS');

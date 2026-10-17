@@ -119,4 +119,40 @@ relationExpect($converted['id']===$saved['id'] && $converted['source_type']==='a
 relationExpect((int)$pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn()===1,'Import created duplicate.');
 relationExpect((int)$pdo->query('SELECT COUNT(*) FROM recipe_favorites')->fetchColumn()===1,'Import lost favorite.');
 relationExpect(RecipeShare::load($pdo,$saved['id'])['title']==='Wedding cake','Imported recipe cannot share.');
+
+$pdo->exec("INSERT INTO household_people VALUES (2,1,NULL,'Bob'),(3,2,2,'Other');");
+relationExpect($read->newRecipeFavorites('1','1')['current_person_id']==='1','Draft favorites lack current member.');
+$autoCalls=0;
+$autoEditor=new RecipeEditorService($pdo,$households,'unused','https://example.test/media',function($title,$catalog,$user) use (&$autoCalls,$pdo) {
+    $autoCalls++;
+    relationExpect(!$pdo->inTransaction(),'AI call held recipe locks.');
+    relationExpect($title==='Birthday cake' && $user==='1' && count($catalog)>0,'Classifier input mismatch.');
+    return ['label'=>'Desserts','parent_label'=>'Desserts'];
+});
+$auto=$blank; $auto['category_assignments']=[]; unset($auto['favorite_on_create']);
+$auto['favorite_people']=[['person_id'=>'1','favorite'=>true],['person_id'=>'2','favorite'=>true]];
+$automatic=$autoEditor->save('1','1','',$auto);
+relationExpect($autoCalls===1 && count($automatic['category_assignments'])===1,'Automatic categorization did not save directly.');
+relationExpect(array_sum(array_column($read->favorites('1','1',$automatic['id'])['people'],'favorite'))===2,'Household favorites were not saved.');
+$manual=$auto; $manual['category_assignments']=[['category_id'=>'1']];
+$manualSaved=$autoEditor->save('1','1','',$manual);
+relationExpect($autoCalls===1,'Explicit category invoked AI.');
+$edit=$automatic; $edit['favorite_people']=[['person_id'=>'1','favorite'=>false],['person_id'=>'2','favorite'=>true]];
+$edit=$autoEditor->save('1','1',$automatic['id'],$edit);
+relationExpect(array_sum(array_column($read->favorites('1','1',$automatic['id'])['people'],'favorite'))===1,'Edited favorites not persisted.');
+$before=relationSnapshot($pdo,$automatic['id']);
+$bad=$edit; $bad['favorite_people']=[['person_id'=>'2','favorite'=>false],['person_id'=>'3','favorite'=>true]];
+relationReject(fn()=>$autoEditor->save('1','1',$automatic['id'],$bad),400);
+relationExpect(relationSnapshot($pdo,$automatic['id'])===$before && array_sum(array_column($read->favorites('1','1',$automatic['id'])['people'],'favorite'))===1,'Favorite failure left partial changes.');
+$failureEditor=new RecipeEditorService($pdo,$households,'unused','https://example.test/media',function() { throw new HttpError(502,'category_ai_unavailable','Try again.'); });
+$count=$pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn();
+relationReject(fn()=>$failureEditor->save('1','1','',$auto),502);
+relationExpect($pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn()===$count,'AI failure left a partial recipe.');
+$bad=$auto; $bad['title']=''; relationReject(fn()=>$autoEditor->save('1','1','',$bad),422);
+relationReject(fn()=>$autoEditor->save('2','1','',$auto),404);
+relationExpect($autoCalls===1,'Invalid or unauthorized input incurred AI.');
+$bad=$edit; $bad['revision']='0'; $bad['category_assignments']=[];
+relationReject(fn()=>$autoEditor->save('1','1',$automatic['id'],$bad),409);
+relationExpect($autoCalls===1,'Stale edit incurred AI.');
+
 echo "Blank recipes: $checks checks passed.\n";

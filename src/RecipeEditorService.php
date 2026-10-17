@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** Atomic, revision-checked editing of a household recipe. */
 final class RecipeEditorService
 {
-    public function __construct(private PDO $pdo, private HouseholdService $households, private string $mediaDirectory, private string $mediaUrl) {}
+    public function __construct(private PDO $pdo, private HouseholdService $households, private string $mediaDirectory, private string $mediaUrl, private $categorizeBlank = null) {}
 
     private string $validationContext = '';
     private function invalid(string $message): void { throw new HttpError(422, 'invalid_recipe', $this->validationContext.$message); }
@@ -62,6 +62,16 @@ final class RecipeEditorService
     public function save(string $userId, string $householdId, string $recipeId, array $body): array {
         $this->validationContext='';
         $this->households->membership($userId, $householdId);
+        if (($body['source_type'] ?? null)==='blank' && ($body['category_assignments'] ?? null)===[] && $this->categorizeBlank!==null) {
+            $title=$this->fields($body,['title'=>'!300'])['title'];
+            if ($recipeId!=='') {
+                $current=(new RecipeService($this->pdo,$this->households))->detail($userId,$householdId,$recipeId);
+                if ((string)($body['revision'] ?? '')!==(string)$current['revision']) throw new HttpError(409,'recipe_changed','This recipe changed. Reload and try again.');
+                if ($current['household_count']>1 && ($body['confirm_shared_edit'] ?? false)!==true) throw new HttpError(409,'shared_confirmation_required','Confirm changes to this shared recipe.');
+            }
+            $catalog=(new RecipeService($this->pdo,$this->households))->editOptions($userId,$householdId)['categories'];
+            $body['category_assignments']=[($this->categorizeBlank)($title,$catalog,$userId)];
+        }
         $createdFiles = [];
         $creating = $recipeId === '';
         $viewHousehold=$householdId;
@@ -282,7 +292,16 @@ final class RecipeEditorService
             $recipe['revision'] = (int)$revision+1; $recipe['updated_by_user_id'] = $userId;
             $q = $this->pdo->prepare('UPDATE recipes SET '.implode(',',array_map(static fn($key)=>"$key=?",array_keys($recipe))).' WHERE household_id=? AND id=?');
             $q->execute([...array_values($recipe),$householdId,$recipeId]);
-            if ($creating && $recipe['source_type'] === 'blank' && ($body['favorite_on_create'] ?? false) === true) {
+            if ($recipe['source_type']==='blank' && array_key_exists('favorite_people',$body)) {
+                $people=$this->list($body,'favorite_people',100); $seen=[];
+                $service=new RecipeService($this->pdo,$this->households);
+                foreach ($people as $person) {
+                    $personId=$person['person_id'] ?? null;
+                    if (!is_string($personId) || isset($seen[$personId])) $this->invalid('Choose each household member only once.');
+                    $seen[$personId]=true;
+                    $service->setFavorite($userId,$viewHousehold,$recipeId,$person);
+                }
+            } elseif ($creating && $recipe['source_type'] === 'blank' && ($body['favorite_on_create'] ?? false) === true) {
                 (new RecipeService($this->pdo,$this->households))->setFavorite($userId,$viewHousehold,$recipeId,['favorite'=>true]);
             }
             $this->pdo->commit();
