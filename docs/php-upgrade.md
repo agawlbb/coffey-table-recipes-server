@@ -1,6 +1,27 @@
 # Hosted PHP upgrade
 
-## Current status: blocked by hosting runtime configuration
+## Current status: live PHP 8.4 verified
+
+October 16, 2026: independently verified the actual hosted web runtime as
+**PHP 8.4.26**, SAPI **fpm-fcgi**, after InMotion reported its correction.
+Required extensions, Composer bootstrap, read-only database and recipe reads,
+and import preprocessing passed. Public health, authentication, CORS and
+private-path checks passed. The temporary protected probe was moved outside
+the web directory and its public URL was verified inaccessible. This check
+changed no PHP settings or cron jobs and deployed no application source.
+
+Verification-only Linux workflow:
+https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/38946072600
+
+The manual workflow now accepts `verify_only` to repeat this web-runtime check
+without invoking the upgrade. Three offline verifier tests cover successful
+verification, missing credentials, and cleanup on failure.
+
+CI and persistent maintenance commands have not been migrated by this check;
+the saved maintenance patch still requires a separate review against current
+source before use.
+
+## Historical blocker (October 13, resolved by October 16)
 
 October 13, 2026: the live switch is **not completed**. The website is healthy
 on PHP **8.1.34**, SAPI **fpm-fcgi**. Original domain settings and the original

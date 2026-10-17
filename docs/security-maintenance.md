@@ -1,5 +1,13 @@
 # Workflow and key-installation security
 
+October 16 update: the actual hosted web runtime is now independently verified
+as PHP **8.4.26**, with database/recipe reads, bootstrap, import preprocessing,
+and public protection checks passing. The temporary verification probe was
+removed from the web tree; PHP settings and cron were unchanged. See
+`docs/php-upgrade.md` for the verification run and historical blocker.
+The October 13 runtime findings below are historical. CI and scheduled
+maintenance migration remain separate follow-up work.
+
 Reviewed October 13, 2026. All GitHub Actions use exact executable commits,
 resolved from the existing major-version tags and checked against upstream:
 
