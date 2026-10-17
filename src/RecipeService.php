@@ -44,6 +44,17 @@ final class RecipeService
         return $families;
     }
 
+    public function newRecipeFavorites(string $userId,string $householdId): array {
+        $this->households->membership($userId,$householdId);
+        $people=$this->rows('SELECT id,display_name,user_id FROM household_people WHERE household_id=? ORDER BY id',[$householdId]);
+        $current=null;
+        foreach ($people as &$person) {
+            $person['favorite']=false;
+            if ($person['user_id']===$userId) $current=$person['id'];
+        } unset($person);
+        return ['people'=>$people,'current_person_id'=>$current];
+    }
+
     public function favorites(string $userId, string $householdId, string $recipeId): array {
         $this->households->membership($userId,$householdId);
         if (!$this->rows('SELECT r.id FROM recipes r JOIN recipe_households h ON h.recipe_id=r.id WHERE r.id=? AND h.household_id=? AND h.removed_at IS NULL AND r.deleted_at IS NULL',[$recipeId,$householdId])) throw new HttpError(404,'recipe_not_found','Recipe not in this household.');
