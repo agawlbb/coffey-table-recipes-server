@@ -24,6 +24,11 @@ $recipe=['title'=>'Crêpes <script>alert(1)</script>','description'=>'Family fav
     'notes'=>'Rest the batter','source_text'=>'PRIVATE IMPORT','edit_options'=>['recipes'=>[['title'=>'PRIVATE RECIPE']]],
 ];
 $html=recipeSharePage($recipe);
+checkShare(str_contains($html,'<h3 class="ingredient-group">Batter</h3>'),'Ingredient group heading is missing');
+checkShare(str_contains($html,'class="ingredient group-member">• 250 g flour'),'Grouped ingredient is not indented');
+checkShare(str_contains($html,'.ingredient-group{font-weight:700}') && str_contains($html,'.ingredient.group-member{margin-left:16px}'),'Group styling missing');
+$plain=$recipe; $plain['ingredients'][]=['group_id'=>null,'original_text'=>'Water'];
+checkShare(str_contains(recipeSharePage($plain),'class="ingredient">• Water'),'Ungrouped ingredient must stay unindented');
 preg_match('~<script type="application/ld\+json">(.*?)</script>~s',$html,$json);
 $structured=json_decode($json[1],true,512,JSON_THROW_ON_ERROR);
 checkShare($structured['@type']==='Recipe' && $structured['@context']==='https://schema.org','Recipe schema missing');

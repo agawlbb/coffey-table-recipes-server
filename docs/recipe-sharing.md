@@ -68,3 +68,5 @@ Coverage includes multiple links, punctuation, non-web sources, malformed and
 dangerous schemes, credential URLs, HTML injection and every public source field.
 The backend validation workflow includes the new test. No deployment or live
 recipe mutation was performed.
+
+2026-10-17: Rendered recipe ingredient group headings use bold text and grouped members have a 16px left indent. Ungrouped ingredients keep their existing alignment. The 47 recipe-sharing checks include grouped/ungrouped markup and styling, with PHP syntax validation.
