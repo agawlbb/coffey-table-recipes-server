@@ -101,7 +101,8 @@ try {
         $pdo = database($config);
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
-        (new RecipeService($pdo, $households))->detail($user['id'], $shareMatch[1], $shareMatch[2]);
+        $recipe = (new RecipeService($pdo, $households))->detail($user['id'], $shareMatch[1], $shareMatch[2]);
+        if ($recipe['source_type'] === 'blank') throw new HttpError(422, 'blank_recipe', 'Import this recipe before sharing it.');
         $root = rtrim(preg_replace('#/app/?$#', '', $config['app_url']), '/');
         respond(200, ['url' => $root . '/share.php?id=' . $shareMatch[2]]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/category-image$#', $route, $categoryMatch)) {
@@ -148,6 +149,14 @@ try {
         $draft = (new RecipeVariationService($config['recipe_ai'],__DIR__.'/storage'))->analyze($source,requestBody(100000),$user['id'],$variationMatch[1],$options['categories']);
         $draft['recipe']['edit_options'] = $options;
         respond(200,$draft);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-blank$#', $route, $blankMatch)) {
+        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        $identity = authenticatedIdentity($config); $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $options = (new RecipeService($pdo, $households))->editOptions($user['id'], $blankMatch[1]);
+        $options['ai_images_enabled'] = false;
+        respond(200, ['recipe'=>['title'=>'','source_type'=>'blank','original_language'=>'en','measurement_system'=>'unspecified','edit_options'=>$options]]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-import$#', $route, $importMatch)) {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);

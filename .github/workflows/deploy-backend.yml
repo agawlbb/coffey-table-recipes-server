@@ -46,6 +46,7 @@ jobs:
           php tests/recipe_deletion.php
           php tests/parent_categories.php
           php tests/recipe_favorites.php
+          php tests/blank_recipes.php
           php tests/recipe_sharing.php
           php tests/source_links.php
           php tests/recipe_photo.php
