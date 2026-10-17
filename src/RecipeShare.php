@@ -17,8 +17,8 @@ final class RecipeShare
                 return $row;
             }, $statement->fetchAll(PDO::FETCH_ASSOC));
         };
-        $recipe = $read('SELECT id,household_id,title,description,original_language,servings,yield_text,prep_minutes,cook_minutes,total_minutes,notes,revision,parent_recipe_id,source_title,source_author,source_url,source_reference FROM recipes WHERE deleted_at IS NULL AND id=?', [$id])[0] ?? null;
-        if (!$recipe) throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
+        $recipe = $read('SELECT id,household_id,title,source_type,description,original_language,servings,yield_text,prep_minutes,cook_minutes,total_minutes,notes,revision,parent_recipe_id,source_title,source_author,source_url,source_reference FROM recipes WHERE deleted_at IS NULL AND id=?', [$id])[0] ?? null;
+        if (!$recipe || $recipe['source_type'] === 'blank') throw new HttpError(404, 'recipe_not_found', 'Recipe not found.');
         $household = $recipe['household_id'];
         foreach (['ingredients'=>'recipe_ingredients','groups'=>'recipe_ingredient_groups','steps'=>'recipe_steps','photos'=>'recipe_photos'] as $key=>$table) $recipe[$key] = $read("SELECT * FROM $table WHERE household_id=? AND recipe_id=? ORDER BY position,id", [$household,$id]);
         $recipe['tags'] = $read('SELECT kind,label FROM recipe_tags WHERE household_id=? AND recipe_id=? ORDER BY kind,label', [$household,$id]);

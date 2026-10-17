@@ -150,6 +150,11 @@ final class RecipeEditorService
             }
             $lists = [];
             foreach (['groups','ingredients','steps','actions','photos','tags','category_assignments','pairings'] as $key) $lists[$key] = $this->list($body, $key, 300);
+            if ($recipe['source_type'] === 'blank') {
+                if (!$lists['category_assignments']) $this->invalid('Choose at least one category.');
+                foreach (['ingredients','groups','steps','actions','pairings'] as $key) if ($lists[$key]) $this->invalid('Import the blank recipe before adding cooking content.');
+                if (($body['nutrition'] ?? null) !== null) $this->invalid('Import the blank recipe before adding nutrition.');
+            }
             foreach (['recipe_step_actions','recipe_ingredients','recipe_ingredient_groups','recipe_steps','recipe_photos','recipe_tags','recipe_category_assignments','recipe_nutrition'] as $table) {
                 $this->pdo->prepare("DELETE FROM $table WHERE household_id=? AND recipe_id=?")->execute([$householdId,$recipeId]);
             }
@@ -277,6 +282,9 @@ final class RecipeEditorService
             $recipe['revision'] = (int)$revision+1; $recipe['updated_by_user_id'] = $userId;
             $q = $this->pdo->prepare('UPDATE recipes SET '.implode(',',array_map(static fn($key)=>"$key=?",array_keys($recipe))).' WHERE household_id=? AND id=?');
             $q->execute([...array_values($recipe),$householdId,$recipeId]);
+            if ($creating && $recipe['source_type'] === 'blank' && ($body['favorite_on_create'] ?? false) === true) {
+                (new RecipeService($this->pdo,$this->households))->setFavorite($userId,$viewHousehold,$recipeId,['favorite'=>true]);
+            }
             $this->pdo->commit();
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
