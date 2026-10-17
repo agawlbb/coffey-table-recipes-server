@@ -44,11 +44,37 @@ final class RecipeService
         return $families;
     }
 
-    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0, string $category = '', string $scope = '', bool $tree = false, bool $familiesOnly = false, bool $publicRead = false): array {
+    public function favorites(string $userId, string $householdId, string $recipeId): array {
+        $this->households->membership($userId,$householdId);
+        if (!$this->rows('SELECT r.id FROM recipes r JOIN recipe_households h ON h.recipe_id=r.id WHERE r.id=? AND h.household_id=? AND h.removed_at IS NULL AND r.deleted_at IS NULL',[$recipeId,$householdId])) throw new HttpError(404,'recipe_not_found','Recipe not in this household.');
+        return ['people'=>$this->rows('SELECT p.id,p.display_name,p.user_id,EXISTS (SELECT 1 FROM recipe_favorites f WHERE f.household_id=p.household_id AND f.person_id=p.id AND f.recipe_id=?) AS favorite FROM household_people p WHERE p.household_id=? ORDER BY p.id',[$recipeId,$householdId]),'current_person_id'=>$this->rows('SELECT id FROM household_people WHERE household_id=? AND user_id=?',[$householdId,$userId])[0]['id'] ?? null];
+    }
+
+    public function setFavorite(string $userId, string $householdId, string $recipeId, array $body): array {
+        $state=$this->favorites($userId,$householdId,$recipeId);
+        $person=$body['person_id'] ?? $state['current_person_id'];
+        if (!is_string($person) || !in_array($person,array_column($state['people'],'id'),true) || !isset($body['favorite']) || !is_bool($body['favorite'])) throw new HttpError(400,'invalid_favorite','Choose a household member and favorite state.');
+        $q=$this->pdo->prepare($body['favorite'] ? 'INSERT IGNORE INTO recipe_favorites (household_id,recipe_id,person_id) VALUES (?,?,?)' : 'DELETE FROM recipe_favorites WHERE household_id=? AND recipe_id=? AND person_id=?');
+        $q->execute([$householdId,$recipeId,$person]);
+        return $this->favorites($userId,$householdId,$recipeId);
+    }
+
+    public function browse(string $userId, string $householdId, string $query = '', int $offset = 0, string $category = '', string $scope = '', bool $tree = false, bool $familiesOnly = false, bool $publicRead = false, string $favoritePeople = ''): array {
         if (!$publicRead) $this->households->membership($userId, $householdId);
         if (mb_strlen($query) > 200 || mb_strlen($category) > 120 || $offset < 0 || $offset > 100000) throw new HttpError(400, 'invalid_filter', 'Invalid recipe search.');
         $parameters = [$householdId];
         $where = 'EXISTS (SELECT 1 FROM recipe_households h WHERE h.recipe_id=r.id AND h.household_id=? AND h.removed_at IS NULL) AND r.deleted_at IS NULL';
+        if ($favoritePeople !== '') {
+            $this->households->membership($userId,$householdId);
+            if (!preg_match('/^[1-9][0-9]{0,18}(,[1-9][0-9]{0,18}){0,99}$/',$favoritePeople)) throw new HttpError(400,'invalid_filter','Invalid favorite members.');
+            $allowed=array_column($this->households->people($userId,$householdId),'id');
+            foreach (array_unique(explode(',',$favoritePeople)) as $person) {
+                if (!in_array($person,$allowed,true)) throw new HttpError(400,'invalid_filter','Choose members of this household.');
+                $where.=' AND EXISTS (SELECT 1 FROM recipe_favorites f WHERE f.recipe_id=r.id AND f.household_id=? AND f.person_id=?)';
+                array_push($parameters,$householdId,$person);
+            }
+            $tree=false; $familiesOnly=false;
+        }
         $representatives=[];
         foreach ($this->variationFamilies($householdId) as $members) {
             foreach ($members as $member) $representatives[$member['id']]=$members[0]['id'];
