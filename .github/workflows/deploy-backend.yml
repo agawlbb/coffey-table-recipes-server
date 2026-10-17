@@ -59,6 +59,7 @@ jobs:
           php tests/recipe_variation.php
           php tests/recipe_variation_relations.php
           php tests/website_import.php
+          php tests/recipe_methods.php
           php tests/website_photos.php
       - run: python3 -m pip install requests==2.32.5
       - run: python3 -m unittest discover -s tool -p 'test_*.py'

@@ -169,6 +169,7 @@ try {
         $options = (new RecipeService($pdo, $households))->editOptions($user['id'], $importMatch[1]);
         $draft = (new RecipeImportService($config['recipe_ai'], __DIR__.'/storage'))->analyze(requestBody(8*1024*1024), $user['id'], $options['categories']);
         $draft['recipe']['edit_options'] = $options;
+        foreach ($draft['related_imports'] ?? [] as $index=>$related) $draft['related_imports'][$index]['recipe']['edit_options']=$options;
         respond(200, $draft);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/(?:deleted|([1-9][0-9]{0,18})/(delete|restore))$#', $route, $deletionMatch)) {
         $listing = !isset($deletionMatch[2]) || $deletionMatch[2] === '';
