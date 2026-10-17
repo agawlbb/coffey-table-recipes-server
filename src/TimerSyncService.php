@@ -47,8 +47,9 @@ final class TimerSyncService
     public function list(string $user): array
     {
         // Cancellations remain as tombstones so a missed cancellation is reconciled.
-        // Expired records need no replay: each receiving OS already owns its alarm.
-        $q = $this->pdo->prepare('SELECT timer_id,source_device,title,deadline_ms,cancelled,revision FROM shared_timers WHERE user_id=? AND deadline_ms>? ORDER BY timer_id');
+        // Retain recent cancellation tombstones even after the deadline so a
+        // missed stop can silence an already elapsed/ringing local alarm.
+        $q = $this->pdo->prepare('SELECT timer_id,source_device,title,deadline_ms,cancelled,revision FROM shared_timers WHERE user_id=? AND (deadline_ms>? OR (cancelled=1 AND updated_at>DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY))) ORDER BY timer_id');
         $q->execute([$user,(int)floor(microtime(true)*1000)]);
         return ['timers'=>array_map([self::class,'row'],$q->fetchAll(PDO::FETCH_ASSOC))];
     }

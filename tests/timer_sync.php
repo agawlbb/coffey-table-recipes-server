@@ -9,6 +9,7 @@ final class TimerTestDatabase extends PDO
     {
         $query=str_replace(' FOR UPDATE','',$query);
         $query=str_replace('DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)',"datetime('now','-60 days')",$query);
+        $query=str_replace('DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)',"datetime('now','-7 days')",$query);
         $query=str_replace('ON DUPLICATE KEY UPDATE','ON CONFLICT(installation_id) DO UPDATE SET',$query);
         $query=preg_replace('/VALUES\((\w+)\)/','excluded.$1',$query);
         return parent::prepare($query,$options);
@@ -65,4 +66,6 @@ rejectTimer(fn()=>$service->change('1','firebase-val',$restart),409);
 $expired=$body; $expired['deadline_ms']=(int)floor(microtime(true)*1000)-1;
 $pdo->exec('UPDATE shared_timers SET deadline_ms=1');
 expectTimer($service->list('1')['timers']===[],'Expired starts are not replayed');
+$pdo->exec('UPDATE shared_timers SET cancelled=1');
+expectTimer(count($service->list('1')['timers'])===1,'Recent cancellation remains available after deadline');
 echo "Timer sync: account isolation, opt-in, revisions, retries, cancellation, sign-out and failure checks passed.\n";
