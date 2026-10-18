@@ -25,7 +25,9 @@ Deployed ZIP SHA-256:
 `ebc37e33e5d43a8a01f71360d2880d885f09473b133c3e01de0ea43c803a97c5`.
 The public receipt reports the deployed commit above. Protected backups,
 recovery data, state, and operational scripts/logs remain available for recovery.
-These files and credentials are excluded from Git.
+These files and credentials are excluded from Git. The superseded preflight
+snapshot has been retired from current documentation; its full historical
+record remains in the preserved release history and recovery archive.
 
 Private storage logs: `shared-pause-20261016.log`,
 `shared-writers-20261016.log`, `shared-backup-20261016.log`,

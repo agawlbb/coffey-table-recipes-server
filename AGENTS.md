@@ -1,11 +1,20 @@
 # Repository workflow
 
-The user requests that all future project changes be committed to Git.
+Complete and verify project work, commit it, and push it to the existing GitHub origin. Before declaring completion, verify a clean working tree and matching local/GitHub branch heads. Respect explicit no-push or no-deployment instructions; report any synchronization blocker instead of claiming completion.
 
 - Commit completed changes after appropriate verification, including migrations and documentation where applicable.
 - Keep credentials, local configuration, database dumps, dependencies, generated Flutter web builds and uploaded media out of Git.
-- This repository contains the PHP server. The Flutter app is a separate repository at `C:\Users\developer\StudioProjects\coffey_table_recipes`. When changing both, commit each repository independently.
-- Do not push or create remote repositories unless the user requests it. Do not overwrite unrelated changes or rewrite history without explicit authorization.
+- This repository contains the PHP server at `C:\xampp\htdocs\CoffeyTableRecipes`. The Flutter app is a separate repository at `C:\Users\mailb\StudioProjects\coffey_table_recipes`. When changing both, commit each repository independently.
+- Do not create remote repositories, overwrite unrelated changes, or rewrite history without explicit authorization. Inspect workflow triggers before every push: main normally deploys. A cleanup or synchronization request does not override an explicit no-deployment constraint.
+
+## Ownership and offline work
+
+- While the laptop is connected, the designated owner is the existing **Reconcile project with GitHub** chat (`01a15fd0-827e-77c3-a0a3-737af531ea3f`). It coordinates both CTR repositories. Work in the canonical folders above, rather than hidden clones or competing active copies.
+- Other chats must obtain a read-only handoff before writing. Check current branches, worktrees, local edits, GitHub heads and active tasks/processes; an earlier clean report is not proof of current state.
+- Only explicitly requested offline work uses a named branch in the same repository, normally `codex/offline-<topic>`. Record the branch and base commit in the handoff. Never put private runtime configuration or credentials on the branch.
+- On the laptop's return, the owner reviews against current main, preserves unique work, merges only accepted changes, tests, commits and synchronizes with GitHub. Remove temporary branches only after accepted work is preserved and synchronization verified; archive rejected work recoverably before retiring its branch.
+- Recovery archives are historical evidence, not active checkouts. Never merge them into main, reset their saved edits, or purge them during routine cleanup. Do not revive rejected or obsolete diagnostic branches.
+- Keep related implementation, documentation and validation in meaningful commits. Preserve useful regression tests, current release/deployment configuration and immutable release tags. Published history rewrites require a verified backup, exact remote-head check and explicit expected-SHA force-with-lease. Branch-protection exceptions require fresh, specific approval and immediate restoration.
 
 # Hosted development workflow
 
@@ -14,11 +23,11 @@ The user requests that all future project changes be committed to Git.
 
 - Unless the user specifies otherwise, all changes to database data, database structure, and the backend hosting process occur on the hosted coffeybean.com site.
 - Deploying and pushing changes to the hosted backend and database are authorized without additional permission within the requested work, including Git pushes needed for backend deployment.
-- Changes to the app itself are developed and tested locally, using coffeybean.com as the backend. Flutter source changes belong in `C:\Users\developer\StudioProjects\coffey_table_recipes`.
+- Changes to the app itself are developed and tested locally, using coffeybean.com as the backend. Flutter source changes belong in `C:\Users\mailb\StudioProjects\coffey_table_recipes`.
 - Update the hosted app only when the user explicitly asks and a new version is tagged. A tag alone does not authorize deployment.
-- Outside an instruction to "create a release", obtain explicit permission before pushing or deploying the hosted app. An instruction to "create a release" authorizes hosted app deployment. iOS builds require no separate approval.
+- Outside an instruction to "create a release", obtain explicit permission before deploying the hosted app. A release request authorizes the documented release workflow. App builds on every platform, including debug/emulator packages and GitHub Actions builds/reruns, require an explicit build or release request. Source fixes, cleanup and testing alone do not authorize them.
 - Use coffeybean.com as the testing backend. Retain the local PHP source for development. The backend and persistent MySQL database are hosted exclusively; the outdated local recipe database was retired on 2026-10-11.
 - Use the Codex built-in browser for work whenever possible. Use Chrome only to investigate Chrome-specific problems identified by the user.
 - Deploy only to the verified coffeybean.com document root and a dedicated recipe database; this cPanel account hosts other domains.
 
-- Backend deployment may run automatically after pushes to main. iOS builds require no separate explicit approval within requested work, including macOS GitHub Actions runs, reruns, and pushes or tags that trigger iOS builds. Other macOS runner builds still require explicit approval because they cost money.
+- `.github/workflows/deploy-backend.yml` normally runs on every push to main and can migrate and publish to hosting. Before any main push, report that mechanism and confirm deployment is within scope. For a specifically no-deployment documentation/history cleanup, use the documented GitHub `[skip ci]` head-commit instruction only after equivalent local validation; do not silently disable workflows or safeguards. Verify that no deployment was triggered. See `docs/backend-deployment.md`.

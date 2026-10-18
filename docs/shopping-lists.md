@@ -20,10 +20,10 @@ household deletion. `tool/migrate-shopping-lists.py` uses the existing protected
 backup, checksum, temporary permission and exact cron cleanup workflow. It runs
 before dependent code deploys. No local persistent database is used.
 
-The feature deployment workflow runs only on `codex/shopping-list` commits
-containing `[deploy-shopping-list]`. It deploys backend runtime files and the
-reviewed migration, never the Flutter app. Standard main deployment also runs
-the migration, making later releases idempotent.
+The retained feature deployment workflow is limited to `codex/shopping-list`
+commits containing `[deploy-shopping-list]`; that branch is retired. Do not
+recreate it for routine work. Standard main deployment runs the migration
+idempotently before publishing backend runtime files, never the Flutter app.
 
 Validation: `php tests/shopping_lists.php` covers sharing between owner and
 member, household isolation, stale writes, ordering, check-off, removal and

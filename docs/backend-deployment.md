@@ -3,12 +3,21 @@
 The persistent API and MySQL database are hosted exclusively on coffeybean.com.
 The local PHP checkout is source code, not an alternate persistent backend.
 
-Pushing `main` to `agawlbb/coffey_table_recipes_server` runs
+Pushing `main` to `agawlbb/coffey-table-recipes-server` normally runs
 `.github/workflows/deploy-backend.yml`. Other branches do not deploy. The workflow
 validates PHP, installs locked production Composer dependencies, runs mail and
 deployment tests, and uploads an allowlisted backend package using the cPanel API.
 It deploys only to `/home/hosting_account/coffeybean.com/CoffeyTableRecipes`.
 The workflow can also be run manually on `main` to retry a failed deployment.
+
+For an explicitly no-deployment documentation/history cleanup, run the relevant
+validation locally and include `[skip ci]` in the pushed head commit. GitHub's
+[skip instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs)
+prevent push-triggered workflows from running; they do not authorize skipping
+validation of runtime changes or weaken branch protection. Inspect triggers
+before every push, retain the workflow configuration, and verify no deployment
+was queued. Do not dispatch a workflow during cleanup. Without the skip
+instruction, a main push can contact hosting, run migrations and publish.
 
 ## One-time credentials
 

@@ -22,9 +22,9 @@ Web development uses http://localhost:8080, permitted by the explicit CORS allow
 
 Internal directories and Composer metadata must remain inaccessible over HTTP. The included Apache rules enforce this and should be verified on cPanel. Disable directory listings. Media will be delivered through authorized handlers; direct storage access is denied.
 
-## Next checkpoint
+## Configuration and validation
 
-Firebase Authentication verification and household provisioning are implemented with Google's maintained firebase/php-jwt library. Run composer install when deploying the backend, then configure firebase_project_id and database settings in config/local.php. Next are complete recipe migrations and development seed data. No authentication keys or service-account files belong in this repository.
+Firebase Authentication verification uses firebase/php-jwt. Run composer install when preparing the backend, then configure firebase_project_id and database settings in ignored config/local.php. Recipe, household, shopping-list, sharing and timer-sync behavior is documented in docs/ and covered by the PHP fixtures and Python tooling tests. Production migrations and publishing require the hosted workflow and its authorization; they are not local validation steps. No authentication keys or service-account files belong in this repository.
 
 The root address redirects to app/, containing the compiled Flutter web client. Build and publish it with the Flutter project's tool/publish-local-web.ps1 script. API routes remain under api/v1.
 

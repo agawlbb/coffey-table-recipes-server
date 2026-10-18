@@ -44,6 +44,7 @@ jobs:
           php tests/verification.php
           php tests/shopping_lists.php
           php tests/home_assistant_connections.php
+          php tests/shopping_sync_requests.php
           php tests/timer_sync.php
           php tests/migration_checksums.php
           php tests/recipe_deletion.php

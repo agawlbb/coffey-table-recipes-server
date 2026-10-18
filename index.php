@@ -65,7 +65,9 @@ try {
             if ($body !== null && array_diff(array_keys($body), ['revision','items']) !== []) throw new HttpError(422, 'invalid_list', 'Only shopping items may be changed.');
             if ($body !== null && (!is_int($body['revision'] ?? null) || $body['revision'] < 0 || !is_array($body['items'] ?? null))) throw new HttpError(422, 'invalid_list', 'Supply the current revision and items.');
             $service = new ShoppingListService($pdo, new HouseholdService($pdo), $authorize);
-            respond(200, $method === 'GET' ? $service->read('', $household) : $service->save('', $household, $body));
+            $result = $method === 'GET' ? $service->read('', $household) : $service->save('', $household, $body);
+            $result['sync_requests'] = (new ShoppingSyncRequests(__DIR__.'/storage/shopping-sync-requests'))->read($household);
+            respond(200, $result);
         }
     } elseif (preg_match('#^/recipes/([1-9][0-9]{0,18})$#', $route, $publicRecipe)) {
         if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
@@ -81,6 +83,15 @@ try {
         elseif ($method === 'GET') $result=$service->list($user['id']);
         else $result=$service->change($user['id'],$identity['uid'],requestBody());
         respond(200,$result);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/shopping-list/sync-request$#', $route, $syncMatch)) {
+        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
+        requestBody();
+        $identity = authenticatedIdentity($config); $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $households->membership($user['id'], $syncMatch[1]);
+        $state = (new ShoppingSyncRequests(__DIR__.'/storage/shopping-sync-requests'))->request($syncMatch[1]);
+        respond(200, ['request'=>end($state['requests'])]);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/shopping-list$#', $route, $shoppingMatch)) {
         if (!in_array($method, ['GET', 'POST'], true)) throw new HttpError(405, 'method_not_allowed', 'Use GET or POST.');
         $identity = authenticatedIdentity($config); $pdo = database($config);

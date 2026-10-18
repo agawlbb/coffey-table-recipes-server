@@ -66,6 +66,39 @@ changes. Polling defaults to 15 seconds, adjustable from 5–300 seconds. HA wri
 refresh immediately. Initial loading and identical polls do not emit events.
 This is not a durable event log; changes between polls may be coalesced or missed.
 
+### Requests to synchronize an external list
+
+Authenticated household members may `POST {}` to
+`/households/{id}/shopping-list/sync-request`. This records a household request
+with an increasing `id`, `requested_at`, and `reason: shopping_list_opened`.
+The app sends one when its shopping view becomes visible/active, not on polls,
+item edits or ordinary rebuilds. Failures are best effort and do not block the
+list. No actual external-list reconciliation is performed by this endpoint.
+
+HA shopping-list responses include `sync_requests` containing `latest_id` and
+the latest 128 `requests`. They are stored separately from list revisions, in
+protected `storage/shopping-sync-requests/{household}.json`, under file locks.
+No database migration is required. Preserve this directory in server backups.
+Household membership gates app requests, and the existing household token fixes
+which journal HA can read. No requesting user's personal data is exposed.
+
+HA emits `coffey_table_recipes_shopping_list_sync_requested` and the separate
+Shopping list synchronization event entity (`requested`). The payload includes
+`household_id`, `config_entry_id`, `request_id`, `requested_at`, and `reason`.
+Delivery follows the polling interval. The last consumed ID persists in the HA
+config entry without reloading the integration on cursor updates. Initial setup
+baselines existing history; subsequent reloads/restarts consume retained unseen
+requests. Sync-only changes do not emit shopping-list-changed events. This
+bounded journal is not guaranteed delivery across crashes or retention overflow.
+
+Sync-request rollout on October 18, 2026: backend run 39148973036 succeeded for
+`8ec35404908a745cc549735580e8c3164d9c124b`. Independent hosted checks confirmed
+the matching receipt, health HTTP 200, unauthenticated request creation HTTP 401,
+GET rejected with HTTP 405, integration reads HTTP 401, and journal files HTTP
+403. No real household requests or items were created during verification.
+HA run 39148980874 passed 19 tests; Flutter passed 11 focused widget checks and
+analysis. The Flutter source is committed but requires an authorized app build.
+
 ## Validation
 
 Run `php tests/home_assistant_connections.php` and `php tests/shopping_lists.php`.
