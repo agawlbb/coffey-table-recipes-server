@@ -39,7 +39,7 @@ foreach ([[$milk,$milk], [array_replace($milk,['checked'=>'true'])], [array_repl
 $saved = $service->save('1','1',['revision'=>2,'items'=>[$milk]]);
 checkShopping(count($saved['items'])===1 && $saved['items'][0]['id']==='milk');
 checkShopping($service->save('2','1',['revision'=>3,'items'=>[]])['items']===[]);
-$unassigned = array_replace($apple, ['department'=>'', 'checked'=>false]);
+$unassigned = array_replace($apple, ['name'=>'Unassigned test item', 'department'=>'', 'checked'=>false]);
 $saved = $service->save('1','1',['revision'=>4,'items'=>[$unassigned,$milk]]);
 checkShopping($service->read('2','1')['items'][0]['department']==='');
 checkShopping($saved['items'][1]['department']==='Dairy & eggs');
@@ -71,3 +71,80 @@ $pdo->prepare('UPDATE shopping_lists SET items=? WHERE household_id=1')->execute
 checkShopping($service->read('1','1')['items'][0]['name']===' Milk ');
 checkShopping(in_array('Produce',$service->read('1','1')['departments'],true));
 echo "Department configuration and legacy compatibility checks passed\n";
+
+// Durable household item-to-department memory (all data is an isolated fixture).
+$pdo->exec('DELETE FROM shopping_lists');
+function memoryItem(string $id, string $name, string $department = ''): array {
+    return ['id'=>$id,'name'=>$name,'department'=>$department,'checked'=>false];
+}
+function memorySave(array $items, array $extra = [], string $user = '1', string $household = '1'): array {
+    global $service;
+    $revision = $service->read($user, $household)['revision'];
+    return $service->save($user, $household, ['revision'=>$revision,'items'=>$items]+$extra);
+}
+$saved = memorySave([memoryItem('onions','Green onions')]);
+checkShopping($saved['items'][0]['department']==='');
+$saved['items'][0]['department']='Produce';
+memorySave($saved['items']);
+memorySave([]);
+foreach (['gReEnOnions','green-onions','Green onion','Green oninos','gréen onions'] as $variant) {
+    $saved = memorySave([memoryItem('new', $variant)], [], '2');
+    if ($saved['items'][0]['department'] !== 'Produce') throw new RuntimeException('Variant failed: '.$variant);
+    memorySave([]);
+}
+// Learning does not cross households, and strangers cannot teach associations.
+$saved=memorySave([memoryItem('onions','Green onions')], [], '3', '2');
+checkShopping($saved['items'][0]['department']==='');
+rejectShopping(fn()=>memorySave([memoryItem('bad','Green onions','Pantry')], [], '3'),404);
+// Corrections to a typo replace the prior association, including its canonical name.
+$saved=memorySave([memoryItem('onions','Green oninos')]);
+$saved['items'][0]['department']='Deli'; memorySave($saved['items']); memorySave([]);
+$saved=memorySave([memoryItem('onions','Green onions')]);
+checkShopping($saved['items'][0]['department']==='Deli');
+// Stale writes cannot replace a confirmed association.
+$stale=$saved['revision']; $saved['items'][0]['department']='Dairy & eggs'; memorySave($saved['items']);
+rejectShopping(fn()=>$service->save('2','1',['revision'=>$stale,'items'=>[memoryItem('onions','Green onions','Bakery')]]),409);
+memorySave([]); $saved=memorySave([memoryItem('onions','Green onions')]);
+checkShopping($saved['items'][0]['department']==='Dairy & eggs');
+// Explicitly moving to the unassigned group is remembered too.
+$saved['items'][0]['department']=''; memorySave($saved['items']); memorySave([]);
+$saved=memorySave([memoryItem('onions','GREENONIONS')]);
+checkShopping($saved['items'][0]['department']==='');
+// Ignore reordering and check-offs: they must not teach a new department.
+$saved=memorySave([memoryItem('rice','Rice','Pantry'),memoryItem('milk','Milk 2%','Dairy & eggs')]);
+$saved['items'][0]['checked']=true; memorySave(array_reverse($saved['items'])); memorySave([]);
+$saved=memorySave([memoryItem('rice','RICE'),memoryItem('milk','Milk 1%'),memoryItem('dice','Dice')]);
+checkShopping($saved['items'][0]['department']==='Pantry');
+checkShopping($saved['items'][1]['department']==='' && $saved['items'][2]['department']==='');
+// Adjacent short-word transpositions and common plural endings are recognized.
+memorySave([memoryItem('plainmilk','Milk','Dairy & eggs'), memoryItem('tomato','Tomato','Produce'), memoryItem('berry','Strawberry','Produce')]); memorySave([]);
+$saved=memorySave([memoryItem('mikl','Mikl'),memoryItem('tomatoes','Tomatoes'),memoryItem('berries','Strawberries')]);
+checkShopping($saved['items'][0]['department']==='Dairy & eggs');
+checkShopping($saved['items'][1]['department']==='Produce' && $saved['items'][2]['department']==='Produce');
+// Equally close names in different departments remain unassigned.
+memorySave([memoryItem('beans','Beans','Pantry'),memoryItem('beets','Beets','Produce')]); memorySave([]);
+$saved=memorySave([memoryItem('ambiguous','Beens'),memoryItem('exact','BEANS')]);
+checkShopping($saved['items'][0]['department']==='' && $saved['items'][1]['department']==='Pantry');
+// Rename memory even when its items are no longer on the list.
+memorySave([memoryItem('onions','Green onions','Produce')]); memorySave([]);
+$departments=$service->read('1','1')['departments'];
+$departments=array_map(fn($d)=>$d==='Produce'?'Farm stand':$d,$departments);
+memorySave([],['departments'=>$departments,'department_renames'=>['Produce'=>'Farm stand']]);
+$saved=memorySave([memoryItem('onions','GreenOnions')],[],'2');
+checkShopping($saved['items'][0]['department']==='Farm stand');
+memorySave([],['departments'=>array_values(array_diff($departments,['Farm stand']))]);
+$saved=memorySave([memoryItem('onions','Green onions')]);
+checkShopping($saved['items'][0]['department']==='');
+rejectShopping(fn()=>memorySave([],['department_renames'=>['Pantry'=>'Missing']]),422);
+// Bound memory; retain recently taught entries without leaking metadata to clients.
+for($batch=0;$batch<3;$batch++) {
+    $items=[];
+    for($i=0;$i<400;$i++) $items[]=memoryItem('bound'.($batch*400+$i),'Bound item '.($batch*400+$i),'Pantry');
+    memorySave($items);
+}
+$stored=json_decode($pdo->query('SELECT items FROM shopping_lists WHERE household_id=1')->fetchColumn(),true);
+checkShopping(count($stored['associations'])===1000);
+checkShopping(!array_key_exists('associations',$service->read('1','1')));
+memorySave([]); $saved=memorySave([memoryItem('last','Bound item 1199')]);
+checkShopping($saved['items'][0]['department']==='Pantry');
+echo "Household association normalization, typo matching, correction, isolation, rename and retention checks passed\n";

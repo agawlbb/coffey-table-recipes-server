@@ -28,6 +28,13 @@ final class ShoppingListService
 
     public function read(string $user, string $household): array
     {
+        $state = $this->readState($user, $household);
+        unset($state['associations']);
+        return $state;
+    }
+
+    private function readState(string $user, string $household): array
+    {
         $this->households->membership($user, $household);
         $q = $this->pdo->prepare('SELECT revision, items FROM shopping_lists WHERE household_id=?');
         $q->execute([$household]); $row = $q->fetch(PDO::FETCH_ASSOC);
@@ -36,7 +43,70 @@ final class ShoppingListService
         // department settings without a schema migration or changing old clients.
         return ['revision'=>$row ? (int)$row['revision'] : 0,
             'items'=>$stored['items'] ?? $stored,
-            'departments'=>$stored['departments'] ?? array_merge(array_slice(self::DEPARTMENTS, 2), ['Other'])];
+            'departments'=>$stored['departments'] ?? array_merge(array_slice(self::DEPARTMENTS, 2), ['Other']),
+            'associations'=>$stored['associations'] ?? []];
+    }
+
+    private static function itemKey(string $name): string
+    {
+        $name = strtr(mb_strtolower($name), [
+            'á'=>'a','à'=>'a','â'=>'a','ä'=>'a','ã'=>'a','å'=>'a','æ'=>'ae',
+            'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e','í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+            'ó'=>'o','ò'=>'o','ô'=>'o','ö'=>'o','õ'=>'o','œ'=>'oe',
+            'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u','ñ'=>'n','ç'=>'c','ß'=>'ss',
+        ]);
+        $key = preg_replace('/[^\p{L}\p{N}]+/u', '', $name);
+        // Prefix keeps number-only names as string keys in JSON and PHP arrays.
+        return $key === '' ? '' : 'n:'.$key;
+    }
+
+    private static function matchingKeys(array $associations, string $key): array
+    {
+        if ($key === '') return [];
+        if (array_key_exists($key, $associations)) return [$key];
+        $name = substr($key, 2);
+        $best = 3; $matches = [];
+        foreach ($associations as $candidateKey => $_) {
+            $candidate = substr($candidateKey, 2);
+            // Spacing/case normalization works for all scripts. Typo matching is
+            // limited to Latin names and never confuses different numeric sizes.
+            if (!preg_match('/^[a-z0-9]+$/', $name) || !preg_match('/^[a-z0-9]+$/', $candidate)
+                || preg_replace('/[^0-9]/', '', $name) !== preg_replace('/[^0-9]/', '', $candidate)) continue;
+            $length = min(strlen($name), strlen($candidate));
+            $limit = $length >= 10 ? 2 : ($length >= 5 || ($length >= 4 && strlen($name) !== strlen($candidate)) ? 1 : 0);
+            if ($length < 4 || abs(strlen($name) - strlen($candidate)) > 3) continue;
+            $distance = levenshtein($name, $candidate);
+            // Common singular/plural changes should survive longer suffixes too.
+            if ($name.'s' === $candidate || $candidate.'s' === $name
+                || $name.'es' === $candidate || $candidate.'es' === $name
+                || (str_ends_with($name, 'ies') && substr($name, 0, -3).'y' === $candidate)
+                || (str_ends_with($candidate, 'ies') && substr($candidate, 0, -3).'y' === $name)) $distance = 1;
+            if ($distance === 2 && strlen($name) === strlen($candidate)) {
+                // A single adjacent transposition is a common one-character typo.
+                for ($i = 0; $i < strlen($name) - 1; $i++) {
+                    $swapped = $name;
+                    [$swapped[$i], $swapped[$i + 1]] = [$swapped[$i + 1], $swapped[$i]];
+                    if ($swapped === $candidate) { $distance = 1; $limit = max(1, $limit); break; }
+                }
+            }
+            if ($distance > $limit || $distance > $best) continue;
+            if ($distance < $best) { $best = $distance; $matches = []; }
+            $matches[] = $candidateKey;
+        }
+        return $matches;
+    }
+
+    private static function remember(array &$associations, string $name, string $department): void
+    {
+        $key = self::itemKey($name);
+        if ($key === '') return;
+        // A correction to a spelling variant also updates its closest known names.
+        unset($associations[$key]);
+        foreach (self::matchingKeys($associations, $key) as $match) {
+            unset($associations[$match]);
+            $associations[$match] = $department;
+        }
+        $associations[$key] = $department;
     }
 
     public function save(string $user, string $household, array $body): array
@@ -46,7 +116,7 @@ final class ShoppingListService
             // Serialize household edits, including the first list creation.
             $q = $this->pdo->prepare('SELECT id FROM households WHERE id=? FOR UPDATE');
             $q->execute([$household]);
-            $old = $this->read($user, $household);
+            $old = $this->readState($user, $household);
             if ($old['revision'] !== $body['revision']) throw new HttpError(409, 'shopping_conflict', 'The shopping list changed. Review the updated list and try again.');
             $departments = array_key_exists('departments', $body) ? $body['departments'] : $old['departments'];
             if (!is_array($departments) || array_values($departments) !== $departments || count($departments) > 50) {
@@ -61,8 +131,47 @@ final class ShoppingListService
                 $names[] = mb_strtolower($department);
             }
             $items = self::validate($body, $departments);
+            $renames = $body['department_renames'] ?? [];
+            if (!is_array($renames)) throw new HttpError(422, 'invalid_departments', 'Choose a valid department rename.');
+            foreach ($renames as $from => $to) {
+                if (!in_array((string)$from, $old['departments'], true) || in_array((string)$from, $departments, true)
+                    || !is_string($to) || !in_array($to, $departments, true)) {
+                    throw new HttpError(422, 'invalid_departments', 'Choose a valid department rename.');
+                }
+            }
+            $associations = [];
+            foreach ($old['associations'] as $key => $department) {
+                $department = $renames[$department] ?? $department;
+                if ($department === '' || in_array($department, $departments, true)) $associations[$key] = $department;
+            }
+            $oldItems = [];
+            foreach ($old['items'] as $item) {
+                $oldItems[$item['id']] = $item;
+                // Learn existing assignments when upgrading an older household list.
+                $department = $renames[$item['department']] ?? $item['department'];
+                $key = self::itemKey($item['name']);
+                if ($key !== '' && $department !== '' && in_array($department, $departments, true)
+                    && !array_key_exists($key, $associations)) $associations[$key] = $department;
+            }
+            foreach ($items as $item) {
+                $previous = $oldItems[$item['id']] ?? null;
+                if (($previous !== null && ($previous['department'] !== $item['department'] || $previous['name'] !== $item['name']))
+                    || ($previous === null && $item['department'] !== '')) {
+                    self::remember($associations, $item['name'], $item['department']);
+                }
+            }
+            foreach ($items as &$item) {
+                if (!isset($oldItems[$item['id']]) && $item['department'] === '') {
+                    $matches = self::matchingKeys($associations, self::itemKey($item['name']));
+                    $choices = array_unique(array_map(fn($key) => $associations[$key], $matches));
+                    if (count($choices) === 1) $item['department'] = reset($choices);
+                }
+            }
+            unset($item);
+            // Bound household metadata while retaining the most recently taught names.
+            $associations = array_slice($associations, -1000, null, true);
             $revision = $old['revision'] + 1;
-            $json = json_encode(['items'=>$items, 'departments'=>$departments], JSON_THROW_ON_ERROR);
+            $json = json_encode(['items'=>$items, 'departments'=>$departments, 'associations'=>$associations], JSON_THROW_ON_ERROR);
             if ($old['revision'] === 0) {
                 $this->pdo->prepare('INSERT INTO shopping_lists (household_id,revision,items) VALUES (?,?,?)')->execute([$household,$revision,$json]);
             } else {

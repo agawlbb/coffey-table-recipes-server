@@ -65,3 +65,30 @@ including PHP fixtures, 107 Python checks, idempotent schema verification and
 runtime deployment. Independently verified the matching hosted receipt, HTTP
 200 health and HTTP 401 unauthenticated shopping-list access. No live household
 items were modified during verification and no hosted Flutter app was deployed.
+
+Household item department memory (2026-10-18): the existing shopping-list JSON
+envelope now retains up to 1,000 recently taught normalized item names per
+household. Membership checks, household row locking, revision comparison, items,
+configuration and associations are part of the same transaction. Clients cannot
+supply association metadata. GET and POST keep the existing public response
+shape; only newly added unassigned items are classified by the server. Existing
+items are not moved when a different item teaches a preference. Current assigned
+items seed older household lists on their next successful write. Removal and
+check-off do not erase the memory; an explicit move to unassigned remembers that
+choice. Correcting a close spelling updates its closest stored names as well.
+
+Matching folds case and common Latin accents, removes whitespace/punctuation,
+and preserves letters/digits across scripts. Latin typo matching accepts one
+edit for names of at least five characters (four when length changes), two for
+names of at least ten, adjacent transpositions from four characters, and common
+plural endings. Exact normalized matches take priority. Equally close matches
+in different departments stay unassigned, as do unrelated short words or names
+with different numeric sizes. Household metadata is capped to bound lookup work.
+
+Department renames may include department_renames mapping removed names to
+valid replacement departments; the app sends this to preserve associations for
+items no longer in the list. Removed departments drop their old associations.
+No schema migration is needed. PHP fixtures cover persistence after removal,
+all household members, isolation, stale edits, explicit clearing/corrections,
+spacing/case/accents/typos/plurals, ambiguous matches, numeric sizes, renaming
+without live items, deletion, legacy seeding and the 1,000-entry limit.
