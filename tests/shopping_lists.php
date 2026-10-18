@@ -70,6 +70,8 @@ checkShopping($service->read('1','1')===$saved);
 $pdo->prepare('UPDATE shopping_lists SET items=? WHERE household_id=1')->execute([json_encode([$milk])]);
 checkShopping($service->read('1','1')['items'][0]['name']===' Milk ');
 checkShopping(in_array('Produce',$service->read('1','1')['departments'],true));
+$legacy=$service->save('1','1',['revision'=>$service->read('1','1')['revision'],'items'=>[['id'=>'legacy-new','name'=>'mILK','department'=>'','checked'=>false]]]);
+checkShopping($legacy['items'][0]['department']==='Dairy & eggs');
 echo "Department configuration and legacy compatibility checks passed\n";
 
 // Durable household item-to-department memory (all data is an isolated fixture).

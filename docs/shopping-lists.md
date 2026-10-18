@@ -92,3 +92,11 @@ No schema migration is needed. PHP fixtures cover persistence after removal,
 all household members, isolation, stale edits, explicit clearing/corrections,
 spacing/case/accents/typos/plurals, ambiguous matches, numeric sizes, renaming
 without live items, deletion, legacy seeding and the 1,000-entry limit.
+
+Hosted association validation (2026-10-18): main deployment run 39143008423
+completed successfully, including PHP fixtures, Python deployment checks and
+hosted prerequisite checks. Independently verified the hosted receipt for
+e3a510a1a486fba6fadab6f23bdd90a34622c022. A further local fixture confirms
+an assigned item in legacy array storage seeds automatic placement of a new
+item with a differently capitalized name. All local PHP fixtures pass. No live
+household list was modified for testing and no Flutter app was deployed.
