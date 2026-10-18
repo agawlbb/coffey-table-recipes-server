@@ -1,0 +1,31 @@
+name: Deploy shopping list backend
+on:
+  push:
+    branches: [codex/shopping-list]
+permissions:
+  contents: read
+concurrency:
+  group: hosted-backend
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: contains(github.event.head_commit.message, '[deploy-shopping-list]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CPANEL_USER: ${{ secrets.CPANEL_USER }}
+      CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, pdo_sqlite, curl, mbstring, openssl
+          tools: composer:v2
+      - run: git ls-files -z '*.php' | xargs -0 -n1 php -l
+      - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - run: php tests/shopping_lists.php
+      - run: python3 -m pip install requests==2.32.5
+      - run: python3 -m unittest discover -s tool -p 'test_*.py'
+      - run: python3 tool/migrate-shopping-lists.py
+      - run: python3 tool/deploy-backend.py

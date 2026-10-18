@@ -42,6 +42,13 @@ try {
         elseif ($method === 'GET') $result=$service->list($user['id']);
         else $result=$service->change($user['id'],$identity['uid'],requestBody());
         respond(200,$result);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/shopping-list$#', $route, $shoppingMatch)) {
+        if (!in_array($method, ['GET', 'POST'], true)) throw new HttpError(405, 'method_not_allowed', 'Use GET or POST.');
+        $identity = authenticatedIdentity($config); $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $service = new ShoppingListService($pdo, $households);
+        respond(200, $method === 'GET' ? $service->read($user['id'], $shoppingMatch[1]) : $service->save($user['id'], $shoppingMatch[1], requestBody(524288)));
     } elseif ($route === '/me/verification-email') {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);

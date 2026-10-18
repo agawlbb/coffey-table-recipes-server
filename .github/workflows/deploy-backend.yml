@@ -42,6 +42,7 @@ jobs:
         run: |
           php tests/invitation-mail.php
           php tests/verification.php
+          php tests/shopping_lists.php
           php tests/timer_sync.php
           php tests/migration_checksums.php
           php tests/recipe_deletion.php
@@ -73,6 +74,12 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/migrate-household-images.py
+      - name: Back up recipe database and enable shopping lists
+        if: env.HOSTING_CONFIGURED == 'true'
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/migrate-shopping-lists.py
       - name: Check hosted PHP version
         if: env.HOSTING_CONFIGURED == 'true'
         env:
