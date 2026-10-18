@@ -4,6 +4,9 @@
 `POST` accepts the same shape, with the revision from the last read. Each item
 has a unique `id`, a `name` (1–200 characters), a boolean `checked`, and a
 `department` from `ShoppingListService::DEPARTMENTS`. Lists hold up to 500 items.
+An empty department string represents an unassigned item. This is distinct from
+the named Other department. Existing department values remain unchanged. The
+client displays unassigned items first and new items use the empty string.
 Both operations require membership in that household; every member may edit.
 
 Writes lock the household row and compare revisions in a transaction. Stale
@@ -34,3 +37,10 @@ verified the matching hosted backend receipt, HTTP 200 health response, and
 HTTP 401 for an unauthenticated shopping-list read. Household sharing and write
 conflicts were verified with service fixtures; no live household list was
 modified for testing. The hosted Flutter app was preserved.
+
+Unassigned-item deployment (2026-10-18): run 39137830097 succeeded for
+c41a0eb14fff7bf3e365de8168ca15a085037266. Independently verified the matching
+hosted backend receipt. The workflow passed its PHP shopping-list checks and
+107 Python checks. Empty department strings require no database schema change.
+The Flutter source has 12 passing focused shopping-list tests; these app changes
+still require an explicitly authorized local web rebuild.

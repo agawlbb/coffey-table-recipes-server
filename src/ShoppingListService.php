@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class ShoppingListService
 {
-    public const DEPARTMENTS = ['Other', 'Produce', 'Dairy & eggs', 'Meat & seafood', 'Bakery', 'Pantry', 'Frozen', 'Deli', 'Drinks', 'Household'];
+    public const DEPARTMENTS = ['', 'Other', 'Produce', 'Dairy & eggs', 'Meat & seafood', 'Bakery', 'Pantry', 'Frozen', 'Deli', 'Drinks', 'Household'];
     public function __construct(private PDO $pdo, private HouseholdService $households) {}
 
     public static function validate(array $body): array
@@ -18,7 +18,7 @@ final class ShoppingListService
                 || !preg_match('/^[a-zA-Z0-9_-]{1,80}$/', $item['id']) || isset($ids[$item['id']])
                 || !is_string($item['name'] ?? null) || trim($item['name']) === '' || mb_strlen($item['name']) > 200
                 || !is_bool($item['checked'] ?? null) || !in_array($item['department'] ?? null, self::DEPARTMENTS, true)) {
-                throw new HttpError(422, 'invalid_item', 'Enter an item of 1 to 200 characters and choose a department.');
+                throw new HttpError(422, 'invalid_item', 'Enter an item of 1 to 200 characters with a valid department.');
             }
             $ids[$item['id']] = true;
             $items[] = ['id'=>$item['id'], 'name'=>trim($item['name']), 'checked'=>$item['checked'], 'department'=>$item['department']];

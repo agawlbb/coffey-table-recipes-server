@@ -39,4 +39,14 @@ foreach ([[$milk,$milk], [array_replace($milk,['checked'=>'true'])], [array_repl
 $saved = $service->save('1','1',['revision'=>2,'items'=>[$milk]]);
 checkShopping(count($saved['items'])===1 && $saved['items'][0]['id']==='milk');
 checkShopping($service->save('2','1',['revision'=>3,'items'=>[]])['items']===[]);
+$unassigned = array_replace($apple, ['department'=>'', 'checked'=>false]);
+$saved = $service->save('1','1',['revision'=>4,'items'=>[$unassigned,$milk]]);
+checkShopping($service->read('2','1')['items'][0]['department']==='');
+checkShopping($saved['items'][1]['department']==='Dairy & eggs');
+$assigned = array_replace($unassigned, ['department'=>'Produce']);
+$service->save('2','1',['revision'=>5,'items'=>[$assigned,$milk]]);
+checkShopping($service->read('1','1')['items'][0]['department']==='Produce');
+$service->save('1','1',['revision'=>6,'items'=>[$unassigned,$milk]]);
+checkShopping($service->read('2','1')['items'][0]['department']==='');
+rejectShopping(fn()=>$service->save('1','1',['revision'=>7,'items'=>[array_replace($apple,['department'=>null])]]),422);
 echo "Shopping list sharing, ordering, validation, isolation and conflict checks passed\n";
