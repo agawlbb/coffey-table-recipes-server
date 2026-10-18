@@ -28,6 +28,45 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
+    } elseif ($route === '/home-assistant/auth-config') {
+        if ($method !== 'GET') throw new HttpError(405, 'method_not_allowed', 'Use GET.');
+        $file = __DIR__ . '/config/home-assistant.local.json';
+        $client = is_file($file) ? json_decode(file_get_contents($file), true, 8, JSON_THROW_ON_ERROR) : [];
+        if (empty($client['api_key'])) throw new HttpError(503, 'auth_unavailable', 'Home Assistant sign-in is not configured.');
+        // Firebase web API keys identify the public project; they grant no household access.
+        respond(200, ['api_key'=>$client['api_key']]);
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/home-assistant-connections(?:/([a-f0-9]{64}))?$#', $route, $haMatch)) {
+        if ((isset($haMatch[2]) && $method !== 'DELETE') || (!isset($haMatch[2]) && !in_array($method, ['GET','POST'], true))) throw new HttpError(405, 'method_not_allowed', 'Unsupported request.');
+        if ($method === 'POST') requestBody();
+        $identity = authenticatedIdentity($config); $pdo = database($config);
+        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $user = $households->bootstrap($identity);
+        $households->membership($user['id'], $haMatch[1], true);
+        $connections = new HomeAssistantConnections(__DIR__.'/storage/home-assistant-connections');
+        if ($method === 'DELETE') { $connections->revokeById($haMatch[1], $haMatch[2]); respond(200, ['revoked'=>true]); }
+        elseif ($method === 'GET') respond(200, ['connections'=>$connections->list($haMatch[1])]);
+        else respond(200, $connections->create($haMatch[1]));
+    } elseif (in_array($route, ['/home-assistant/shopping-list', '/home-assistant/connection'], true)) {
+        if (($route === '/home-assistant/connection' && $method !== 'DELETE') || ($route !== '/home-assistant/connection' && !in_array($method, ['GET','POST'], true))) throw new HttpError(405, 'method_not_allowed', 'Unsupported request.');
+        $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+        $token = preg_match('/^Bearer (ctrha_[a-f0-9]{64})$/D', $header, $haToken) ? $haToken[1] : '';
+        $connections = new HomeAssistantConnections(__DIR__.'/storage/home-assistant-connections');
+        $household = $connections->household($token);
+        if ($route === '/home-assistant/connection') {
+            $connections->revoke($token); respond(200, ['revoked'=>true]);
+        } else {
+            $pdo = database($config);
+            $authorize = static function (string $id) use ($connections, $token, $household, $pdo): void {
+                if ($id !== $household || $connections->household($token) !== $id) throw new HttpError(401, 'invalid_connection', 'Reconnect Home Assistant.');
+                $q = $pdo->prepare('SELECT id FROM households WHERE id=?'); $q->execute([$id]);
+                if ($q->fetchColumn() === false) throw new HttpError(401, 'invalid_connection', 'Household no longer exists.');
+            };
+            $body = $method === 'POST' ? requestBody(524288) : null;
+            if ($body !== null && array_diff(array_keys($body), ['revision','items']) !== []) throw new HttpError(422, 'invalid_list', 'Only shopping items may be changed.');
+            if ($body !== null && (!is_int($body['revision'] ?? null) || $body['revision'] < 0 || !is_array($body['items'] ?? null))) throw new HttpError(422, 'invalid_list', 'Supply the current revision and items.');
+            $service = new ShoppingListService($pdo, new HouseholdService($pdo), $authorize);
+            respond(200, $method === 'GET' ? $service->read('', $household) : $service->save('', $household, $body));
+        }
     } elseif (preg_match('#^/recipes/([1-9][0-9]{0,18})$#', $route, $publicRecipe)) {
         if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
         $pdo=database($config);

@@ -14,12 +14,17 @@ CREATE TABLE shopping_lists (household_id INTEGER PRIMARY KEY,revision INTEGER,i
 INSERT INTO households VALUES (1),(2);
 INSERT INTO household_memberships VALUES (1,1,'owner'),(1,2,'member'),(2,3,'owner');");
 $service = new ShoppingListService($pdo, new HouseholdService($pdo));
+$connectionService = new ShoppingListService($pdo, new HouseholdService($pdo), static function (string $id): void {
+    if ($id !== '1') throw new HttpError(401, 'invalid_connection', 'Wrong household.');
+});
 function checkShopping(bool $ok): void { if (!$ok) throw new RuntimeException('Shopping list assertion failed'); }
 function rejectShopping(callable $call, int $status): void {
     try { $call(); throw new RuntimeException('Expected rejection'); }
     catch (HttpError $error) { checkShopping($error->status === $status); }
 }
 checkShopping($service->read('1','1')['revision'] === 0 && $service->read('1','1')['items'] === []);
+checkShopping($connectionService->read('', '1')['items'] === []);
+rejectShopping(fn()=>$connectionService->read('', '2'),401);
 $milk = ['id'=>'milk','name'=>' Milk ','department'=>'Dairy & eggs','checked'=>false];
 $apple = ['id'=>'apple','name'=>'Apples','department'=>'Produce','checked'=>false];
 $saved = $service->save('1','1',['revision'=>0,'items'=>[$milk,$apple]]);

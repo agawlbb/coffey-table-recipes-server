@@ -4,7 +4,7 @@ declare(strict_types=1);
 final class ShoppingListService
 {
     public const DEPARTMENTS = ['', 'Other', 'Produce', 'Dairy & eggs', 'Meat & seafood', 'Bakery', 'Pantry', 'Frozen', 'Deli', 'Drinks', 'Household'];
-    public function __construct(private PDO $pdo, private HouseholdService $households) {}
+    public function __construct(private PDO $pdo, private HouseholdService $households, private ?Closure $authorize = null) {}
 
     public static function validate(array $body, ?array $departments = null): array
     {
@@ -35,7 +35,8 @@ final class ShoppingListService
 
     private function readState(string $user, string $household): array
     {
-        $this->households->membership($user, $household);
+        if ($this->authorize !== null) ($this->authorize)($household);
+        else $this->households->membership($user, $household);
         $q = $this->pdo->prepare('SELECT revision, items FROM shopping_lists WHERE household_id=?');
         $q->execute([$household]); $row = $q->fetch(PDO::FETCH_ASSOC);
         $stored = $row ? json_decode($row['items'], true, 16, JSON_THROW_ON_ERROR) : [];
