@@ -19,7 +19,7 @@ function rejectShopping(callable $call, int $status): void {
     try { $call(); throw new RuntimeException('Expected rejection'); }
     catch (HttpError $error) { checkShopping($error->status === $status); }
 }
-checkShopping($service->read('1','1') === ['revision'=>0,'items'=>[]]);
+checkShopping($service->read('1','1')['revision'] === 0 && $service->read('1','1')['items'] === []);
 $milk = ['id'=>'milk','name'=>' Milk ','department'=>'Dairy & eggs','checked'=>false];
 $apple = ['id'=>'apple','name'=>'Apples','department'=>'Produce','checked'=>false];
 $saved = $service->save('1','1',['revision'=>0,'items'=>[$milk,$apple]]);
@@ -50,3 +50,24 @@ $service->save('1','1',['revision'=>6,'items'=>[$unassigned,$milk]]);
 checkShopping($service->read('2','1')['items'][0]['department']==='');
 rejectShopping(fn()=>$service->save('1','1',['revision'=>7,'items'=>[array_replace($apple,['department'=>null])]]),422);
 echo "Shopping list sharing, ordering, validation, isolation and conflict checks passed\n";
+
+// Department configuration is shared and survives writes from older clients.
+$saved = $service->save('1','1',['revision'=>7,'departments'=>['Farm stand','Dairy & eggs'], 'items'=>[array_replace($apple,['department'=>'Farm stand']),$milk]]);
+checkShopping($service->read('2','1')['departments'] === ['Farm stand','Dairy & eggs']);
+$saved = $service->save('2','1',['revision'=>8,'items'=>$saved['items']]);
+checkShopping($saved['departments'] === ['Farm stand','Dairy & eggs']);
+rejectShopping(fn()=>$service->save('1','1',['revision'=>9,'departments'=>['Farm stand','farm stand'],'items'=>[]]),422);
+rejectShopping(fn()=>$service->save('1','1',['revision'=>9,'departments'=>[''],'items'=>[]]),422);
+rejectShopping(fn()=>$service->save('1','1',['revision'=>9,'departments'=>null,'items'=>[]]),422);
+rejectShopping(fn()=>$service->save('3','1',['revision'=>9,'departments'=>[],'items'=>[]]),404);
+rejectShopping(fn()=>$service->save('1','1',['revision'=>9,'departments'=>['Dairy & eggs'],'items'=>$saved['items']]),422);
+$saved['items'][0]['department']='';
+$saved=$service->save('2','1',['revision'=>9,'departments'=>['Dairy & eggs'],'items'=>$saved['items']]);
+checkShopping($saved['items'][0]['department']==='' && $saved['departments']===['Dairy & eggs']);
+rejectShopping(fn()=>$service->save('1','1',['revision'=>9,'departments'=>[],'items'=>[]]),409);
+checkShopping($service->read('1','1')===$saved);
+// Explicitly verify legacy storage remains readable.
+$pdo->prepare('UPDATE shopping_lists SET items=? WHERE household_id=1')->execute([json_encode([$milk])]);
+checkShopping($service->read('1','1')['items'][0]['name']===' Milk ');
+checkShopping(in_array('Produce',$service->read('1','1')['departments'],true));
+echo "Department configuration and legacy compatibility checks passed\n";

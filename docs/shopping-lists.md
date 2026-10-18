@@ -44,3 +44,24 @@ hosted backend receipt. The workflow passed its PHP shopping-list checks and
 107 Python checks. Empty department strings require no database schema change.
 The Flutter source has 12 passing focused shopping-list tests; these app changes
 still require an explicitly authorized local web rebuild.
+
+Household department settings are stored alongside items in a JSON
+envelope in the existing shopping_lists.items column. Legacy item-array rows
+remain readable; item writes that omit departments preserve the current names
+and order. GET responses include departments. A POST may include departments
+and items together, using the same revision check and household membership.
+Names must be unique ignoring case, nonempty, trimmed, at most 60 characters;
+there may be up to 50 departments. Empty configurations are supported.
+Renaming remaps assigned items in the same write; removing a department moves
+its items to the unassigned group. No schema migration is required.
+
+Validation: PHP fixtures cover custom names, shared configuration, preservation
+by item-only clients, duplicate/invalid names, stale revisions, household
+isolation, removing assignments, and reading legacy stored lists.
+
+Hosted configuration validation (2026-10-18): deployment run 39141016652
+completed successfully for a26438d669c5d3b60a1eaddc0486bd5738278b53,
+including PHP fixtures, 107 Python checks, idempotent schema verification and
+runtime deployment. Independently verified the matching hosted receipt, HTTP
+200 health and HTTP 401 unauthenticated shopping-list access. No live household
+items were modified during verification and no hosted Flutter app was deployed.
