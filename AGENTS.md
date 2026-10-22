@@ -15,7 +15,7 @@ Complete and verify project work, commit it, and push it to the existing GitHub 
 - On the laptop's return, the owner reviews against current main, preserves unique work, merges only accepted changes, tests, commits and synchronizes with GitHub. Remove temporary branches only after accepted work is preserved and synchronization verified; archive rejected work recoverably before retiring its branch.
 - Recovery archives are historical evidence, not active checkouts. Never merge them into main, reset their saved edits, or purge them during routine cleanup. Do not revive rejected or obsolete diagnostic branches.
 - Keep related implementation, documentation and validation in meaningful commits. Preserve useful regression tests, current release/deployment configuration and immutable release tags. Published history rewrites require a verified backup, explicit authorization, an exact remote-head check and explicit expected-SHA force-with-lease.
-- The owner explicitly requested persistent force-push access for `agawlbb` on both CTR main branches on 2026-10-22. Leave that access enabled; do not reintroduce force-push blocking or change other branch-protection settings without specific approval. This setting does not authorize unrequested history rewrites or blind force pushes.
+- The owner explicitly requires no branch protection in either CTR repository. Both main-branch protection rules were removed on 2026-10-22. Do not create or restore branch-protection rules, rulesets, force-push restrictions, or equivalent controls unless the owner explicitly requests them. History rewrites still require the authorization, backup and exact-SHA lease checks above.
 
 # Hosted development workflow
 
