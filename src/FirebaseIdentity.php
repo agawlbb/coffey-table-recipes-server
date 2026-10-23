@@ -55,7 +55,7 @@ final class FirebaseIdentity
             if ($email !== null && (strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL))) $email = null;
             return ['uid' => $claims['sub'], 'name' => is_string($claims['name'] ?? null)
                 ? mb_substr($claims['name'], 0, 200) : null,
-                'email' => $email, 'email_verified' => ($claims['email_verified'] ?? false) === true];
+                'auth_time' => $claims['auth_time'], 'email' => $email, 'email_verified' => ($claims['email_verified'] ?? false) === true];
         } catch (Throwable $error) {
             throw new HttpError(401, 'invalid_token', 'Please sign in again.');
         }

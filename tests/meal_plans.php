@@ -27,6 +27,7 @@ $now=new DateTimeImmutable('2026-10-22T03:30:00Z'); // Still Oct 21 in household
 $pdo->exec('CREATE TABLE household_restaurant_lists(household_id INTEGER PRIMARY KEY,revision INTEGER,items_json TEXT)');
 $pdo->exec('ALTER TABLE meal_plan_entries ADD COLUMN restaurant_id TEXT');
 $pdo->exec('ALTER TABLE meal_plan_entries ADD COLUMN restaurant_logo_reference TEXT');
+$pdo->exec("ALTER TABLE recipes ADD COLUMN source_type TEXT DEFAULT 'website'");
 $service=new MealPlanService($pdo,new HouseholdService($pdo),clock:static function()use(&$now){return $now;});
 $checks=0;
 function checkMeal(bool $value,string $message):void{global $checks;if(!$value)throw new RuntimeException($message);$checks++;}
@@ -55,6 +56,12 @@ checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['planned_hi
 changeMeal('add','meal-b','2026-10-22',['recipe_id'=>'1']);
 changeMeal('add','placeholder','2026-10-22',['kind'=>'leftovers']);
 checkMeal(count($service->ingredients('1','1','2026-10-22','2026-10-23')['ingredients'])===2,'Each occurrence contributes ingredients, placeholders excluded');
+$pdo->exec("UPDATE recipes SET source_type='blank' WHERE id=1");
+$blanks=$service->ingredients('1','1','2026-10-22','2026-10-23')['blank_recipes'];
+if (!$blanks || (string)$blanks[0]['id']!=='1') throw new RuntimeException('Blank recipe warning missing');
+echo "Blank recipe ingredient warning passed.\n";
+$pdo->exec("UPDATE recipes SET source_type='website' WHERE id=1");
+
 $now=new DateTimeImmutable('2026-10-23T12:00:00Z');
 checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['planned_history'])===2,'Automatic rollover without confirmation or job');
 rejectMeal(fn()=>$service->ingredients('1','1','2026-10-22','2026-10-23'),422);

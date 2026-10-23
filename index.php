@@ -19,7 +19,24 @@ try {
     }
     $route = substr($path, strlen($prefix));
     $method = $_SERVER['REQUEST_METHOD'];
-    if ($method === 'OPTIONS') {
+    $childModes = new ChildMode(__DIR__.'/storage/child-mode');
+    if (!ChildMode::allowed($route,$method) && !str_starts_with($route,'/home-assistant/')) {
+        $childModes->guard(authenticatedIdentity($config),$route,$method);
+    }
+    if ($route === '/me/child-mode' && in_array($method,['GET','POST'],true)) {
+        $identity=authenticatedIdentity($config);
+        $h=new HouseholdService(database($config),[new FirebaseAccountDirectory($config),'requireAccount']);
+        $h->bootstrap($identity);
+        respond(200,$method==='GET'?$childModes->state($identity):$childModes->change($identity,requestBody()));
+    } elseif (preg_match('#^/admin/users/([1-9][0-9]*)/reset-child-mode$#D',$route,$resetMatch) && $method==='POST') {
+        $pdo=database($config);$identity=authenticatedIdentity($config);
+        $h=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);$actor=$h->bootstrap($identity);
+        (new AdministrationService($pdo,static function(){}))->requireAdministrator($actor['id']);
+        if ((requestBody()['confirm']??false)!==true) throw new HttpError(422,'confirmation_required','Confirm the child mode reset.');
+        $q=$pdo->prepare('SELECT firebase_uid FROM users WHERE id=?');$q->execute([$resetMatch[1]]);$uid=$q->fetchColumn();
+        if (!is_string($uid)) throw new HttpError(404,'user_not_found','User not found.');
+        respond(200,$childModes->requestReset($uid));
+    } elseif ($method === 'OPTIONS') {
         http_response_code(204);
     } elseif ($route === '/health') {
         if ($method !== 'GET') {
@@ -383,6 +400,7 @@ try {
         $service = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $service->bootstrap($identity);
         if ($route === '/me' && $method === 'GET') {
+            $user['child_mode']=$childModes->state($identity)['enabled'];
             $pending = invitationService($pdo, $service, $config)->pending($user);
             respond(200, ['user' => $user, 'households' => $service->households($user['id']),
                 'invitations' => $pending['invitations'], 'invitation_verification_required' => $pending['verification_required']]);

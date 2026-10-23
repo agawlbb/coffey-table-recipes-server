@@ -26,6 +26,7 @@ $claims = ['sub' => 'alice', 'aud' => 'test-project', 'iss' => 'https://secureto
     'name' => 'Alice', 'firebase' => ['sign_in_provider' => 'google.com']];
 $encode = static fn(array $payload): string => JWT::encode($payload, $privateKey, 'RS256', 'test-key');
 check($verifier->verify($encode($claims))['uid'] === 'alice', 'Valid signed identity rejected.');
+check($verifier->verify($encode($claims))['auth_time'] === $claims['auth_time'], 'Verified login time not retained.');
 check($verifier->verify($encode(array_replace($claims, ['firebase' => ['sign_in_provider' => 'password']])))['uid'] === 'alice', 'Email identity rejected.');
 foreach ([['aud', 'another-project'], ['iss', 'https://attacker.example'], ['sub', ''],
     ['sub', str_repeat('x', 129)], ['exp', time() - 1], ['iat', time() + 100],
@@ -44,6 +45,8 @@ rejected(static fn() => $verifier->verify(JWT::encode($claims, str_repeat('x', 6
 rejected(static fn() => $verifier->verify(JWT::encode($claims, $privateKey, 'RS256', 'unknown-key')), 401);
 rejected(static fn() => $verifier->verify('invalid'), 401);
 rejected(static fn() => (new FirebaseIdentity('', static fn() => []))->verify($token), 503);
+
+if (in_array('--identity-only', $argv, true)) {echo "$count signed identity checks passed.\n"; exit;}
 
 // Disposable database created solely for this test. Never modify household data.
 $config = configuration();

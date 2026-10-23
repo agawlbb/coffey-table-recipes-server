@@ -131,7 +131,8 @@ final class MealPlanService
         if ($missing) throw new HttpError(409,'unavailable_meal','A planned recipe is unavailable. Update the plan before collecting ingredients.');
         $rows=$this->rows("SELECT i.*,e.id AS meal_entry_id,e.plan_date,r.title AS recipe_title FROM meal_plan_entries e JOIN recipes r ON r.id=e.recipe_id AND r.deleted_at IS NULL JOIN recipe_households h ON h.recipe_id=r.id AND h.household_id=e.household_id AND h.removed_at IS NULL JOIN recipe_ingredients i ON i.recipe_id=r.id WHERE e.household_id=? AND e.kind='recipe' AND e.plan_date BETWEEN ? AND ? ORDER BY e.plan_date,e.id,i.position,i.id",[$household,$from,$to]);
         foreach ($rows as &$row) unset($row['household_id']);
-        return ['ingredients'=>$rows];
+        $blank=$this->rows("SELECT DISTINCT r.id,r.title FROM meal_plan_entries e JOIN recipes r ON r.id=e.recipe_id AND r.deleted_at IS NULL WHERE e.household_id=? AND e.kind='recipe' AND e.plan_date BETWEEN ? AND ? AND r.source_type='blank' ORDER BY r.title,r.id",[$household,$from,$to]);
+        return ['ingredients'=>$rows,'blank_recipes'=>$blank];
     }
 
     public function history(string $user,string $household,string $from,string $to): array {

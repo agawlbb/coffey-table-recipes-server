@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/HttpError.php';
+require_once __DIR__ . '/ChildMode.php';
 require_once __DIR__ . '/HomeAssistantConnections.php';
 require_once __DIR__ . '/ShoppingSyncRequests.php';
 require_once __DIR__ . '/ShoppingListService.php';
