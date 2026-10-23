@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
+    if: contains(github.event.head_commit.message, '[deploy-meal-plan]') || contains(github.event.head_commit.message, '[verify-meal-plan]')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -44,12 +44,8 @@ jobs:
       - run: python3 -m pip install requests==2.32.5
       - run: python3 -m unittest discover -s tool -p 'test_*.py'
       - run: python3 tool/migrate-meal-plans.py
+        if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
       - run: python3 tool/deploy-backend.py
+        if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
       - name: Verify authenticated route is protected
-        run: |
-          python3 - <<'PY'
-          import requests
-          response=requests.get('https://coffeybean.com/CoffeyTableRecipes/api/v1/households/1/meal-plan',params={'from':'2026-10-22','to':'2026-10-23'},timeout=60)
-          assert response.status_code==401, 'Meal planner must require authentication'
-          assert response.json()['error']['code']=='authentication_required'
-          PY
+        run: python3 tool/verify-meal-plan-http.py
