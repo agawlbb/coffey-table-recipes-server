@@ -79,3 +79,8 @@ No Flutter builds, hosted frontend changes, release tags or main merges occurred
 
 ## Main integration (2026-10-23)
 Merged backend main `0dad2b1ef28682881bf206c493178064e3248124` into the meal-planning feature history. Shared runtime code already contained the main snapshot and save-receipt work; only the main compatibility-validation record was missing. Preserved the planner routes, complete snapshot integration, migrations and deployment guard. Local receipt, snapshot (26 queries), meal-plan (23 checks), shopping and shared-recipe fixtures passed; all 121 mocked Python tool tests passed. No schema changes, hosted deployment or app build performed for this integration.
+
+## Household restaurants (2026-10-23)
+Migration 018 adds a household-scoped restaurant list with revision conflict checks and reserved nullable logo references. Meal-plan restaurant entries snapshot their selected name, ID and logo reference, preserving history after configuration changes. All household members can manage the shared list; membership is enforced for reads and writes. Generic Restaurant remains available without configuration.
+
+Validation: PHP planner, snapshot (28 fixed queries), receipt, shopping and shared-recipe fixtures passed; PHP syntax checks passed; 126 Python tooling tests passed. Deployment uses the existing protected backup/checksum migration runner and verifies runtime source privately. The coordinated local Wi-Fi origin helper adds only http://192.168.12.194 to the private allowlist, preserves other configuration and verifies GET/OPTIONS for LAN and localhost.

@@ -24,6 +24,9 @@ INSERT INTO recipe_ingredients VALUES(1,1,1,0,'Onion','2');
 INSERT INTO cooking_events VALUES(1,1,'2026-10-20 12:00:00');
 INSERT INTO cooking_event_recipes VALUES(1,1,2,1);");
 $now=new DateTimeImmutable('2026-10-22T03:30:00Z'); // Still Oct 21 in household zone.
+$pdo->exec('CREATE TABLE household_restaurant_lists(household_id INTEGER PRIMARY KEY,revision INTEGER,items_json TEXT)');
+$pdo->exec('ALTER TABLE meal_plan_entries ADD COLUMN restaurant_id TEXT');
+$pdo->exec('ALTER TABLE meal_plan_entries ADD COLUMN restaurant_logo_reference TEXT');
 $service=new MealPlanService($pdo,new HouseholdService($pdo),clock:static function()use(&$now){return $now;});
 $checks=0;
 function checkMeal(bool $value,string $message):void{global $checks;if(!$value)throw new RuntimeException($message);$checks++;}
@@ -65,3 +68,15 @@ checkMeal(count(array_filter($entries,fn($e)=>$e['kind']==='recipe'&&!$e['availa
 changeMeal('remove','meal-a',null,['confirm_past'=>true]);
 checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['planned_history'])===1,'Confirmed removal corrects history');
 echo "Meal planner: $checks checks passed.\n";
+
+$restaurants=new RestaurantService($pdo,new HouseholdService($pdo));
+$list=$restaurants->save('1','1',['revision'=>0,'items'=>[['id'=>'cafe','name'=>'Cafe','logo_reference'=>null]]]);
+checkMeal($restaurants->read('2','1')['items'][0]['name']==='Cafe','Household restaurant sharing');
+rejectMeal(fn()=>$restaurants->read('3','1'),404);
+rejectMeal(fn()=>$restaurants->save('1','1',['revision'=>0,'items'=>[]]),409);
+$future='2026-11-01';changeMeal('add','cafe-meal',$future,['kind'=>'restaurant','restaurant_id'=>'cafe']);
+$restaurants->save('1','1',['revision'=>1,'items'=>[]]);
+$entry=array_values(array_filter($service->read('1','1',$future,$future)['entries'],fn($e)=>$e['id']==='cafe-meal'))[0];
+checkMeal($entry['title']==='Cafe'&&$entry['restaurant_id']==='cafe','Restaurant history survives list removal');
+rejectMeal(fn()=>changeMeal('add','foreign-restaurant',$future,['kind'=>'restaurant','restaurant_id'=>'cafe']),422);
+echo "Restaurant isolation, conflict and name retention passed.\n";

@@ -91,6 +91,7 @@ final class HouseholdSnapshot {
                 foreach ($people as $person) $members[]=['id'=>$person['id'],'display_name'=>$person['display_name'],'user_id'=>$person['user_id'],'favorite'=>isset($favoriteMap[$id][$person['id']])];
                 $responses["$rootPath/recipes/$id/favorites"]=['people'=>$members,'current_person_id'=>$current];
             } unset($recipe);
+            $responses["$rootPath/restaurants"]=(new RestaurantService($this->pdo,$this->households))->read($user,$household);
             $responses["$rootPath/people"]=['people'=>$people];
             $responses["$rootPath/shopping-list"]=(new ShoppingListService($this->pdo,$this->households))->read($user,$household);
             if (class_exists('MealPlanService')) {

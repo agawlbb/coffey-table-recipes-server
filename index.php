@@ -28,6 +28,11 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/restaurants$#', $route, $restaurantMatch)) {
+        if (!in_array($method,['GET','POST'],true)) throw new HttpError(405,'method_not_allowed','Use GET or POST.');
+        $pdo=database($config);$households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);$user=$households->bootstrap(authenticatedIdentity($config));
+        $service=new RestaurantService($pdo,$households);
+        respond(200,$method==='GET'?$service->read($user['id'],$restaurantMatch[1]):$service->save($user['id'],$restaurantMatch[1],requestBody()));
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/meal-plan(?:/(ingredients|history|pairings/([1-9][0-9]{0,18})))?$#', $route, $mealMatch)) {
         $part=$mealMatch[2] ?? '';
         if (($part !== '' && $method !== 'GET') || ($part === '' && !in_array($method,['GET','POST'],true))) throw new HttpError(405,'method_not_allowed','Unsupported request.');

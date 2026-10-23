@@ -85,9 +85,14 @@ final class MealPlanService
                 $kind=$body['kind'] ?? 'recipe';$recipe=null;
                 if (!in_array($kind,['recipe','leftovers','restaurant'],true)) throw new HttpError(422,'invalid_kind','Choose a recipe or placeholder.');
                 if ($kind==='recipe') $recipe=$this->recipe($household,$body['recipe_id'] ?? null);
-                $title=$recipe['title'] ?? ($kind==='leftovers' ? 'Leftovers' : 'Restaurant outing');
-                $this->pdo->prepare('INSERT INTO meal_plan_entries (household_id,id,plan_date,kind,recipe_id,recipe_identity,title,recipe_revision) VALUES (?,?,?,?,?,?,?,?)')
-                    ->execute([$household,$id,$date,$kind,$recipe['id'] ?? null,$recipe['id'] ?? null,$title,$recipe['revision'] ?? null]);
+                $restaurant=null;
+                if ($kind==='restaurant' && ($body['restaurant_id']??null)!==null) {
+                    foreach ((new RestaurantService($this->pdo,$this->households))->read($user,$household)['items'] as $item) if ($item['id']===$body['restaurant_id']) $restaurant=$item;
+                    if ($restaurant===null) throw new HttpError(422,'restaurant_not_found','Choose an available household restaurant.');
+                }
+                $title=$recipe['title'] ?? ($kind==='leftovers' ? 'Leftovers' : ($restaurant['name']??'Restaurant'));
+                $this->pdo->prepare('INSERT INTO meal_plan_entries (household_id,id,plan_date,kind,recipe_id,recipe_identity,title,recipe_revision,restaurant_id,restaurant_logo_reference) VALUES (?,?,?,?,?,?,?,?,?,?)')
+                    ->execute([$household,$id,$date,$kind,$recipe['id'] ?? null,$recipe['id'] ?? null,$title,$recipe['revision'] ?? null,$restaurant['id']??null,$restaurant['logo_reference']??null]);
             } elseif ($operation==='move') {
                 $this->pdo->prepare('UPDATE meal_plan_entries SET plan_date=? WHERE household_id=? AND id=?')->execute([$date,$household,$id]);
             } else $this->pdo->prepare('DELETE FROM meal_plan_entries WHERE household_id=? AND id=?')->execute([$household,$id]);

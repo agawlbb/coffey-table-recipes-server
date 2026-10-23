@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS cooking_events(id INTEGER,household_id INTEGER,cooked
 CREATE TABLE IF NOT EXISTS cooking_event_recipes(household_id INTEGER,event_id INTEGER,recipe_id INTEGER,recipe_revision INTEGER);
 CREATE TABLE deleted_recipe_cooking_history(household_id INTEGER,event_id INTEGER,recipe_id INTEGER,recipe_title TEXT,recipe_revision INTEGER);
 INSERT INTO meal_plans VALUES (1,0,'America/New_York');");
+$pdo->exec('CREATE TABLE household_restaurant_lists(household_id INTEGER PRIMARY KEY,revision INTEGER,items_json TEXT)');
 $s=new HouseholdSnapshot($pdo,new HouseholdService($pdo),'https://example.com/media');
 function verifySnapshot(bool $ok): void { if (!$ok) throw new RuntimeException('Snapshot assertion failed'); }
 $result=$s->read('1','1');

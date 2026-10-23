@@ -16,6 +16,7 @@ try {
     $pdo->exec('CREATE TABLE recipe_photos(id BIGINT UNSIGNED PRIMARY KEY,recipe_id BIGINT UNSIGNED,source_url TEXT,storage_key TEXT,is_cover BOOLEAN,position INT) ENGINE=InnoDB');
     $sql=file_get_contents(dirname(__DIR__).'/database/migrations/016_meal_plans.sql');
     foreach (explode(';',$sql) as $statement) if(trim($statement)!=='')$pdo->exec($statement);
+    foreach (explode(';',file_get_contents(dirname(__DIR__).'/database/migrations/018_household_restaurants.sql')) as $statement) if(trim($statement)!=='')$pdo->exec($statement);
     // An interrupted migration can safely repeat its additive DDL.
     foreach (explode(';',$sql) as $statement) if(trim($statement)!=='')$pdo->exec($statement);
     $pdo->exec("INSERT INTO households VALUES(1); INSERT INTO household_memberships VALUES(1,1,'owner'); INSERT INTO recipes VALUES(1,'Soup',1,NULL); INSERT INTO recipe_households VALUES(1,1,NULL)");
