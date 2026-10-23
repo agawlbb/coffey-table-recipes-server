@@ -53,6 +53,7 @@ jobs:
           php tests/parent_categories.php
           php tests/recipe_save_receipts.php
           php tests/household_snapshot.php
+          php tests/household_child_status.php
           php tests/recipe_favorites.php
           php tests/blank_recipes.php
           php tests/blank_recipe_categories.php

@@ -303,7 +303,7 @@ try {
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/snapshot$#', $route, $snapshotMatch)) {
         if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
         $pdo=database($config);
-        $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
+        $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount'],$childModes);
         $user=$households->bootstrap(authenticatedIdentity($config));
         $mediaUrl=rtrim(preg_replace('#/app/?$#','',$config['app_url']),'/').'/media/recipes';
         $snapshot=(new HouseholdSnapshot($pdo,$households,$mediaUrl))->read($user['id'],$snapshotMatch[1]);
@@ -397,7 +397,7 @@ try {
     } elseif ($route === '/me' || $route === '/households' || preg_match('#^/households/([1-9][0-9]{0,18})/people$#', $route, $match)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
-        $service = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
+        $service = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount'], $childModes);
         $user = $service->bootstrap($identity);
         if ($route === '/me' && $method === 'GET') {
             $user['child_mode']=$childModes->state($identity)['enabled'];

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class HouseholdService
 {
-    public function __construct(private PDO $pdo, private $requireFirebaseAccount = null) {}
+    public function __construct(private PDO $pdo, private $requireFirebaseAccount = null, private ?ChildMode $childModes = null) {}
 
     public function bootstrap(array $identity): array
     {
@@ -103,11 +103,19 @@ final class HouseholdService
     public function people(string $userId, string $householdId): array
     {
         $this->membership($userId, $householdId);
-        $statement = $this->pdo->prepare("SELECT p.id, p.display_name, p.user_id, i.email AS invitation_email FROM household_people p LEFT JOIN household_invitations i ON i.person_id = p.id AND i.status = 'pending' AND i.expires_at > UTC_TIMESTAMP(6) WHERE p.household_id = ? ORDER BY p.id");
+        $childFields = $this->childModes === null ? '' : ', u.firebase_uid';
+        $childJoin = $this->childModes === null ? '' : ' LEFT JOIN users u ON u.id = p.user_id';
+        $statement = $this->pdo->prepare("SELECT p.id, p.display_name, p.user_id, i.email AS invitation_email$childFields FROM household_people p$childJoin LEFT JOIN household_invitations i ON i.person_id = p.id AND i.status = 'pending' AND i.expires_at > UTC_TIMESTAMP(6) WHERE p.household_id = ? ORDER BY p.id");
         $statement->execute([$householdId]);
-        return array_map(static function (array $row): array {
+        return array_map(function (array $row): array {
             $row['id'] = (string) $row['id'];
             $row['user_id'] = $row['user_id'] === null ? null : (string) $row['user_id'];
+            if ($this->childModes !== null) {
+                $row['child_mode'] = false;
+                $uid = $row['firebase_uid'];
+                if (is_string($uid) && $uid !== '') $row['child_mode'] = $this->childModes->state(['uid'=>$uid])['enabled'];
+                unset($row['firebase_uid']);
+            }
             return $row;
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
