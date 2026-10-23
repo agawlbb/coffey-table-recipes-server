@@ -54,7 +54,7 @@ final class HouseholdSnapshot {
             foreach ($favorites as $favorite) $favoriteMap[$favorite['recipe_id']][$favorite['person_id']]=true;
             $current=null;
             foreach ($people as $person) if (($person['user_id'] ?? null)===$user) $current=$person['id'];
-            $options=['ai_images_enabled'=>false,'categories'=>array_map(static fn($c)=>['id'=>$c['id'],'label'=>$c['label'],'parent_label'=>$categoryMap[$c['parent_id']]['label'] ?? null],$categories),'recipes'=>array_map(static fn($r)=>['id'=>$r['id'],'title'=>$r['title']],$recipes)];
+            $options=['ai_images_enabled'=>$this->households->aiImagesEnabled($user,$household),'categories'=>array_map(static fn($c)=>['id'=>$c['id'],'label'=>$c['label'],'parent_label'=>$categoryMap[$c['parent_id']]['label'] ?? null],$categories),'recipes'=>array_map(static fn($r)=>['id'=>$r['id'],'title'=>$r['title']],$recipes)];
             $responses=[]; $rootPath="/households/$household";
             foreach ($recipes as &$recipe) {
                 $id=$recipe['id'];
@@ -85,7 +85,7 @@ final class HouseholdSnapshot {
                     $other=$pair['recipe_id']===$id?$pair['paired_recipe_id']:($pair['paired_recipe_id']===$id?$pair['recipe_id']:null);
                     if ($other!==null && isset($byId[$other]) && $byId[$other]['deleted_at']===null) $recipe['pairings'][]=['id'=>$other,'title'=>$byId[$other]['title'],'notes'=>$pair['notes'],'in_household'=>isset($owned[$other])];
                 }
-                $recipe['edit_options']=['ai_images_enabled'=>false];
+                $recipe['edit_options']=['ai_images_enabled'=>$options['ai_images_enabled']];
                 $responses["$rootPath/recipes/$id"]=['recipe'=>$recipe];
                 $members=[];
                 foreach ($people as $person) $members[]=['id'=>$person['id'],'display_name'=>$person['display_name'],'user_id'=>$person['user_id'],'favorite'=>isset($favoriteMap[$id][$person['id']])];

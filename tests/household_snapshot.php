@@ -18,6 +18,8 @@ foreach (['003_recipes.sql','005_recipe_categories.sql'] as $name) {
 }
 $pdo->exec("CREATE TABLE recipe_households (recipe_id INTEGER,household_id INTEGER,removed_at TEXT);
 CREATE TABLE household_memberships (household_id INTEGER,user_id INTEGER,role TEXT);
+CREATE TABLE households (id INTEGER PRIMARY KEY,ai_images_enabled INTEGER);
+INSERT INTO households VALUES (1,1),(2,0);
 CREATE TABLE household_people (id INTEGER,household_id INTEGER,user_id INTEGER,display_name TEXT);
 CREATE TABLE household_invitations (person_id INTEGER,status TEXT,expires_at TEXT,email TEXT);
 
@@ -41,6 +43,15 @@ $pdo->exec('CREATE TABLE household_restaurant_lists(household_id INTEGER PRIMARY
 $s=new HouseholdSnapshot($pdo,new HouseholdService($pdo),'https://example.com/media');
 function verifySnapshot(bool $ok): void { if (!$ok) throw new RuntimeException('Snapshot assertion failed'); }
 $result=$s->read('1','1');
+verifySnapshot($result['edit_options']['ai_images_enabled']===true);
+verifySnapshot($result['responses']['/households/1/recipes/1']['recipe']['edit_options']['ai_images_enabled']===true);
+$pdo->exec('UPDATE households SET ai_images_enabled=0 WHERE id=1');
+$disabled=$s->read('1','1');
+verifySnapshot($disabled['edit_options']['ai_images_enabled']===false);
+verifySnapshot($disabled['responses']['/households/1/recipes/1']['recipe']['edit_options']['ai_images_enabled']===false);
+verifySnapshot($disabled['version']!==$result['version']);
+$pdo->exec('UPDATE households SET ai_images_enabled=1 WHERE id=1');
+verifySnapshot($s->read('1','1')['version']===$result['version']);
 verifySnapshot(count($result['recipes'])===1 && $result['recipes'][0]['id']==='1');
 verifySnapshot($result['responses']['/households/1/recipes/1']['recipe']['steps'][0]['instruction']==='Simmer');
 verifySnapshot(!isset($result['responses']['/households/1/recipes/2']));
