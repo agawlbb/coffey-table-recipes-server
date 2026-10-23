@@ -62,6 +62,11 @@ final class RecipeEditorService
     public function save(string $userId, string $householdId, string $recipeId, array $body): array {
         $this->validationContext='';
         $this->households->membership($userId, $householdId);
+        $receipt = new RecipeSaveReceipts($this->pdo, $userId, $householdId, $recipeId, $body);
+        if (($saved = $receipt->replay()) !== null) {
+            (new RecipeService($this->pdo,$this->households))->detail($userId,$householdId,(string)$saved['id']);
+            return $saved;
+        }
         if (($body['source_type'] ?? null)==='blank' && ($body['category_assignments'] ?? null)===[] && $this->categorizeBlank!==null) {
             $title=$this->fields($body,['title'=>'!300'])['title'];
             if ($recipeId!=='') {
@@ -81,6 +86,13 @@ final class RecipeEditorService
             $q=$this->pdo->prepare('SELECT id FROM recipe_relationship_lock WHERE id=1 FOR UPDATE');
             $q->execute();
             if ($q->fetchColumn()===false) throw new RuntimeException('Relationship migration is required.');
+            // The relationship lock serializes receipt lookup + recipe mutation.
+            // Both the immutable receipt and recipe commit in one transaction.
+            if (($saved = $receipt->replay()) !== null) {
+                (new RecipeService($this->pdo,$this->households))->detail($userId,$viewHousehold,(string)$saved['id']);
+                $this->pdo->commit();
+                return $saved;
+            }
             if (!$creating) {
                 $q=$this->pdo->prepare('SELECT household_id FROM recipes WHERE id=? AND deleted_at IS NULL FOR UPDATE');
                 $q->execute([$recipeId]); $storage=$q->fetchColumn();
@@ -113,8 +125,10 @@ final class RecipeEditorService
                     if ($saved) {
                         if ($saved['source_type'] !== 'ai_variation' || (string) $saved['parent_recipe_id'] !== $parent) throw new HttpError(409, 'recipe_already_imported', 'This draft identifier is already used by a different recipe. Start a new variation.');
                         if ($saved['deleted_at'] !== null) throw new HttpError(409, 'recipe_already_imported', 'This variation was already saved and moved to Recently deleted. Restore it or start a new variation.');
+                        $saved = (new RecipeService($this->pdo,$this->households))->detail($userId,$householdId,(string)$saved['id']);
+                        $receipt->record($saved);
                         $this->pdo->commit();
-                        return (new RecipeService($this->pdo,$this->households))->detail($userId,$householdId,(string) $saved['id']);
+                        return $saved;
                     }
                 }
                 if ($source['import_key'] !== null) {
@@ -305,6 +319,8 @@ final class RecipeEditorService
             } elseif ($creating && $recipe['source_type'] === 'blank' && ($body['favorite_on_create'] ?? false) === true) {
                 (new RecipeService($this->pdo,$this->households))->setFavorite($userId,$viewHousehold,$recipeId,['favorite'=>true]);
             }
+            $saved = (new RecipeService($this->pdo,$this->households))->detail($userId,$viewHousehold,$recipeId);
+            $receipt->record($saved);
             $this->pdo->commit();
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
@@ -313,6 +329,6 @@ final class RecipeEditorService
             if ($error instanceof PDOException && in_array($error->getCode(),['23000','22003','22001'],true)) $this->invalid('Some recipe values are invalid or too large. Please check your entries.');
             throw $error;
         }
-        return (new RecipeService($this->pdo,$this->households))->detail($userId,$viewHousehold,$recipeId);
+        return $saved;
     }
 }

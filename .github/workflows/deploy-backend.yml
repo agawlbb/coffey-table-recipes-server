@@ -49,6 +49,7 @@ jobs:
           php tests/migration_checksums.php
           php tests/recipe_deletion.php
           php tests/parent_categories.php
+          php tests/recipe_save_receipts.php
           php tests/household_snapshot.php
           php tests/recipe_favorites.php
           php tests/blank_recipes.php
@@ -83,6 +84,12 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/migrate-shopping-lists.py
+      - name: Back up and enable idempotent recipe saves
+        if: env.HOSTING_CONFIGURED == 'true'
+        env:
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: python3 tool/migrate-recipe-save-receipts.py
       - name: Check hosted PHP version
         if: env.HOSTING_CONFIGURED == 'true'
         env:
