@@ -29,3 +29,5 @@ MySQL editor fixture covers actual create/edit replay, recipe counts, newer
 edits, authorization and validation rollback. Deployment runs this fixture in
 an isolated MySQL service, never the hosted data. Local Python suite: 121 mocked
 tests passed, including migration cleanup and privilege restoration.
+
+Main compatibility validation: 114 mocked Python tests and the 18-query snapshot fixture passed. This source-only main push skips CI to preserve the currently hosted planner runtime; deployment is owned by the planner workflow.
