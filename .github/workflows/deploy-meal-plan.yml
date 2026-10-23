@@ -34,6 +34,10 @@ jobs:
           tools: composer:v2
       - run: git ls-files -z '*.php' | xargs -0 -n1 php -l
       - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - run: php tests/recipe_save_receipts.php
+      - run: php tests/recipe_edit.php
+        env:
+          CTR_RECIPE_TEST_PASSWORD: fixture-only
       - run: php tests/household_snapshot.php
       - run: php tests/meal_plans.php
       - run: php tests/meal_plans_mysql.php
@@ -45,6 +49,8 @@ jobs:
       - run: python3 -m pip install requests==2.32.5
       - run: python3 -m unittest discover -s tool -p 'test_*.py'
       - run: python3 tool/migrate-meal-plans.py
+        if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
+      - run: python3 tool/migrate-recipe-save-receipts.py
         if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
       - run: python3 tool/deploy-backend.py
         if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
