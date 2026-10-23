@@ -4,6 +4,8 @@ require_once __DIR__ . '/HttpError.php';
 require_once __DIR__ . '/HomeAssistantConnections.php';
 require_once __DIR__ . '/ShoppingSyncRequests.php';
 require_once __DIR__ . '/ShoppingListService.php';
+require_once __DIR__ . '/MealPlanService.php';
+require_once __DIR__ . '/RestaurantService.php';
 require_once __DIR__ . '/TimerSyncService.php';
 require_once __DIR__ . '/TimerPush.php';
 require_once __DIR__ . '/FirebaseIdentity.php';
