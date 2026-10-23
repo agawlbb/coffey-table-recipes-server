@@ -9,7 +9,7 @@ Complete and verify project work, commit it, and push it to the existing GitHub 
 
 ## Ownership and offline work
 
-- Version 2 meal-planning backend work is owned by **Plan CTR meal planning v2** (`01a165dd-0324-7e10-8ffc-03bb397420bc`) on `codex/meal-planning-v2`, based on `1c4671679672baf429d13259b46d77c8e713daf4`, following the coordinating chat's 2026-10-22 handoff. Coordinate with that chat before writes or branch switching. Backend-only deployment for this feature is authorized; Flutter builds, hosted app publication and release require a separate request.
+- Version 2 meal-planning backend was accepted and merged into `main` on 2026-10-23 by **Plan CTR meal planning v2** (`01a165dd-0324-7e10-8ffc-03bb397420bc`). Its temporary `codex/meal-planning-v2` branch is retired after synchronization. **Deployment** (`01a121d3-35c1-72e0-83b0-305e70b7aa3e`) now owns the user-authorized version 2.0 release across web, Android and signed iOS/TestFlight; coordinate canonical checkout writes there during release and with CTR owner afterward.
 
 - While the laptop is connected, the designated owner is the existing **Reconcile project with GitHub** chat (`01a15fd0-827e-77c3-a0a3-737af531ea3f`). It coordinates both CTR repositories. Work in the canonical folders above, rather than hidden clones or competing active copies.
 - Other chats must obtain a read-only handoff before writing. Check current branches, worktrees, local edits, GitHub heads and active tasks/processes; an earlier clean report is not proof of current state.
