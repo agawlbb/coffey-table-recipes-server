@@ -21,7 +21,13 @@ $media = sys_get_temp_dir().'/'.$name;
 $admin->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 try {
     $config['database']['name'] = $name; $pdo = database($config);
-    foreach (glob(dirname(__DIR__).'/database/migrations/*.sql') as $file) foreach (explode(';',file_get_contents($file)) as $sql) if (trim($sql) !== '') $pdo->exec($sql);
+    foreach (glob(dirname(__DIR__).'/database/migrations/*.sql') as $file) {
+        foreach (explode(';',file_get_contents($file)) as $sql) {
+            if (trim($sql) === '') continue;
+            try { $pdo->exec($sql); }
+            catch (PDOException $e) { throw new RuntimeException('Fixture migration '.basename($file).' failed: '.trim(substr($sql,0,160)),0,$e); }
+        }
+    }
     $households = new HouseholdService($pdo);
     $a = $households->bootstrap(['uid'=>'edit-a','name'=>'Alice']); $b = $households->bootstrap(['uid'=>'edit-b','name'=>'Bob']);
     $h = $households->create($a['id'],'A','Alice')['id']; $other = $households->create($b['id'],'B','Bob')['id'];
