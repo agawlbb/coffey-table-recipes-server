@@ -68,6 +68,7 @@ def require_shared_rollout_ready(session):
 
 
 def deploy():
+    print('Preparing backend package.', flush=True)
     if not all(os.environ.get(name) for name in ('CPANEL_USER', 'CPANEL_API_TOKEN')):
         raise RuntimeError('Configure CPANEL_USER and CPANEL_API_TOKEN repository secrets')
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
@@ -83,12 +84,15 @@ def deploy():
             archive.write(path, path.as_posix())
     session = requests.Session()
     session.headers['Authorization'] = f"cpanel {os.environ['CPANEL_USER']}:{os.environ['CPANEL_API_TOKEN']}"
+    print(f'Backend package prepared: {len(files)} files, {output.stat().st_size} bytes.', flush=True)
     require_shared_rollout_ready(session)
     # Upload into protected storage, never into a publicly downloadable archive.
+    print('Uploading protected backend package.', flush=True)
     with output.open('rb') as stream:
         require_success(session.post(HOST + '/execute/Fileman/upload_files',
             data={'dir': DIRECTORY + '/storage', 'overwrite': '1'},
             files={'file-1': (output.name, stream, 'application/zip')}, timeout=180), 'Upload')
+    print('Extracting backend package.', flush=True)
     response = session.post(HOST + '/json-api/cpanel', data={
         'cpanel_jsonapi_user': os.environ['CPANEL_USER'], 'cpanel_jsonapi_apiversion': '2',
         'cpanel_jsonapi_module': 'Fileman', 'cpanel_jsonapi_func': 'fileop',
@@ -100,6 +104,7 @@ def deploy():
     if result.get('event', {}).get('result') != 1 or not items or any(
             item.get('result') != 1 or item.get('dest', '').rstrip('/') != DIRECTORY for item in items):
         raise RuntimeError('Extraction did not confirm the intended application directory')
+    print('Verifying extracted runtime source.', flush=True)
     # A receipt alone cannot prove archive extraction replaced existing PHP files.
     # Read back the variation runtime source privately; never log its contents.
     for name in ('src/RecipeImportService.php', 'src/RecipeVariationService.php', 'src/RecipeService.php', 'src/AdministrationService.php', 'src/CategoryImageService.php', 'src/RecipePhotoService.php', 'src/MealPlanService.php', 'src/RestaurantService.php', 'src/ChildMode.php', 'src/FirebaseIdentity.php'):
@@ -111,6 +116,7 @@ def deploy():
         content = response.json().get('data', {}).get('content')
         if not isinstance(content, str) or hashlib.sha256(content.encode()).hexdigest() != manifest[name]:
             raise RuntimeError('Hosted runtime source does not match package: ' + name)
+    print('Verifying public health, CORS and private-path protection.', flush=True)
     # Public checks deliberately use a different session without cPanel credentials.
     public = requests.Session()
     public.headers['User-Agent'] = 'CoffeyTableRecipes deployment verification'
