@@ -1,0 +1,55 @@
+name: Deploy meal planner backend
+on:
+  push:
+    branches: [codex/meal-planning-v2]
+permissions:
+  contents: read
+concurrency:
+  group: hosted-backend
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: fixture-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -pfixture-only"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      CPANEL_USER: ${{ secrets.CPANEL_USER }}
+      CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, pdo_sqlite, curl, mbstring, openssl
+          tools: composer:v2
+      - run: git ls-files -z '*.php' | xargs -0 -n1 php -l
+      - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - run: php tests/meal_plans.php
+      - run: php tests/meal_plans_mysql.php
+        env:
+          CTR_MEAL_TEST_DSN: mysql:host=127.0.0.1;port=3306;charset=utf8mb4
+          CTR_MEAL_TEST_PASSWORD: fixture-only
+      - run: php tests/shopping_lists.php
+      - run: php tests/shared_recipes.php
+      - run: python3 -m pip install requests==2.32.5
+      - run: python3 -m unittest discover -s tool -p 'test_*.py'
+      - run: python3 tool/migrate-meal-plans.py
+      - run: python3 tool/deploy-backend.py
+      - name: Verify authenticated route is protected
+        run: |
+          python3 - <<'PY'
+          import requests
+          response=requests.get('https://coffeybean.com/CoffeyTableRecipes/api/v1/households/1/meal-plan',params={'from':'2026-10-22','to':'2026-10-23'},timeout=60)
+          assert response.status_code==401, 'Meal planner must require authentication'
+          assert response.json()['error']['code']=='authentication_required'
+          PY

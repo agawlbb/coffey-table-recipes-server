@@ -1,0 +1,67 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__).'/src/bootstrap.php';
+$pdo=new PDO('sqlite::memory:');$pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+$pdo->exec("PRAGMA foreign_keys=ON;
+CREATE TABLE households(id INTEGER PRIMARY KEY);
+CREATE TABLE household_memberships(household_id INTEGER,user_id INTEGER,role TEXT);
+CREATE TABLE recipes(id INTEGER PRIMARY KEY,household_id INTEGER,title TEXT,revision INTEGER,deleted_at TEXT);
+CREATE TABLE recipe_households(recipe_id INTEGER,household_id INTEGER,removed_at TEXT);
+CREATE TABLE recipe_photos(id INTEGER,recipe_id INTEGER,source_url TEXT,storage_key TEXT,is_cover INTEGER,position INTEGER);
+CREATE TABLE recipe_pairings(recipe_id INTEGER,paired_recipe_id INTEGER);
+CREATE TABLE recipe_ingredients(id INTEGER,household_id INTEGER,recipe_id INTEGER,position INTEGER,ingredient_name TEXT,quantity_decimal TEXT);
+CREATE TABLE cooking_events(id INTEGER,household_id INTEGER,cooked_at TEXT);
+CREATE TABLE cooking_event_recipes(household_id INTEGER,event_id INTEGER,recipe_id INTEGER,recipe_revision INTEGER);
+CREATE TABLE deleted_recipe_cooking_history(household_id INTEGER,event_id INTEGER,recipe_id INTEGER,recipe_title TEXT,recipe_revision INTEGER);
+CREATE TABLE meal_plans(household_id INTEGER PRIMARY KEY,revision INTEGER,time_zone TEXT);
+CREATE TABLE meal_plan_entries(household_id INTEGER,id TEXT,plan_date TEXT,kind TEXT,recipe_id INTEGER REFERENCES recipes(id) ON DELETE SET NULL,recipe_identity INTEGER,title TEXT,recipe_revision INTEGER,created_at TEXT DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(household_id,id));
+INSERT INTO households VALUES(1),(2);
+INSERT INTO household_memberships VALUES(1,1,'owner'),(1,2,'member'),(2,3,'owner');
+INSERT INTO recipes VALUES(1,1,'Soup',2,NULL),(2,1,'Bread',1,NULL),(3,2,'Private',1,NULL),(4,2,'Shared',3,NULL);
+INSERT INTO recipe_households VALUES(1,1,NULL),(2,1,NULL),(3,2,NULL),(4,1,NULL),(4,2,NULL);
+INSERT INTO recipe_pairings VALUES(1,2),(1,3),(1,4);
+INSERT INTO recipe_ingredients VALUES(1,1,1,0,'Onion','2');
+INSERT INTO cooking_events VALUES(1,1,'2026-10-20 12:00:00');
+INSERT INTO cooking_event_recipes VALUES(1,1,2,1);");
+$now=new DateTimeImmutable('2026-10-22T03:30:00Z'); // Still Oct 21 in household zone.
+$service=new MealPlanService($pdo,new HouseholdService($pdo),clock:static function()use(&$now){return $now;});
+$checks=0;
+function checkMeal(bool $value,string $message):void{global $checks;if(!$value)throw new RuntimeException($message);$checks++;}
+function rejectMeal(callable $call,int $status,?string $code=null):void{try{$call();throw new RuntimeException('Expected rejection');}catch(HttpError $e){checkMeal($e->status===$status && ($code===null || $e->errorCode===$code),'Unexpected rejection: '.$e->getMessage());}}
+function changeMeal(string $op,string $id,?string $date=null,array $extra=[]):array{global $service;$revision=$service->read('1','1','2026-10-01','2026-11-01')['revision'];return $service->change('1','1',array_merge(['revision'=>$revision,'operation'=>$op,'id'=>$id,'date'=>$date],$extra));}
+checkMeal($service->read('1','1','2026-10-01','2026-11-01')['today']==='2026-10-21','Household calendar timezone');
+rejectMeal(fn()=>$service->read('3','1','2026-10-01','2026-11-01'),404);
+rejectMeal(fn()=>MealPlanService::date('2026-02-30'),422);
+rejectMeal(fn()=>$service->read('1','1','2026-11-01','2026-10-01'),422);
+changeMeal('add','meal-a','2026-10-22',['recipe_id'=>'1']);
+checkMeal(count($service->read('2','1','2026-10-01','2026-11-01')['entries'])===1,'Shared household plan');
+rejectMeal(fn()=>$service->change('2','1',['revision'=>0,'operation'=>'remove','id'=>'meal-a']),409);
+checkMeal($service->read('1','1','2026-10-01','2026-11-01')['revision']===1,'Conflict rollback');
+rejectMeal(fn()=>changeMeal('add','private','2026-10-22',['recipe_id'=>'3']),404);
+changeMeal('add','unscheduled',null,['recipe_id'=>'4']);
+checkMeal(count($service->pairings('1','1','1')['recipes'])===2,'Canonical pairings respect household membership');
+rejectMeal(fn()=>changeMeal('move','meal-a','2026-10-20'),409);
+checkMeal($service->read('1','1','2026-10-01','2026-11-01')['revision']===2,'Unconfirmed history write rolled back');
+changeMeal('move','meal-a','2026-10-20',['confirm_past'=>true]);
+rejectMeal(fn()=>changeMeal('remove','meal-a'),409);
+rejectMeal(fn()=>changeMeal('move','meal-a','2026-10-24'),409);
+checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['planned_history'])===1,'Past plan implies made');
+checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['recorded_history'])===1,'Legacy cooking history retained');
+changeMeal('move','meal-a','2026-10-22',['confirm_past'=>true]);
+checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['planned_history'])===0,'Moving updates history');
+changeMeal('add','meal-b','2026-10-22',['recipe_id'=>'1']);
+changeMeal('add','placeholder','2026-10-22',['kind'=>'leftovers']);
+checkMeal(count($service->ingredients('1','1','2026-10-22','2026-10-23')['ingredients'])===2,'Each occurrence contributes ingredients, placeholders excluded');
+$now=new DateTimeImmutable('2026-10-23T12:00:00Z');
+checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['planned_history'])===2,'Automatic rollover without confirmation or job');
+rejectMeal(fn()=>$service->ingredients('1','1','2026-10-22','2026-10-23'),422);
+rejectMeal(fn()=>changeMeal('remove','placeholder'),409);
+changeMeal('remove','placeholder',null,['confirm_past'=>true]);
+$pdo->exec("UPDATE recipes SET title='Renamed soup' WHERE id=1; DELETE FROM recipes WHERE id=1;");
+$history=$service->history('1','1','2026-10-01','2026-11-01')['planned_history'];
+checkMeal(count($history)===2 && $history[0]['recipe_title']==='Soup' && (string)$history[0]['recipe_id']==='1','History snapshot survives purge');
+$entries=$service->read('1','1','2026-10-01','2026-11-01')['entries'];
+checkMeal(count(array_filter($entries,fn($e)=>$e['kind']==='recipe'&&!$e['available']))===2,'Purged tiles remain with unavailable detail');
+changeMeal('remove','meal-a',null,['confirm_past'=>true]);
+checkMeal(count($service->history('1','1','2026-10-01','2026-11-01')['planned_history'])===1,'Confirmed removal corrects history');
+echo "Meal planner: $checks checks passed.\n";

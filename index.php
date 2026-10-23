@@ -28,6 +28,22 @@ try {
         } else {
             respond(200, ['status' => 'ok', 'service' => 'Coffey Table Recipes', 'api_version' => 1]);
         }
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/meal-plan(?:/(ingredients|history|pairings/([1-9][0-9]{0,18})))?$#', $route, $mealMatch)) {
+        $part=$mealMatch[2] ?? '';
+        if (($part !== '' && $method !== 'GET') || ($part === '' && !in_array($method,['GET','POST'],true))) throw new HttpError(405,'method_not_allowed','Unsupported request.');
+        $pdo=database($config);$households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
+        $user=$households->bootstrap(authenticatedIdentity($config));
+        $service=new MealPlanService($pdo,$households);
+        if ($method==='POST') respond(200,$service->change($user['id'],$mealMatch[1],requestBody()));
+        elseif (str_starts_with($part,'pairings/')) respond(200,$service->pairings($user['id'],$mealMatch[1],$mealMatch[3]));
+        else {
+            $from=MealPlanService::date($_GET['from'] ?? null);$to=MealPlanService::date($_GET['to'] ?? null);
+            respond(200,match($part) {
+                'ingredients'=>$service->ingredients($user['id'],$mealMatch[1],$from,$to),
+                'history'=>$service->history($user['id'],$mealMatch[1],$from,$to),
+                default=>$service->read($user['id'],$mealMatch[1],$from,$to),
+            });
+        }
     } elseif ($route === '/home-assistant/auth-config') {
         if ($method !== 'GET') throw new HttpError(405, 'method_not_allowed', 'Use GET.');
         $file = __DIR__ . '/config/home-assistant.local.json';
