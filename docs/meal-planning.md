@@ -75,3 +75,7 @@ passed, including isolated MySQL migration/CAS/purge tests and all 118 Python
 tests; migration and redeployment were skipped. PHP fixture regressions passed,
 including 23 planner checks, recipe sharing/deletion and shopping-list behavior.
 No Flutter builds, hosted frontend changes, release tags or main merges occurred.
+
+
+## Main integration (2026-10-23)
+Merged backend main `0dad2b1ef28682881bf206c493178064e3248124` into the meal-planning feature history. Shared runtime code already contained the main snapshot and save-receipt work; only the main compatibility-validation record was missing. Preserved the planner routes, complete snapshot integration, migrations and deployment guard. Local receipt, snapshot (26 queries), meal-plan (23 checks), shopping and shared-recipe fixtures passed; all 121 mocked Python tool tests passed. No schema changes, hosted deployment or app build performed for this integration.

@@ -30,6 +30,8 @@ edits, authorization and validation rollback. Deployment runs this fixture in
 an isolated MySQL service, never the hosted data. Local Python suite: 121 mocked
 tests passed, including migration cleanup and privilege restoration.
 
+Main compatibility validation: 114 mocked Python tests and the 18-query snapshot fixture passed. This source-only main push skips CI to preserve the currently hosted planner runtime; deployment is owned by the planner workflow.
+
 Hosted validation on 2026-10-23: Actions run 39998462691 succeeded with 58
 recipe-editor checks in isolated MariaDB, the separate MySQL planner fixture,
 121 mocked Python tests and snapshot checks. Migration 017 backed up the dedicated
