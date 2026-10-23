@@ -47,7 +47,8 @@ the normal user lacks them, then restores and verifies its original privileges.
 Credentials, backups and private receipts remain outside Git.
 
 The branch-specific Deploy meal planner backend workflow runs only when its head
-commit contains [deploy-meal-plan]. It validates PHP, isolated SQLite/MySQL
+commit contains [deploy-meal-plan]. [verify-meal-plan] runs verification only,
+skipping migration and publication. It validates PHP, isolated SQLite/MySQL
 fixtures and deployment tests before migrating and publishing the backend package.
 It does not package or publish Flutter. Backend runtime source is read back and
 verified, and the new HTTP route must reject unauthenticated requests.
@@ -56,3 +57,21 @@ Run fixture checks with `php tests/meal_plans.php`; MySQL DDL/CAS/purge checks r
 only against the explicitly configured disposable CI database. Existing history,
 sharing and shopping regression tests remain intact. Python migration/deployment
 tests use mocks and send no real hosting requests.
+
+## Verified 2026-10-22
+
+Backend runtime `e8c9042c0b595cc0e2ed115cc24a06279298569d` was published from
+the feature branch. Hosted migration 016 completed with a protected backup;
+the existing 56-recipe inventory was unchanged and temporary schema permissions
+were restored/verified. Authenticated service reads for the plan, history,
+ingredients and existing pairings passed without modifying a household plan.
+
+The initial post-publication HTTP check failed before the new route became ready;
+the subsequent direct request correctly returned 401 authentication_required.
+Readiness now retries a bounded set of temporary/router-transition statuses and
+rejects unauthenticated success immediately. Verification-only run
+[39876718522](https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/39876718522)
+passed, including isolated MySQL migration/CAS/purge tests and all 118 Python
+tests; migration and redeployment were skipped. PHP fixture regressions passed,
+including 23 planner checks, recipe sharing/deletion and shopping-list behavior.
+No Flutter builds, hosted frontend changes, release tags or main merges occurred.
