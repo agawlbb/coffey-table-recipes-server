@@ -155,3 +155,21 @@ checkShopping(!array_key_exists('associations',$service->read('1','1')));
 memorySave([]); $saved=memorySave([memoryItem('last','Bound item 1199')]);
 checkShopping($saved['items'][0]['department']==='Pantry');
 echo "Household association normalization, typo matching, correction, isolation, rename and retention checks passed\n";
+
+// Notes belong to an entry, not the name-to-department association.
+$noted = memoryItem('joe-deodorant','Deodorant','Household');
+$noted['note'] = ' For Joe · 3 bottles ';
+$saved = memorySave([$noted]);
+checkShopping($service->read('2','1')['items'][0]['note'] === 'For Joe · 3 bottles');
+$legacy = $saved['items'][0]; unset($legacy['note']); $legacy['checked'] = true;
+$saved = memorySave([$legacy], [], '2');
+checkShopping($saved['items'][0]['note'] === 'For Joe · 3 bottles');
+$saved['items'][0]['note'] = '';
+checkShopping(memorySave($saved['items'])['items'][0]['note'] === '');
+memorySave([$noted]); memorySave([]);
+$saved = memorySave([memoryItem('new-deodorant','deodorant')]);
+checkShopping($saved['items'][0]['department'] === 'Household' && !isset($saved['items'][0]['note']));
+foreach ([null, 12, [], str_repeat('n',501)] as $invalidNote) {
+    rejectShopping(fn()=>memorySave([array_replace($noted,['note'=>$invalidNote])]),422);
+}
+echo "Entry notes sharing, legacy preservation, clearing, validation and association isolation passed\n";

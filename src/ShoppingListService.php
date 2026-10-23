@@ -20,8 +20,11 @@ final class ShoppingListService
                 || !is_bool($item['checked'] ?? null) || !in_array($item['department'] ?? null, $departments === null ? self::DEPARTMENTS : array_merge([''], $departments), true)) {
                 throw new HttpError(422, 'invalid_item', 'Enter an item of 1 to 200 characters with a valid department.');
             }
+            if (array_key_exists('note', $item) && (!is_string($item['note']) || mb_strlen($item['note']) > 500)) {
+                throw new HttpError(422, 'invalid_note', 'Use a note of up to 500 characters.');
+            }
             $ids[$item['id']] = true;
-            $items[] = ['id'=>$item['id'], 'name'=>trim($item['name']), 'checked'=>$item['checked'], 'department'=>$item['department']];
+            $items[] = ['id'=>$item['id'], 'name'=>trim($item['name']), 'checked'=>$item['checked'], 'department'=>$item['department']] + (array_key_exists('note', $item) ? ['note'=>trim($item['note'])] : []);
         }
         return $items;
     }
@@ -162,6 +165,10 @@ final class ShoppingListService
                 }
             }
             foreach ($items as &$item) {
+                // Missing means an older client: only an explicit empty note clears it.
+                if (!array_key_exists('note', $item) && isset($oldItems[$item['id']]['note'])) {
+                    $item['note'] = $oldItems[$item['id']]['note'];
+                }
                 if (!isset($oldItems[$item['id']]) && $item['department'] === '') {
                     $matches = self::matchingKeys($associations, self::itemKey($item['name']));
                     $choices = array_unique(array_map(fn($key) => $associations[$key], $matches));

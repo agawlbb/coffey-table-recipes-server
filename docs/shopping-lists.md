@@ -100,3 +100,13 @@ e3a510a1a486fba6fadab6f23bdd90a34622c022. A further local fixture confirms
 an assigned item in legacy array storage seeds automatic placement of a new
 item with a differently capitalized name. All local PHP fixtures pass. No live
 household list was modified for testing and no Flutter app was deployed.
+
+
+Entry notes (2026-10-23): optional `note` string, up to 500 characters, is
+trimmed and persisted with the entry JSON. Household members read the same note.
+It never enters name-based department matching. An explicit empty note clears it;
+omission by an older client preserves the previous note only for that same entry
+ID. Removing and re-adding an item does not copy notes through associations.
+Existing JSON storage supports this additively without a schema migration.
+`php tests/shopping_lists.php` verifies sharing, legacy-client preservation,
+explicit clearing, type/length validation and independent department recall.
