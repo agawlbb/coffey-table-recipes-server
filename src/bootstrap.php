@@ -12,6 +12,7 @@ require_once __DIR__ . '/RecipeService.php';
 require_once __DIR__ . '/HouseholdSnapshot.php';
 require_once __DIR__ . '/RecipeMembership.php';
 require_once __DIR__ . '/RecipeDeletionService.php';
+require_once __DIR__ . '/RecipeSaveReceipts.php';
 require_once __DIR__ . '/RecipeEditorService.php';
 require_once __DIR__ . '/BlankRecipeCategoryService.php';
 require_once __DIR__ . '/RecipeImportService.php';

@@ -8,6 +8,11 @@ function editReject(callable $action, int $status): void {
     throw new RuntimeException('Invalid edit was accepted.');
 }
 $config = configuration();
+if (getenv('CTR_RECIPE_TEST_PASSWORD') !== false) {
+    $config['environment']='development';
+    $config['database']=['host'=>'127.0.0.1','port'=>3306,'user'=>'root','password'=>getenv('CTR_RECIPE_TEST_PASSWORD')];
+}
+
 if ($config['environment'] !== 'development') throw new RuntimeException('Use a disposable development database only.');
 $db = $config['database'];
 $admin = new PDO(sprintf('mysql:host=%s;port=%d;charset=utf8mb4',$db['host'],$db['port']),$db['user'],$db['password'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
@@ -29,6 +34,20 @@ try {
     $new = ['title'=>'Imported soup','original_language'=>'en','measurement_system'=>'unspecified','source_text'=>'My soup description','import_key'=>hash('sha256','test-import'),
         'ingredients'=>[['id'=>'new-i','original_text'=>'Water','ingredient_name'=>'water','scale_quantity'=>1]],
         'steps'=>[['id'=>'new-s','instruction'=>'Boil the water.']], 'groups'=>[], 'actions'=>[], 'photos'=>[], 'tags'=>[], 'category_assignments'=>[], 'pairings'=>[]];
+    $retry = $new; $retry['import_key']=null; $retry['client_save_id']=str_repeat('r',32);
+    $once = $edit->save($a['id'],$h,'',$retry);
+    $count = $pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn();
+    editExpect($edit->save($a['id'],$h,'',$retry)===$once,'Lost creation response was not replayed exactly.');
+    editExpect($pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn()===$count,'Retry duplicated recipe.');
+    $change=$once; $change['title']='Later edit'; $change['client_save_id']=str_repeat('s',32);
+    $changed=$edit->save($a['id'],$h,$once['id'],$change);
+    editExpect($edit->save($a['id'],$h,$once['id'],$change)===$changed,'Lost edit response caused revision conflict.');
+    editExpect($edit->save($a['id'],$h,'',$retry)===$once,'Retry receipt changed after later edit.');
+    $reuse=$retry; $reuse['title']='Wrong body'; editReject(fn()=>$edit->save($a['id'],$h,'',$reuse),409);
+    editReject(fn()=>$edit->save($b['id'],$h,'',$retry),404);
+    $invalid=$retry; $invalid['client_save_id']=str_repeat('t',32); $invalid['title']='';
+    editReject(fn()=>$edit->save($a['id'],$h,'',$invalid),422);
+    editExpect($pdo->query("SELECT COUNT(*) FROM recipe_save_receipts WHERE save_id='".str_repeat('t',32)."'")->fetchColumn()==0,'Invalid save left a receipt.');
     $created = $edit->save($a['id'],$h,'',$new);
     editExpect(count($read->editOptions($a['id'],$h)['categories'])>0,'New drafts lack category options.');
     editExpect($created['title']==='Imported soup' && count($created['ingredients'])===1 && count($created['steps'])===1,'New import did not save its content.');
