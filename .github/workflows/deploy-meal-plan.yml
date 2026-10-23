@@ -67,6 +67,6 @@ jobs:
       - run: python3 tool/deploy-backend.py
         if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
       - run: python3 tool/configure-local-web-origin.py
-        if: contains(github.event.head_commit.message, '[deploy-meal-plan]')
+        if: contains(github.event.head_commit.message, '[deploy-meal-plan]') || contains(github.event.head_commit.message, '[verify-meal-plan]')
       - name: Verify authenticated route is protected
         run: python3 tool/verify-meal-plan-http.py

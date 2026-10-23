@@ -1,11 +1,24 @@
 """Add the explicitly authorized LAN origin without exposing private configuration."""
 import os
 import re
+import time
 import uuid
 
 ORIGIN = 'http://192.168.12.194'
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
 PUBLIC = 'https://coffeybean.com/CoffeyTableRecipes/'
+
+
+def verify_origin(public, origin, method, headers):
+    # PHP workers may briefly retain the previous config after atomic readback.
+    for attempt in range(10):
+        response = public.request(method, PUBLIC + 'api/v1/health',
+            headers=headers, timeout=45, allow_redirects=False)
+        if response.status_code == (204 if method == 'OPTIONS' else 200) and response.headers.get('Access-Control-Allow-Origin') == origin:
+            return
+        if attempt < 9:
+            time.sleep(1)
+    raise RuntimeError('Public origin verification failed: ' + origin + ' ' + method)
 
 
 def amended(source):
@@ -100,10 +113,7 @@ def configure():
             if method == 'OPTIONS':
                 headers.update({'Access-Control-Request-Method': 'GET',
                                 'Access-Control-Request-Headers': 'authorization,content-type'})
-            response = public.request(method, PUBLIC + 'api/v1/health',
-                headers=headers, timeout=45, allow_redirects=False)
-            if response.status_code not in (200, 204) or response.headers.get('Access-Control-Allow-Origin') != origin:
-                raise RuntimeError('Public origin verification failed: ' + origin + ' ' + method)
+            verify_origin(public, origin, method, headers)
     print('Exact LAN origin installed; LAN and localhost GET/OPTIONS verified; private config preserved.')
 
 
