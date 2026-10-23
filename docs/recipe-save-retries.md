@@ -29,3 +29,11 @@ MySQL editor fixture covers actual create/edit replay, recipe counts, newer
 edits, authorization and validation rollback. Deployment runs this fixture in
 an isolated MySQL service, never the hosted data. Local Python suite: 121 mocked
 tests passed, including migration cleanup and privilege restoration.
+
+Hosted validation on 2026-10-23: Actions run 39998462691 succeeded with 58
+recipe-editor checks in isolated MariaDB, the separate MySQL planner fixture,
+121 mocked Python tests and snapshot checks. Migration 017 backed up the dedicated
+recipe database, retained its recipe count, verified the receipt schema and
+restored original database privileges. Runtime receipt matches source
+`080f4f54334f3e093190749ac70d0fd14ff38afb`. Planner routes remain protected and
+available. No hosted Flutter publication was performed.
