@@ -34,6 +34,7 @@ jobs:
           tools: composer:v2
       - run: git ls-files -z '*.php' | xargs -0 -n1 php -l
       - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - run: php tests/household_snapshot.php
       - run: php tests/meal_plans.php
       - run: php tests/meal_plans_mysql.php
         env:

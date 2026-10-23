@@ -10,6 +10,7 @@ require_once __DIR__ . '/TimerPush.php';
 require_once __DIR__ . '/FirebaseIdentity.php';
 require_once __DIR__ . '/HouseholdService.php';
 require_once __DIR__ . '/RecipeService.php';
+require_once __DIR__ . '/HouseholdSnapshot.php';
 require_once __DIR__ . '/RecipeMembership.php';
 require_once __DIR__ . '/RecipeDeletionService.php';
 require_once __DIR__ . '/RecipeEditorService.php';

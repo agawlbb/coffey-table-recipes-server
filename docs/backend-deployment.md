@@ -149,3 +149,24 @@ was backed up and applied successfully; all 21 existing recipes were retained,
 original runtime privileges restored, backend commit 02d9ea3 verified publicly,
 and the daily 03:15 server-time cleanup schedule verified. See recipe-deletion.md
 for the validation record and the remaining authenticated Flutter release check.
+
+## Household database snapshots
+
+Authenticated `GET /households/{id}/snapshot` returns one consistent household
+text snapshot (schema 1), including complete recipe details, category catalog,
+favorites, people, shopping list and editor catalog. The planner branch includes
+its complete calendar and history. Images are references only. Import source text
+and actor bookkeeping stay excluded. Membership is checked before any data read.
+Queries are batched by table (18 reads on main, independent of recipe count).
+`?version=SHA256` returns a small `unchanged` acknowledgement when all snapshot
+content is identical, including recipe instructions and ingredients.
+
+The client validates and persists a complete generation before making it ready.
+No migration is needed. Fixture checks cover access isolation, complete text,
+private-source exclusion, stable/change-sensitive hashes and fixed query count.
+All existing backend workflow PHP fixtures and 111 mocked Python checks passed.
+
+The hosted runtime already includes meal planning. Shared main source is pushed
+with CI skipped after equivalent local validation so it cannot replace that
+runtime with the older main router. The same patch is deployed from the planner
+branch through its existing deployment workflow, preserving its routes.

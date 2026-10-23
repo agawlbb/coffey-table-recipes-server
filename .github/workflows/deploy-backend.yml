@@ -49,6 +49,7 @@ jobs:
           php tests/migration_checksums.php
           php tests/recipe_deletion.php
           php tests/parent_categories.php
+          php tests/household_snapshot.php
           php tests/recipe_favorites.php
           php tests/blank_recipes.php
           php tests/blank_recipe_categories.php
