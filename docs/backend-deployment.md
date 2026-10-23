@@ -170,3 +170,15 @@ The hosted runtime already includes meal planning. Shared main source is pushed
 with CI skipped after equivalent local validation so it cannot replace that
 runtime with the older main router. The same patch is deployed from the planner
 branch through its existing deployment workflow, preserving its routes.
+
+Snapshot publication verified on 2026-10-23: feature runtime
+`e2bc05982ab3a29a2fce9692a507b2818dbab51d` deployed successfully in Actions
+run39991103386, including isolated MySQL planner checks, snapshot fixture and118
+mocked Python checks. The public receipt matches that source commit; an
+unauthenticated GET to the snapshot endpoint correctly returns401. Existing
+planner routes remain available. Snapshot fixture query count is26 on this
+branch and18 on main, independent of the number of recipes. No new schema was
+introduced. An optional privileged live-data CLI probe was blocked by automatic
+approval review and not executed, so authenticated full-payload verification on
+an installed app remains outstanding. This documentation-only push skips CI;
+the deployed runtime remains the successful source commit above.
