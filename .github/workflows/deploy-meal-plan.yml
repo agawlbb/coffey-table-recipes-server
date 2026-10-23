@@ -22,6 +22,15 @@ jobs:
         options: >-
           --health-cmd="mysqladmin ping -pfixture-only"
           --health-interval=10s --health-timeout=5s --health-retries=10
+      recipe-editor-db:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: fixture-only
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
     env:
       CPANEL_USER: ${{ secrets.CPANEL_USER }}
       CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
@@ -38,6 +47,7 @@ jobs:
       - run: php tests/recipe_edit.php
         env:
           CTR_RECIPE_TEST_PASSWORD: fixture-only
+          CTR_RECIPE_TEST_PORT: 3307
       - run: php tests/household_snapshot.php
       - run: php tests/meal_plans.php
       - run: php tests/meal_plans_mysql.php
