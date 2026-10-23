@@ -262,6 +262,14 @@ try {
         $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
         $user=$households->bootstrap($identity); requestBody();
         respond(200,(new RecipeMembership($pdo,$households))->attach($user['id'],$attachMatch[1],$attachMatch[2]));
+    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/snapshot$#', $route, $snapshotMatch)) {
+        if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
+        $pdo=database($config);
+        $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
+        $user=$households->bootstrap(authenticatedIdentity($config));
+        $mediaUrl=rtrim(preg_replace('#/app/?$#','',$config['app_url']),'/').'/media/recipes';
+        $snapshot=(new HouseholdSnapshot($pdo,$households,$mediaUrl))->read($user['id'],$snapshotMatch[1]);
+        respond(200,($_GET['version'] ?? '')===$snapshot['version'] ? ['schema'=>1,'household_id'=>$snapshotMatch[1],'version'=>$snapshot['version'],'unchanged'=>true] : $snapshot);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/favorites$#',$route,$favoriteMatch)) {
         $pdo=database($config);
         $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
