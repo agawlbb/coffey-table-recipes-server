@@ -10,7 +10,7 @@ function editReject(callable $action, int $status): void {
 $config = configuration();
 if (getenv('CTR_RECIPE_TEST_PASSWORD') !== false) {
     $config['environment']='development';
-    $config['database']=['host'=>'127.0.0.1','port'=>3306,'user'=>'root','password'=>getenv('CTR_RECIPE_TEST_PASSWORD')];
+    $config['database']=['host'=>'127.0.0.1','port'=>(int)(getenv('CTR_RECIPE_TEST_PORT') ?: 3306),'user'=>'root','password'=>getenv('CTR_RECIPE_TEST_PASSWORD')];
 }
 
 if ($config['environment'] !== 'development') throw new RuntimeException('Use a disposable development database only.');
