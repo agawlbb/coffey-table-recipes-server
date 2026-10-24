@@ -68,6 +68,8 @@ function respond(int $status, array $body): void
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     header('X-Content-Type-Options: nosniff');
+    header('X-CTR-Time-Ms: '.(string)(int)(microtime(true)*1000));
+    header('Access-Control-Expose-Headers: X-CTR-Time-Ms');
     echo json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 }
 

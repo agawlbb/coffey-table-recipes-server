@@ -51,3 +51,8 @@ version labels and factual validation results are retained.
 ## Household snapshot AI permissions
 
 Authenticated household downloads include the actual `ai_images_enabled` setting in both shared edit options and recipe metadata. Permission changes alter the snapshot version, so the next database refresh replaces an incorrect or stale setting. This display metadata does not authorize generation: `recipe-photo` continues to check household membership and the current database permission on every request. `php tests/household_snapshot.php` verifies enabled/disabled values, version changes and bounded query count; the client snapshot/editor regression tests cover propagation into Edit.
+
+## Repeat-safe shopping changes
+
+Shopping-list POSTs may include `client_change_id`, original `edited_at_ms` and `base_items`. The server merges only changed fields, retains per-field clocks/deletion tombstones and receipt hashes in the existing JSON envelope, and atomically acknowledges retries without repeating changes. These internal records are omitted from reads and household snapshots. Existing clients retain revision checking; an exact already-applied legacy retry can be acknowledged safely. `X-CTR-Time-Ms` lets updated clients calibrate edit times. No data-repair job or schema migration runs for this change. `php tests/shopping_lists.php` covers lost-response replay, deletion, older-edit suppression, independent fields and existing compatibility checks.
+

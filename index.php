@@ -136,7 +136,7 @@ try {
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
         $service = new ShoppingListService($pdo, $households);
-        respond(200, $method === 'GET' ? $service->read($user['id'], $shoppingMatch[1]) : $service->save($user['id'], $shoppingMatch[1], requestBody(524288)));
+        respond(200, $method === 'GET' ? $service->read($user['id'], $shoppingMatch[1]) : $service->save($user['id'], $shoppingMatch[1], requestBody(4*1024*1024)));
     } elseif ($route === '/me/verification-email') {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);

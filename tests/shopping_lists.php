@@ -173,3 +173,46 @@ foreach ([null, 12, [], str_repeat('n',501)] as $invalidNote) {
     rejectShopping(fn()=>memorySave([array_replace($noted,['note'=>$invalidNote])]),422);
 }
 echo "Entry notes sharing, legacy preservation, clearing, validation and association isolation passed\n";
+
+// Repeat-safe changes: one user's lost response must not become a revision conflict.
+$pdo->exec("INSERT INTO households VALUES (3); INSERT INTO household_memberships VALUES (3,1,'owner')");
+$seed=$service->save('1','3',['revision'=>0,'items'=>[
+    memoryItem('a','Milk','Dairy & eggs'),memoryItem('b','Bread','Bakery')]]);
+$when=(int)(microtime(true)*1000)+10;
+$deletion=['revision'=>$seed['revision'],'items'=>[$seed['items'][1]],'base_items'=>$seed['items'],
+    'client_change_id'=>'delete-once','edited_at_ms'=>$when+20];
+$deleted=$service->save('1','3',$deletion); // Imagine the HTTP response was lost.
+$restarted=new ShoppingListService($pdo,new HouseholdService($pdo));
+$replayed=$restarted->save('1','3',$deletion);
+checkShopping($replayed['revision']===$deleted['revision'] && count($replayed['items'])===1);
+checkShopping($replayed['acknowledged_change_id']==='delete-once');
+$oldMove=$deletion; $oldMove['client_change_id']='older-move'; $oldMove['edited_at_ms']=$when;
+$oldMove['items']=$seed['items']; $oldMove['items'][0]['department']='Produce';
+checkShopping(count($restarted->save('1','3',$oldMove)['items'])===1);
+$current=$restarted->read('1','3');
+$move=['revision'=>$current['revision'],'base_items'=>$current['items'],'items'=>$current['items'],
+    'client_change_id'=>'newer-move','edited_at_ms'=>$when+40];
+$move['items'][0]['department']='Pantry';
+$moved=$restarted->save('1','3',$move);
+$rename=$move; $rename['client_change_id']='rename-item'; $rename['edited_at_ms']=$when+50;
+$rename['items']=$current['items']; $rename['items'][0]['name']='Whole wheat bread';
+$renamed=$restarted->save('1','3',$rename);
+checkShopping($renamed['items'][0]['department']==='Pantry' && $renamed['items'][0]['name']==='Whole wheat bread');
+$late=$move; $late['client_change_id']='late-old-move'; $late['edited_at_ms']=$when+30;
+$late['items'][0]['department']='Deli';
+checkShopping($restarted->save('1','3',$late)['items'][0]['department']==='Pantry');
+$again=$restarted->save('1','3',$deletion);
+checkShopping($again['items'][0]['name']==='Whole wheat bread');
+$collision=$deletion; $collision['items']=[];
+rejectShopping(fn()=>$restarted->save('1','3',$collision),409);
+checkShopping(!isset($restarted->read('1','3')['sync']));
+echo "Shopping delete durability, receipt replay, older-edit suppression and independent field merging passed\n";
+
+$pdo->exec("INSERT INTO households VALUES (4); INSERT INTO household_memberships VALUES (4,1,'owner')");
+$oldClient=$service->save('1','4',['revision'=>0,'items'=>[memoryItem('old','Old client item')]]);
+$oldDelete=['revision'=>$oldClient['revision'],'items'=>[]];
+$confirmed=$service->save('1','4',$oldDelete);
+$retried=$service->save('1','4',$oldDelete);
+checkShopping($retried===$confirmed);
+rejectShopping(fn()=>$service->save('1','4',['revision'=>$oldClient['revision'],'items'=>[memoryItem('old','Old client item')]]),409);
+echo "Legacy single-device lost-delete-response retry is acknowledged without overwriting any newer data\n";
