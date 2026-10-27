@@ -4,8 +4,6 @@ import os
 import re
 import sys
 
-import requests
-
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
 
 
@@ -30,6 +28,8 @@ def summarize(text):
 
 
 def inspect():
+    import requests
+
     user, token = os.environ.get('CPANEL_USER'), os.environ.get('CPANEL_API_TOKEN')
     if not user or not token:
         raise RuntimeError('Hosting credentials unavailable')
