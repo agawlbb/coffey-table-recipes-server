@@ -6,6 +6,22 @@ final class RecipeVariationService
 {
     public function __construct(private array $config, private string $storage, private $transport = null, private $coverReader = null) {}
 
+    /** Bounded private diagnostics: no prompts, recipe content or account IDs. */
+    private function event(string $request, string $event, float $started, ?string $code = null): void {
+        $line = json_encode(['at'=>gmdate('c'),'request'=>$request,'event'=>$event,
+            'code'=>$code,'elapsed_ms'=>(int)((microtime(true)-$started)*1000)],JSON_UNESCAPED_SLASHES)."\n";
+        $log = @fopen($this->storage.'/variation-events.log','c+');
+        if ($log === false) return;
+        try {
+            if (!flock($log,LOCK_EX | LOCK_NB)) return;
+            $size = fstat($log)['size'];
+            if ($size > 1048576) { rewind($log); ftruncate($log,0); }
+            else fseek($log,0,SEEK_END);
+            fwrite($log,$line);
+            chmod($this->storage.'/variation-events.log',0600);
+        } finally { flock($log,LOCK_UN); fclose($log); }
+    }
+
     /** Read only the authorized recipe's locally hosted cover, never arbitrary URLs. */
     private function parentCover(array $source): ?array {
         $photos=$source['photos'] ?? [];
@@ -92,12 +108,22 @@ final class RecipeVariationService
         $path = $directory.'/'.$identity.'.json';
         $file = fopen($path, 'c+');
         if ($file === false) throw new RuntimeException('Cannot open variation draft storage.');
+        $started = microtime(true);
+        $trace = substr($identity,0,16);
         try {
-            if (!flock($file,LOCK_EX)) throw new RuntimeException('Cannot lock variation draft.');
+            // A lost HTTP response may be retried while its original worker is
+            // still preparing the draft. Never queue another blocking worker.
+            if (!flock($file,LOCK_EX | LOCK_NB)) {
+                $this->event($trace,'busy',$started);
+                throw new HttpError(503,'variation_in_progress','Your variation is still being prepared. Please wait a moment and try again.');
+            }
             $stored = json_decode(stream_get_contents($file),true) ?? [];
             $base = hash('sha256', trim($changes));
             if (isset($stored['changes']) && !hash_equals($stored['changes'],$base)) throw new HttpError(409,'variation_changed','Start a new variation after changing the request.');
-            if (isset($stored['drafts'][$fingerprint])) return $stored['drafts'][$fingerprint];
+            if (isset($stored['drafts'][$fingerprint])) {
+                $this->event($trace,'recovered',$started);
+                return $stored['drafts'][$fingerprint];
+            }
             if (count($stored['drafts'] ?? []) >= 8) throw new HttpError(429,'variation_limit','This variation has reached its clarification limit. Start a new request.');
             $config = $this->config;
             $config['model'] = $config['variation_model'] ?? $config['model'];
@@ -109,6 +135,7 @@ final class RecipeVariationService
             $config['variation_base_title']=$baseTitle;
             if ($cover!==null) $config['variation_cover_image']='data:'.$cover['_mime'].';base64,'.$cover['image_base64'];
             elseif (!empty($source['photos'])) $config['variation_cover_unavailable']=true;
+            $this->event($trace,'started',$started);
             $draft = (new RecipeImportService($config,$this->storage,$this->transport))->analyze(['kind'=>'text','text'=>$text],$userId,$categories,true);
             $draft['recipe']['parent_recipe_id'] = $parent;
             $draft['recipe']['is_variation'] = true;
@@ -131,7 +158,12 @@ final class RecipeVariationService
             rewind($file); ftruncate($file,0);
             if (fwrite($file,$encoded) !== strlen($encoded)) throw new RuntimeException('Cannot save variation draft.');
             fflush($file); chmod($path,0600);
+            $this->event($trace,'completed',$started);
             return $draft;
+        } catch (Throwable $error) {
+            $code = $error instanceof HttpError ? $error->errorCode : 'internal_error';
+            $this->event($trace,'failed',$started,$code);
+            throw $error;
         } finally { flock($file,LOCK_UN); fclose($file); }
     }
 }

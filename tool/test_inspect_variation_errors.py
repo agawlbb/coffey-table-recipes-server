@@ -8,6 +8,11 @@ spec.loader.exec_module(diagnostics)
 
 
 class VariationDiagnosticsTests(unittest.TestCase):
+    def test_private_events_emit_only_diagnostic_fields(self):
+        rows = diagnostics.summarize('{"at":"2026-10-27T18:23:00+00:00","request":"aaaaaaaaaaaaaaaa","event":"recovered","code":null,"elapsed_ms":1,"prompt":"private"}\n{"at":"private"}')
+        self.assertEqual(rows, [('2026-10-27T18:23:00+00:00', 'recovered', 'aaaaaaaaaaaaaaaa', '', '1')])
+        self.assertNotIn('private', str(rows))
+
     def test_only_allowlisted_fields_leave_logs(self):
         text = '''[27-Oct-2026 18:22:00 UTC] Recipe AI failure: HTTP 0, transport 28, code unknown private secret
 [27-Oct-2026 18:23:00 UTC] PHP Fatal error: Maximum execution time of 30 seconds exceeded /private/file.php

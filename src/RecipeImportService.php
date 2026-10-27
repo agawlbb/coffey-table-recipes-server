@@ -543,6 +543,9 @@ PROMPT;
             $code = $failure['code'] ?? '';
             if (!is_string($code) || !preg_match('/^[a-z_]{1,80}$/', $code)) $code = 'unknown';
             error_log('Recipe AI failure: HTTP '.$status.', transport '.$curlError.', code '.$code);
+            if ($curlError === 28) {
+                throw new HttpError(504,'ai_timeout','Recipe AI took too long to respond. Your input is still here; please try again.');
+            }
             $message = $raw === false ? 'The hosting server could not connect to recipe AI (connection '.$curlError.').'
                 : ($code === 'insufficient_quota' ? 'The recipe AI account needs API credits before imports can continue.'
                 : ($status === 429 ? 'Recipe AI is temporarily busy. Please wait and try again.'

@@ -35,6 +35,25 @@ $source['actions']=[
 $body=['changes'=>'Use chickpeas instead of chicken','request_id'=>str_repeat('a',32),'parent_recipe_id'=>'999','recipe'=>['id'=>'999']];
 $source['original_language']='en';
 try {
+    $concurrentBody=array_replace($body,['request_id'=>str_repeat('7',32)]);
+    $concurrentCalls=0;
+    $concurrent=null;
+    $concurrentTransport=static function(array $payload) use (&$concurrent,&$concurrentCalls,$source,$concurrentBody,$transport): array {
+        $concurrentCalls++;
+        variationError(fn()=>$concurrent->analyze($source,$concurrentBody,'user-a','house-a'),'variation_in_progress');
+        return $transport($payload);
+    };
+    $concurrent=new RecipeVariationService($config,$directory,$concurrentTransport);
+    $completed=$concurrent->analyze($source,$concurrentBody,'user-a','house-a');
+    $retryService=new RecipeVariationService($config,$directory,$concurrentTransport);
+    expectVariation($retryService->analyze($source,$concurrentBody,'user-a','house-a')===$completed,'A fresh request worker recovers the same completed draft after a lost response');
+    expectVariation($concurrentCalls===1,'Concurrent and completed retries never invoke a second provider call');
+    $events=file_get_contents($directory.'/variation-events.log');
+    expectVariation(str_contains($events,'"event":"recovered"') && str_contains($events,'"event":"busy"'),'Private diagnostics distinguish ongoing and recovered requests');
+    expectVariation(!str_contains($events,'chickpeas') && !str_contains($events,'user-a') && !str_contains($events,'house-a'),'Diagnostics never include input or account identities');
+    $payloads=[];
+    $timedOut=new RecipeVariationService($config,$directory,static fn($payload)=>['status'=>0,'body'=>false,'error'=>28]);
+    variationError(fn()=>$timedOut->analyze($source,array_replace($body,['request_id'=>str_repeat('8',32)]),'user-a','house-a'),'ai_timeout');
     $draft=$service->analyze($source,$body,'user-a','house-a');
     expectVariation(count($payloads)===1,'One mock call');
     expectVariation($payloads[0]['model']==='fixture-model' && $payloads[0]['store']===false,'Configured model and no response storage');
@@ -174,5 +193,5 @@ try {
         ])]]]]])]);
         variationError(fn()=>$invalidLabelService->analyze($source,array_replace($body,['request_id'=>bin2hex(random_bytes(16))]),'user-a','house-a'),'invalid_ai_reply');
     }
-} finally { foreach(glob($directory.'/variation-drafts/*') ?: [] as $file) unlink($file); if(is_dir($directory.'/variation-drafts'))rmdir($directory.'/variation-drafts'); rmdir($directory); }
+} finally { foreach(glob($directory.'/variation-drafts/*') ?: [] as $file) unlink($file); if(is_dir($directory.'/variation-drafts'))rmdir($directory.'/variation-drafts'); if(is_file($directory.'/variation-events.log'))unlink($directory.'/variation-events.log'); rmdir($directory); }
 echo "$checks recipe variation checks passed.\n";

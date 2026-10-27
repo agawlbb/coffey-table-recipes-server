@@ -1,5 +1,6 @@
 """Read hosted logs through cPanel; emit only allowlisted diagnostic fields."""
 import collections
+import json
 import os
 import re
 import sys
@@ -10,6 +11,18 @@ HOST = 'https://ecngx362.inmotionhosting.com:2083'
 def summarize(text):
     rows = []
     for line in text.splitlines():
+        if line.startswith('{'):
+            try:
+                event = json.loads(line)
+                if (re.fullmatch(r'2026-10-27T[0-9:+-]+', event.get('at', ''))
+                        and re.fullmatch(r'[a-f0-9]{16}', event.get('request', ''))
+                        and event.get('event') in ('started', 'busy', 'recovered', 'completed', 'failed')
+                        and (event.get('code') is None or re.fullmatch(r'[a-z_]{1,80}', event['code']))
+                        and type(event.get('elapsed_ms')) is int):
+                    rows.append((event['at'], event['event'], event['request'], event['code'] or '', str(event['elapsed_ms'])))
+            except (ValueError, TypeError, AttributeError):
+                pass
+            continue
         if '27-Oct-2026' not in line and '27/Oct/2026' not in line:
             continue
         stamp = re.search(r'\[([^\]]{1,80})\]', line)
@@ -42,6 +55,7 @@ def inspect():
         (root + '/logs', 'error_log'),
         (root + '/access-logs', 'coffeybean.com-ssl_log'),
         (root + '/access-logs', 'coffeybean.com'),
+        (root + '/coffeybean.com/CoffeyTableRecipes/storage', 'variation-events.log'),
     ]
     for index, (directory, name) in enumerate(paths):
         response = session.get(HOST + '/execute/Fileman/get_file_content',

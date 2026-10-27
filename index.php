@@ -253,6 +253,11 @@ try {
         $recipes = new RecipeService($pdo,$households);
         $source = $recipes->detail($user['id'],$variationMatch[1],$variationMatch[2]);
         $options = $recipes->editOptions($user['id'],$variationMatch[1]);
+        // Keep the PHP execution budget above the bounded 75-second provider
+        // request and below the app's 110-second deadline. Preserve unlimited
+        // or already more generous hosting settings.
+        $executionLimit = (int)ini_get('max_execution_time');
+        if ($executionLimit > 0 && $executionLimit < 100) set_time_limit(100);
         $draft = (new RecipeVariationService($config['recipe_ai'],__DIR__.'/storage'))->analyze($source,requestBody(100000),$user['id'],$variationMatch[1],$options['categories']);
         $draft['recipe']['edit_options'] = $options;
         respond(200,$draft);
@@ -422,6 +427,7 @@ try {
         respond(404, ['error' => ['code' => 'not_found', 'message' => 'Endpoint not found.']]);
     }
 } catch (HttpError $error) {
+    if ($error->errorCode === 'variation_in_progress') header('Retry-After: 3');
     if ($error->status === 401) header('WWW-Authenticate: Bearer');
     respond($error->status, ['error' => ['code' => $error->errorCode, 'message' => $error->getMessage()]]);
 } catch (Throwable $error) {
