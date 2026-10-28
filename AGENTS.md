@@ -42,3 +42,12 @@ Complete and verify project work, commit it, and push it to the existing GitHub 
 - Deploy only to the verified coffeybean.com document root and a dedicated recipe database; this cPanel account hosts other domains.
 
 - `.github/workflows/deploy-backend.yml` normally runs on every push to main and can migrate and publish to hosting. Before any main push, report that mechanism and confirm deployment is within scope. For a specifically no-deployment documentation/history cleanup, use the documented GitHub `[skip ci]` head-commit instruction only after equivalent local validation; do not silently disable workflows or safeguards. Verify that no deployment was triggered. See `docs/backend-deployment.md`.
+
+## Keep the project simple
+
+This repository deploys only the inMotion PHP backend. Keep its existing layout.
+The VPS service is a separate repository, `agawlbb/coffey-table-recipes-vps`.
+Avoid overengineering: this is a small personal project. Brief deployment downtime
+is acceptable. Prefer copying files and restarting a process. Keep setup separate
+from deployment; preserve authentication, credentials and user data. Do not add
+release frameworks, compatibility layers or workflows for hypothetical scale.

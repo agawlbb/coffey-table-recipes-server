@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/src/bootstrap.php';
-$directory = sys_get_temp_dir().'/ctr-ha-test-'.bin2hex(random_bytes(8));
-$service = new HomeAssistantConnections($directory);
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE shopping_connections(token_hash TEXT PRIMARY KEY,household_id INTEGER,created_at TEXT)');
+$service = new HomeAssistantConnections($pdo);
 function checkHa(bool $ok): void { if (!$ok) throw new RuntimeException('Home Assistant connection assertion failed'); }
 function rejectHa(callable $call, int $status): void {
     try { $call(); throw new RuntimeException('Expected rejection'); }
@@ -13,8 +15,8 @@ try {
     checkHa($one['token'] !== $other['token']);
     checkHa($service->household($one['token']) === '1');
     checkHa(count($service->list('1')) === 2 && count($service->list('2')) === 1);
-    $contents = file_get_contents($directory.'/'.hash('sha256', $one['token']).'.json');
-    checkHa(!str_contains($contents, $one['token']) && str_contains($contents, 'household_integration'));
+    $contents = json_encode($pdo->query('SELECT * FROM shopping_connections')->fetchAll(PDO::FETCH_ASSOC));
+    checkHa(!str_contains($contents, $one['token']) && str_contains($contents, hash('sha256', $one['token'])));
     rejectHa(fn()=>$service->household('../../etc/passwd'), 401);
     rejectHa(fn()=>$service->household('ctrha_'.str_repeat('0',64)), 401);
     rejectHa(fn()=>$service->revokeById('2', hash('sha256',$one['token'])), 404);
@@ -26,7 +28,4 @@ try {
     checkHa($service->list('1') === []);
     checkHa($service->household($two['token']) === '2');
     echo "Home Assistant connection fixtures passed\n";
-} finally {
-    foreach (glob($directory.'/*.json') ?: [] as $path) unlink($path);
-    if (is_dir($directory)) rmdir($directory);
-}
+} finally { $pdo = null; }

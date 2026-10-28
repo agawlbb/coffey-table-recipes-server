@@ -44,9 +44,7 @@ jobs:
           php tests/meal_plans.php
           php tests/invitation-mail.php
           php tests/verification.php
-          php tests/shopping_lists.php
           php tests/home_assistant_connections.php
-          php tests/shopping_sync_requests.php
           php tests/timer_sync.php
           php tests/migration_checksums.php
           php tests/recipe_deletion.php
@@ -81,12 +79,6 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/migrate-household-images.py
-      - name: Back up recipe database and enable shopping lists
-        if: env.HOSTING_CONFIGURED == 'true'
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/migrate-shopping-lists.py
       - name: Back up and enable idempotent recipe saves
         if: env.HOSTING_CONFIGURED == 'true'
         env:

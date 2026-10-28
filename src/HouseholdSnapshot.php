@@ -93,7 +93,6 @@ final class HouseholdSnapshot {
             } unset($recipe);
             $responses["$rootPath/restaurants"]=(new RestaurantService($this->pdo,$this->households))->read($user,$household);
             $responses["$rootPath/people"]=['people'=>$people];
-            $responses["$rootPath/shopping-list"]=(new ShoppingListService($this->pdo,$this->households))->read($user,$household);
             if (class_exists('MealPlanService')) {
                 $plans=new MealPlanService($this->pdo,$this->households,$this->mediaUrl);
                 $responses["$rootPath/meal-plan"]=$plans->read($user,$household,'2000-01-01','2199-12-31');

@@ -43,6 +43,7 @@ $pdo->exec('CREATE TABLE household_restaurant_lists(household_id INTEGER PRIMARY
 $s=new HouseholdSnapshot($pdo,new HouseholdService($pdo),'https://example.com/media');
 function verifySnapshot(bool $ok): void { if (!$ok) throw new RuntimeException('Snapshot assertion failed'); }
 $result=$s->read('1','1');
+verifySnapshot(!isset($result['responses']['/households/1/shopping-list']));
 verifySnapshot($result['edit_options']['ai_images_enabled']===true);
 verifySnapshot($result['responses']['/households/1/recipes/1']['recipe']['edit_options']['ai_images_enabled']===true);
 $pdo->exec('UPDATE households SET ai_images_enabled=0 WHERE id=1');

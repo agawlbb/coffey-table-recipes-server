@@ -19,6 +19,9 @@ try {
     }
     $route = substr($path, strlen($prefix));
     $method = $_SERVER['REQUEST_METHOD'];
+    if ($route === '/home-assistant/shopping-list' || preg_match('#^/households/[1-9][0-9]{0,18}/shopping-list(?:/sync-request)?$#D', $route)) {
+        throw new HttpError(410, 'shopping_moved', 'Shopping synchronization is available through the VPS.');
+    }
     $childModes = new ChildMode(__DIR__.'/storage/child-mode');
     if (!ChildMode::allowed($route,$method) && !str_starts_with($route,'/home-assistant/')) {
         $childModes->guard(authenticatedIdentity($config),$route,$method);
@@ -80,33 +83,17 @@ try {
         $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
         $user = $households->bootstrap($identity);
         $households->membership($user['id'], $haMatch[1], true);
-        $connections = new HomeAssistantConnections(__DIR__.'/storage/home-assistant-connections');
+        $connections = new HomeAssistantConnections($pdo);
         if ($method === 'DELETE') { $connections->revokeById($haMatch[1], $haMatch[2]); respond(200, ['revoked'=>true]); }
         elseif ($method === 'GET') respond(200, ['connections'=>$connections->list($haMatch[1])]);
         else respond(200, $connections->create($haMatch[1]));
-    } elseif (in_array($route, ['/home-assistant/shopping-list', '/home-assistant/connection'], true)) {
-        if (($route === '/home-assistant/connection' && $method !== 'DELETE') || ($route !== '/home-assistant/connection' && !in_array($method, ['GET','POST'], true))) throw new HttpError(405, 'method_not_allowed', 'Unsupported request.');
+    } elseif ($route === '/home-assistant/connection') {
+        if ($method !== 'DELETE') throw new HttpError(405, 'method_not_allowed', 'Use DELETE.');
         $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
         $token = preg_match('/^Bearer (ctrha_[a-f0-9]{64})$/D', $header, $haToken) ? $haToken[1] : '';
-        $connections = new HomeAssistantConnections(__DIR__.'/storage/home-assistant-connections');
-        $household = $connections->household($token);
-        if ($route === '/home-assistant/connection') {
-            $connections->revoke($token); respond(200, ['revoked'=>true]);
-        } else {
-            $pdo = database($config);
-            $authorize = static function (string $id) use ($connections, $token, $household, $pdo): void {
-                if ($id !== $household || $connections->household($token) !== $id) throw new HttpError(401, 'invalid_connection', 'Reconnect Home Assistant.');
-                $q = $pdo->prepare('SELECT id FROM households WHERE id=?'); $q->execute([$id]);
-                if ($q->fetchColumn() === false) throw new HttpError(401, 'invalid_connection', 'Household no longer exists.');
-            };
-            $body = $method === 'POST' ? requestBody(524288) : null;
-            if ($body !== null && array_diff(array_keys($body), ['revision','items']) !== []) throw new HttpError(422, 'invalid_list', 'Only shopping items may be changed.');
-            if ($body !== null && (!is_int($body['revision'] ?? null) || $body['revision'] < 0 || !is_array($body['items'] ?? null))) throw new HttpError(422, 'invalid_list', 'Supply the current revision and items.');
-            $service = new ShoppingListService($pdo, new HouseholdService($pdo), $authorize);
-            $result = $method === 'GET' ? $service->read('', $household) : $service->save('', $household, $body);
-            $result['sync_requests'] = (new ShoppingSyncRequests(__DIR__.'/storage/shopping-sync-requests'))->read($household);
-            respond(200, $result);
-        }
+        $connections = new HomeAssistantConnections(database($config));
+        $connections->household($token);
+        $connections->revoke($token); respond(200, ['revoked'=>true]);
     } elseif (preg_match('#^/recipes/([1-9][0-9]{0,18})$#', $route, $publicRecipe)) {
         if ($method!=='GET') throw new HttpError(405,'method_not_allowed','Use GET.');
         $pdo=database($config);
@@ -121,22 +108,6 @@ try {
         elseif ($method === 'GET') $result=$service->list($user['id']);
         else $result=$service->change($user['id'],$identity['uid'],requestBody());
         respond(200,$result);
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/shopping-list/sync-request$#', $route, $syncMatch)) {
-        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
-        requestBody();
-        $identity = authenticatedIdentity($config); $pdo = database($config);
-        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
-        $user = $households->bootstrap($identity);
-        $households->membership($user['id'], $syncMatch[1]);
-        $state = (new ShoppingSyncRequests(__DIR__.'/storage/shopping-sync-requests'))->request($syncMatch[1]);
-        respond(200, ['request'=>end($state['requests'])]);
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/shopping-list$#', $route, $shoppingMatch)) {
-        if (!in_array($method, ['GET', 'POST'], true)) throw new HttpError(405, 'method_not_allowed', 'Use GET or POST.');
-        $identity = authenticatedIdentity($config); $pdo = database($config);
-        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
-        $user = $households->bootstrap($identity);
-        $service = new ShoppingListService($pdo, $households);
-        respond(200, $method === 'GET' ? $service->read($user['id'], $shoppingMatch[1]) : $service->save($user['id'], $shoppingMatch[1], requestBody(4*1024*1024)));
     } elseif ($route === '/me/verification-email') {
         if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
         $identity = authenticatedIdentity($config);
