@@ -1,6 +1,6 @@
 # Shared recipes rollout and validation
 
-This is a coordinated client/backend feature change. Nothing here authorizes deployment. Joe merges and deploys from his laptop. Do not push main or tags, run distribution workflows, or apply a hosted migration as part of reviewing these branches.
+This is a coordinated client/backend feature change. Nothing here authorizes deployment. Development and merge coordination follow [AGENTS.md](../AGENTS.md); deployment still requires its own authorization. Do not push main or tags, run distribution workflows, or apply a hosted migration as part of reviewing these branches.
 
 The prepared guarded manual procedure is in [MANUAL_SHARED_ROLLOUT.md](MANUAL_SHARED_ROLLOUT.md). It supports publishing a reviewed feature commit without merging main, and preserves the existing hosted web build. Preparing or testing that tooling does not deploy it.
 
@@ -16,7 +16,7 @@ GET `/households/{id}/recipes` and `/households/{id}/recipes/{recipe}` and GET `
 
 ## Deployment order — do not apply during this task
 
-1. Review both branches and the existing unpushed client ancestor commit. Merge using Joe's usual laptop workflow only when ready. Backend main currently triggers deployment, so arrange the maintenance window before merging it.
+1. Review both branches and the existing unpushed client ancestor commit. Integrate and merge through temporary task branches using the GitHub-canonical workflow in [AGENTS.md](../AGENTS.md) when ready. Backend main currently triggers deployment, so arrange the maintenance window before merging it.
 2. Make a verified backup of the dedicated recipe database and recipe media. Verify the exact coffeybean.com application database and document root; the hosting account contains unrelated domains.
 3. Disable recipe writes and pause the expired-recipe purge job. Do not run old and new writers concurrently during migration. Rehearse migrations 011 and 012 and the new backend against a disposable database matching the hosted MySQL version first. A synthetic MariaDB 10.4.32 rehearsal has passed locally; it is not certification of a different hosted MySQL version.
 4. Apply 011 followed by 012 using the existing checksum-aware migration runner through the usual deployment process, then deploy the matching backend before reopening writes. MySQL DDL implicitly commits: a failed migration may be partially applied. Inspect the schema and migration ledger before resuming; do not blindly rerun `ALTER TABLE` statements or drop data to make them pass.
