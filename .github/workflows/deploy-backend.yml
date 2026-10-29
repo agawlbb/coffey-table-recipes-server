@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/backend_migration')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -40,6 +40,7 @@ jobs:
       - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
       - name: Validate mail and verification behavior
         run: |
+          php tests/data_routes.php
           php tests/child_mode.php
           php tests/meal_plans.php
           php tests/invitation-mail.php
