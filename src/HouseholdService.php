@@ -120,6 +120,18 @@ final class HouseholdService
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    /** Account policy stays on InMotion; return only household-scoped booleans. */
+    public function peopleChildModes(string $userId): array
+    {
+        $result=[];
+        foreach ($this->households($userId) as $household) {
+            foreach ($this->people($userId,$household['id']) as $person) {
+                if ($person['user_id']!==null) $result[$person['id']]=($person['child_mode']??false)===true;
+            }
+        }
+        return $result;
+    }
+
     public function renameOwnPerson(string $userId, string $householdId, string $name): array
     {
         $this->membership($userId, $householdId);

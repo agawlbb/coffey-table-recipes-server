@@ -4,13 +4,16 @@ require __DIR__.'/household_snapshot.php';
 $directory=sys_get_temp_dir().'/ctr-people-child-'.bin2hex(random_bytes(8));
 $modes=new ChildMode($directory);
 try {
-    $pdo->exec("CREATE TABLE users(id INTEGER PRIMARY KEY,firebase_uid TEXT);
+    $pdo->exec("ALTER TABLE households ADD COLUMN name TEXT;
+        CREATE TABLE users(id INTEGER PRIMARY KEY,firebase_uid TEXT);
         INSERT INTO users VALUES(1,'parent'),(2,'child'),(3,'outsider');
         INSERT INTO household_people VALUES(11,1,2,'Child'),(12,1,NULL,'Invited'),(13,2,3,'Other table');");
     $modes->change(['uid'=>'child'],['enabled'=>true,'pin'=>'1234']);
     $households=new HouseholdService($pdo,null,$modes);
     $people=$households->people('1','1');
     verifySnapshot(array_column($people,'child_mode')===[false,true,false]);
+    verifySnapshot($households->peopleChildModes('1')===[10=>false,11=>true]);
+    verifySnapshot($households->peopleChildModes('3')===[]);
     verifySnapshot(!str_contains(json_encode($people),'firebase_uid'));
     verifySnapshot(!str_contains(json_encode($people),'pin'));
     verifySnapshot(count($people)===3);
