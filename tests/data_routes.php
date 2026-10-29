@@ -12,7 +12,7 @@ function routeCheck(string $route,int $expected,string $code=''): void {
     if ($status!==0 || !str_ends_with($output,'STATUS:'.$expected)) throw new RuntimeException('Unexpected response for '.$route.': '.$output.$errors);
     if ($code!=='' && !str_contains($output,'"code":"'.$code.'"')) throw new RuntimeException('Unexpected route error for '.$route);
 }
-foreach (['/recipes/1','/households/1/recipes','/households/1/recipes/1','/households/1/recipes/1/edit-options',
+foreach (['/recipes/1','/households/1/recipes','/households/1/recipes/1','/households/1/recipes/1/edit-options','/households/1/recipes/1/favorites',
     '/households/1/recipes/deleted','/households/1/recipe-blank','/households/1/name','/households/1/people/me/name','/households/1/people','/households/1/snapshot','/households/1/restaurants',
     '/households/1/meal-plan','/households/1/meal-plan/history','/households/1/shopping-list',
     '/me/timers','/me/timer-devices','/me/timer-devices/remove'] as $route) routeCheck($route,410,'data_moved');
