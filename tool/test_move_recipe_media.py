@@ -1,5 +1,7 @@
 """Disposable byte fixtures only: no hosting access or real recipe database."""
 import hashlib
+import io
+import json
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -17,6 +19,19 @@ class HostingFixture:
     def trash(self,name): self.removed.append(name); del self.files[name]
 
 class MediaTests(unittest.TestCase):
+    def test_retirement_targets_exact_source_via_supported_cpanel_api(self):
+        hosting=object.__new__(media.Hosting)
+        hosting.directory='/home/fixture/coffeybean.com/CoffeyTableRecipes/media/recipes'
+        hosting.authorization='cpanel fixture:fixture-only'
+        legacy='b'*64+'.png'
+        hosting.locations={legacy:hosting.directory.removesuffix('/recipes')+'/recipe-photos'}
+        response=io.BytesIO(json.dumps({'cpanelresult':{'event':{'result':1},'data':[{'result':1}]}}).encode())
+        with patch.object(media.urllib.request,'urlopen',return_value=response) as call:
+            hosting.trash(legacy)
+        params=media.urllib.parse.parse_qs(call.call_args.args[0].data.decode())
+        self.assertEqual(params['op'],['trash'])
+        self.assertEqual(params['sourcefiles'],[hosting.locations[legacy]+'/'+legacy])
+
     def test_inventory_skips_only_empty_category_lock_markers(self):
         hosting=object.__new__(media.Hosting); hosting.directory='/fixture'
         rows=[{'file':'category-8.jpg.lock','type':'file','size':''},

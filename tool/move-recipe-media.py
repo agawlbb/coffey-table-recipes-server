@@ -82,7 +82,18 @@ class Hosting:
     def trash(self, name):
         if not NAME.fullmatch(name):
             raise ValueError('Unsafe retirement target')
-        self.api('trash_file', path=getattr(self, 'locations', {}).get(name, self.directory) + '/' + name)
+        # The deployed cPanel version exposes trash through API 2, not UAPI.
+        path = getattr(self, 'locations', {}).get(name, self.directory) + '/' + name
+        body = urllib.parse.urlencode(dict(cpanel_jsonapi_user=self.directory.split('/')[2],
+            cpanel_jsonapi_apiversion=2, cpanel_jsonapi_module='Fileman',
+            cpanel_jsonapi_func='fileop', op='trash', sourcefiles=path, doubledecode=1)).encode()
+        request = urllib.request.Request(HOST + '/json-api/cpanel', data=body,
+                                         headers={'Authorization': self.authorization})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            result = json.load(response)['cpanelresult']
+        if (result.get('event', {}).get('result') != 1 or not result.get('data') or
+                any(row.get('result') != 1 for row in result['data'])):
+            raise RuntimeError('Hosting image retirement failed; private response omitted')
 
 
 def transfer(hosting, destination):
