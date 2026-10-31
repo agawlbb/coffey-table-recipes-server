@@ -29,3 +29,13 @@ Verified on 2026-10-31 using `dev exec`: retired HTTP routes passed; deployment
 tests (3), binary media-transfer tests (6) and retired-scheduler test (1) passed.
 Changed entry-point PHP lint, Python compilation and `git diff --check` passed.
 No live files were uploaded, copied or removed and no cron entries were changed.
+
+The subsequent authorized VPS feature deployment copied/verified all three owned
+image directories (`recipes`, `recipe-photos`, `recipe-illustrations`), preserving
+originals. A temporary protected CLI export handled cPanel's 1 MB editor limit;
+its files and exact cron were removed afterward. The exact old recipe cleanup
+cron was removed when the VPS timer was enabled. No shared-host entry-point
+retirement was deployed. See the VPS deployment record for verified counts and
+runtime provenance. The transfer suite now has 8 passing tests, including both
+source inventories and the cPanel API 2 retirement request. Optional source
+retirement has not been run; the current host does not expose UAPI `trash_file`.
