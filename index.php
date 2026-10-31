@@ -19,7 +19,7 @@ try {
     }
     $route = substr($path, strlen($prefix));
     $method = $_SERVER['REQUEST_METHOD'];
-    if (preg_match('#^/(?:me(?:/verification-email)?|households|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$#D',$route)) {
+    if (preg_match('#^/(?:me(?:/verification-email|/child-mode)?|admin/users/[1-9][0-9]*/reset-child-mode|households|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$#D',$route)) {
         throw new HttpError(410,'account_moved','Account setup and verification are available through the VPS WebSocket.');
     }
     if (preg_match('#^/households/[1-9][0-9]*/(?:recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)$#D',$route) || preg_match('#^/admin/parent-categories(?:/[1-9][0-9]*/category-image)?$#D',$route)) {
@@ -28,24 +28,11 @@ try {
     if ($route === '/home-assistant/shopping-list' || preg_match('#^/(?:me/(?:timers|timer-devices(?:/remove)?)|recipes/[1-9][0-9]*|households/[1-9][0-9]*/(?:shopping-list(?:/sync-request)?|snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|meal-plan(?:/.*)?|recipes(?:/(?![1-9][0-9]*/variation$).*)?))$#D', $route)) {
         throw new HttpError(410, 'data_moved', 'Data synchronization is available through the VPS.');
     }
-    $childModes = new ChildMode(__DIR__.'/storage/child-mode');
     if (!ChildMode::allowed($route,$method) && !str_starts_with($route,'/home-assistant/')) {
-        $childModes->guard(authenticatedIdentity($config),$route,$method);
-    }
-    if ($route === '/me/child-mode' && in_array($method,['GET','POST'],true)) {
         $identity=authenticatedIdentity($config);
-        $h=new HouseholdService(database($config),[new FirebaseAccountDirectory($config),'requireAccount'],$childModes);
-        $user=$h->bootstrap($identity);
-        respond(200,$method==='GET'?$childModes->state($identity)+['people_child_modes'=>(object)$h->peopleChildModes($user['id'])]:$childModes->change($identity,requestBody()));
-    } elseif (preg_match('#^/admin/users/([1-9][0-9]*)/reset-child-mode$#D',$route,$resetMatch) && $method==='POST') {
-        $pdo=database($config);$identity=authenticatedIdentity($config);
-        $h=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);$actor=$h->bootstrap($identity);
-        (new AdministrationService($pdo,static function(){}))->requireAdministrator($actor['id']);
-        if ((requestBody()['confirm']??false)!==true) throw new HttpError(422,'confirmation_required','Confirm the child mode reset.');
-        $q=$pdo->prepare('SELECT firebase_uid FROM users WHERE id=?');$q->execute([$resetMatch[1]]);$uid=$q->fetchColumn();
-        if (!is_string($uid)) throw new HttpError(404,'user_not_found','User not found.');
-        respond(200,$childModes->requestReset($uid));
-    } elseif ($method === 'OPTIONS') {
+        (new ChildMode(database($config)))->guard($identity,$route,$method);
+    }
+    if ($method === 'OPTIONS') {
         http_response_code(204);
     } elseif ($route === '/health') {
         if ($method !== 'GET') {

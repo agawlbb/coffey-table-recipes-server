@@ -1,5 +1,13 @@
 # Account migration branch
 
+Current policy: child-mode flag, PIN hashes, attempts, lockout and next-login reset
+state now live in the SQL users row. Apply `020_child_mode.sql` and preserve/import
+the legacy files once before deployment. This branch retires `/me/child-mode` and
+`/admin/users/{id}/reset-child-mode`; the app uses the VPS account WebSocket scope.
+Retained shared-backend write guards read the same SQL state. Earlier descriptions
+of the VPS calling InMotion policy below are superseded by this change. See the
+VPS repository's `CHILD-MODE-SQL.md` for setup and deployment evidence.
+
 The matching `feature/vps-account-auth` branches move `/me`, `/households`,
 `/me/verification-email`, invitation sending and invitation responses to the VPS
 account WebSocket scope. This repository returns `410 account_moved` for those
