@@ -47,6 +47,11 @@ class Hosting:
             name = row.get('file', '')
             if name in ('.', '..', '.htaccess'):
                 continue
+            # Category generation leaves empty flock files beside its artwork.
+            # They are synchronization markers, never image data to transfer.
+            if (re.fullmatch(r'category-[1-9][0-9]*\.jpg\.lock', name)
+                    and row.get('type') == 'file' and int(row.get('size') or 0) == 0):
+                continue
             if not NAME.fullmatch(name) or row.get('type') != 'file':
                 raise ValueError('Unexpected media entry; review before moving files')
             size = int(row.get('size') or 0)

@@ -17,6 +17,16 @@ class HostingFixture:
     def trash(self,name): self.removed.append(name); del self.files[name]
 
 class MediaTests(unittest.TestCase):
+    def test_inventory_skips_only_empty_category_lock_markers(self):
+        hosting=object.__new__(media.Hosting); hosting.directory='/fixture'
+        rows=[{'file':'category-8.jpg.lock','type':'file','size':''},
+              {'file':PHOTO,'type':'file','size':'10'}]
+        with patch.object(hosting,'api',return_value=rows):
+            self.assertEqual(hosting.inventory(),{PHOTO:10})
+        rows[0]['size']='12'
+        with patch.object(hosting,'api',return_value=rows):
+            with self.assertRaises(ValueError): hosting.inventory()
+
     def test_binary_response_round_trip_covers_every_byte(self):
         hosting=object.__new__(media.Hosting); hosting.directory='/fixture'
         original=bytes(range(256))*3
