@@ -187,8 +187,12 @@ the deployed runtime remains the successful source commit above.
 ## AI retirement working branch
 
 `feature/vps-ai-websocket` starts at fetched main `c5503a3`, with matching app
-and VPS branches based on `2920c38` and `b977c8f`. These branches await the user's
-explicit integration approval; no deployment was performed for this task.
+and VPS branches based on `2920c38` and `b977c8f`. The user approved integration
+and branch removal on October 31, 2026, and requested VPS deployment from main.
+This repository's integration merge uses `[skip ci]`: shared-hosting deployment
+is not part of that request, and published apps still use its HTTP AI endpoints.
+No shared-hosting deployment was performed. A later coordinated app/backend update
+can publish these endpoint retirements.
 The branch retires AI import, variation, photo, category and parent-category HTTP
 routes with `410 ai_moved`. Normal configuration no longer loads the AI key JSON.
 The VPS uses the already-uploaded private key file and executes these functions
@@ -207,3 +211,9 @@ and `php tests/household_child_status.php` passed. `git diff --check` passed.
 No hosted request, production SQL operation, credential write or deployment was
 performed. The removed static variation route assertions are covered by the
 VPS's actual authorized socket execution and the shared-hosting retirement test.
+
+Integration validation: all tracked PHP passed syntax checks, all 29 fixture
+scripts in the deployment workflow passed, and all 122 tool unit tests passed
+locally with mocked deployment/network operations. The relationship fixture emitted
+two temporary-directory cleanup warnings but passed its 97 assertions. No live
+deployment, migration, mail or paid AI request was performed by these fixture tests.
