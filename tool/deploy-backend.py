@@ -68,84 +68,37 @@ def require_shared_rollout_ready(session):
 
 
 def deploy():
-    print('Preparing backend package.', flush=True)
+    """Retire only application entry points; keep database, mail and static app."""
     if not all(os.environ.get(name) for name in ('CPANEL_USER', 'CPANEL_API_TOKEN')):
         raise RuntimeError('Configure CPANEL_USER and CPANEL_API_TOKEN repository secrets')
-    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
-    if not re.fullmatch('[0-9a-f]{40}', commit):
-        raise RuntimeError('Invalid source commit')
-    files = runtime_files()
-    output = Path('storage') / ('backend-' + commit + '.zip')
-    manifest = {path.as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
-    metadata = {'commit': commit, 'package_sha256': hashlib.sha256(
-        json.dumps(manifest, sort_keys=True).encode()).hexdigest()}
-    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for path in files:
-            archive.write(path, path.as_posix())
     session = requests.Session()
     session.headers['Authorization'] = f"cpanel {os.environ['CPANEL_USER']}:{os.environ['CPANEL_API_TOKEN']}"
-    print(f'Backend package prepared: {len(files)} files, {output.stat().st_size} bytes.', flush=True)
-    require_shared_rollout_ready(session)
-    # Upload into protected storage, never into a publicly downloadable archive.
-    print('Uploading protected backend package.', flush=True)
-    with output.open('rb') as stream:
+    for name in ('.htaccess', 'index.php', 'share.php', 'bin/purge-deleted-recipes.php'):
+        path = Path(name)
+        if path.is_symlink():
+            raise RuntimeError('Retirement package contains a symbolic link')
+        content = path.read_bytes()
         require_success(session.post(HOST + '/execute/Fileman/upload_files',
-            data={'dir': DIRECTORY + '/storage', 'overwrite': '1'},
-            files={'file-1': (output.name, stream, 'application/zip')}, timeout=180), 'Upload')
-    print('Extracting backend package.', flush=True)
-    response = session.post(HOST + '/json-api/cpanel', data={
-        'cpanel_jsonapi_user': os.environ['CPANEL_USER'], 'cpanel_jsonapi_apiversion': '2',
-        'cpanel_jsonapi_module': 'Fileman', 'cpanel_jsonapi_func': 'fileop',
-        'op': 'extract', 'sourcefiles': DIRECTORY + '/storage/' + output.name,
-        'destfiles': DIRECTORY, 'doubledecode': '1'}, timeout=180)
-    require_http(response, 'Extraction')
-    result = response.json()['cpanelresult']
-    items = result.get('data', [])
-    if result.get('event', {}).get('result') != 1 or not items or any(
-            item.get('result') != 1 or item.get('dest', '').rstrip('/') != DIRECTORY for item in items):
-        raise RuntimeError('Extraction did not confirm the intended application directory')
-    print('Verifying extracted runtime source.', flush=True)
-    # A receipt alone cannot prove archive extraction replaced existing PHP files.
-    # Read back the variation runtime source privately; never log its contents.
-    for name in ('src/RecipeImportService.php', 'src/RecipeVariationService.php', 'src/RecipeService.php', 'src/AdministrationService.php', 'src/CategoryImageService.php', 'src/RecipePhotoService.php', 'src/MealPlanService.php', 'src/RestaurantService.php', 'src/ChildMode.php', 'src/FirebaseIdentity.php'):
-        if name not in manifest:
-            continue
+            data={'dir': DIRECTORY + ('/' + path.parent.as_posix() if path.parent != Path('.') else ''), 'overwrite': '1'},
+            files={'file-1': (path.name, content, 'application/octet-stream')}, timeout=60), 'Retirement upload')
         response = session.get(HOST + '/execute/Fileman/get_file_content',
-            params={'dir': DIRECTORY + '/src', 'file': Path(name).name}, timeout=30)
-        require_success(response, 'Runtime source verification')
-        content = response.json().get('data', {}).get('content')
-        if not isinstance(content, str) or hashlib.sha256(content.encode()).hexdigest() != manifest[name]:
-            raise RuntimeError('Hosted runtime source does not match package: ' + name)
-    print('Verifying public health, CORS and private-path protection.', flush=True)
-    # Public checks deliberately use a different session without cPanel credentials.
+            params={'dir': DIRECTORY + ('/' + path.parent.as_posix() if path.parent != Path('.') else ''), 'file': path.name}, timeout=30)
+        require_success(response, 'Retirement verification')
+        hosted = response.json().get('data', {}).get('content')
+        if not isinstance(hosted, str) or hashlib.sha256(hosted.encode()).digest() != hashlib.sha256(content).digest():
+            raise RuntimeError('Retirement source mismatch: ' + name)
+    # Public checks use a new session so cPanel authorization is never forwarded.
     public = requests.Session()
-    public.headers['User-Agent'] = 'CoffeyTableRecipes deployment verification'
-    response = public.get(PUBLIC + 'api/v1/health', timeout=60)
-    response.raise_for_status()
-    if response.json().get('status') != 'ok':
-        raise RuntimeError('Hosted liveness check failed')
-    response = public.options(PUBLIC + 'api/v1/health', headers={
-        'Origin': 'http://localhost', 'Access-Control-Request-Method': 'GET',
-        'Access-Control-Request-Headers': 'authorization,content-type'}, timeout=60)
-    if response.status_code != 204 or response.headers.get('Access-Control-Allow-Origin') != 'http://localhost':
-        raise RuntimeError('Hosted localhost CORS check failed')
-    for name in ('config/local.php', 'vendor/autoload.php', 'storage/' + output.name):
-        if public.get(PUBLIC + name, timeout=60).status_code != 403:
-            raise RuntimeError('Hosted internal-path protection check failed')
-    media = public.get(PUBLIC + 'media/recipes/', headers={'Origin': 'http://localhost'}, timeout=60)
-    if media.headers.get('Access-Control-Allow-Origin') != '*':
-        raise RuntimeError('Hosted public image CORS check failed')
-    # Publish the receipt only after runtime checks pass. Contains no credentials.
-    require_success(session.post(HOST + '/execute/Fileman/upload_files',
-        data={'dir': DIRECTORY, 'overwrite': '1'}, files={
-        'file-1': ('backend-version.json', json.dumps(metadata).encode(), 'application/json')},
-        timeout=60), 'Deployment receipt upload')
-    response = public.get(PUBLIC + 'backend-version.json', params={'commit': commit}, timeout=60)
-    response.raise_for_status()
-    if response.json() != metadata:
-        raise RuntimeError('Hosted deployment receipt mismatch')
-    # Keep the latest protected package for recovery; remove older packages manually.
-    print('Verified hosted backend commit ' + commit)
+    for route in ('api/v1/health', 'api/v1/admin/users', 'share.php?recipe=1'):
+        response = public.get(PUBLIC + route, timeout=60, allow_redirects=False)
+        if response.status_code != 410 or response.json().get('error', {}).get('code') != 'service_moved':
+            raise RuntimeError('Retired application route is still active')
+    if public.get(PUBLIC + 'app/', timeout=60).status_code != 200:
+        raise RuntimeError('Existing static app is unavailable')
+    for route in ('config/local.php', 'src/AdministrationService.php', 'bin/purge-deleted-recipes.php'):
+        if public.get(PUBLIC + route, timeout=60).status_code != 403:
+            raise RuntimeError('Private-path protection check failed')
+    print('Shared-host application entry points retired; static app retained.')
 
 
 if __name__ == '__main__':

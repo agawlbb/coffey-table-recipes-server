@@ -1,31 +1,17 @@
-name: Deploy hosted backend
+name: Retire shared-host application endpoints
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      household_image_migration:
-        description: Back up recipe database and apply reviewed migration 009
-        type: boolean
-        default: false
-      cleanup_actions:
-        description: Run the authorized one-time action cleanup
-        type: boolean
-        default: false
-      homemade_ingredients_cover:
-        description: Generate the requested missing homemade ingredients parent cover once
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
   group: hosted-backend
   cancel-in-progress: false
 jobs:
-  deploy:
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/backend_migration')
+  retire:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       HOSTING_CONFIGURED: ${{ secrets.CPANEL_USER != '' && secrets.CPANEL_API_TOKEN != '' }}
     steps:
@@ -33,168 +19,21 @@ jobs:
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.2'
-          extensions: pdo_mysql, pdo_sqlite, curl, mbstring, openssl
-          tools: composer:v2
-      - name: Validate PHP syntax
-        run: git ls-files -z '*.php' | xargs -0 -n1 php -l
-      - run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
-      - name: Validate mail and verification behavior
+      - name: Validate retired entry points
         run: |
+          php -l index.php
+          php -l share.php
+          php -l bin/purge-deleted-recipes.php
           php tests/data_routes.php
-          php tests/child_mode.php
-          php tests/meal_plans.php
-          php tests/invitation-mail.php
-          php tests/verification.php
-          php tests/home_assistant_connections.php
-          php tests/timer_sync.php
-          php tests/migration_checksums.php
-          php tests/recipe_deletion.php
-          php tests/parent_categories.php
-          php tests/recipe_save_receipts.php
-          php tests/household_snapshot.php
-          php tests/household_child_status.php
-          php tests/recipe_favorites.php
-          php tests/blank_recipes.php
-          php tests/blank_recipe_categories.php
-          php tests/recipe_sharing.php
-          php tests/source_links.php
-          php tests/recipe_photo.php
-          php tests/source_photos.php
-          php tests/recipe_ai.php
-          php tests/reviewed_groups.php
-          php tests/recipe_descriptions.php
-          php tests/recipe_wording.php
-          php tests/recipe_variation.php
-          php tests/recipe_variation_relations.php
-          php tests/website_import.php
-          php tests/recipe_methods.php
-          php tests/website_photos.php
       - run: python3 -m pip install requests==2.32.5
-      - run: python3 -m unittest discover -s tool -p 'test_*.py'
-      - name: Verify cPanel TLS without credentials
-        if: env.HOSTING_CONFIGURED == 'true'
-        run: python3 -c "import requests; requests.get('https://ecngx362.inmotionhosting.com:2083', timeout=30).raise_for_status()"
-      - name: Back up recipe database and apply household image permission
-        if: env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[household-image-migration]') || inputs.household_image_migration == true)
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/migrate-household-images.py
-      - name: Back up and enable idempotent recipe saves
-        if: env.HOSTING_CONFIGURED == 'true'
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/migrate-recipe-save-receipts.py
-      - name: Check hosted PHP version
-        if: env.HOSTING_CONFIGURED == 'true'
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/check-hosted-php.py
-      - name: Back up recipe database and enable recipe recovery
-        if: env.HOSTING_CONFIGURED == 'true'
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/migrate-recipe-deletion.py
-      - name: Back up and migrate recipe favorites
-        if: env.HOSTING_CONFIGURED == 'true'
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/migrate-recipe-favorites.py
-      - name: Back up and migrate account timer sync
-        if: env.HOSTING_CONFIGURED == 'true'
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/migrate-timer-sync.py
-      - name: Configure Home Assistant sign-in
-        if: env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[configure-home-assistant]')
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
-        run: python3 tool/configure-home-assistant.py
-      - name: Publish and verify backend
+      - name: Validate retirement and media transfer tools without hosting access
+        run: |
+          python3 -m unittest discover -s tool -p 'test_deploy_backend.py'
+          python3 -m unittest discover -s tool -p 'test_move_recipe_media.py'
+          python3 -m unittest discover -s tool -p 'test_recipe_cleanup_schedule.py'
+      - name: Retire application endpoints
         if: env.HOSTING_CONFIGURED == 'true'
         env:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
         run: python3 tool/deploy-backend.py
-      - name: Verify daily expired recipe cleanup schedule
-        if: env.HOSTING_CONFIGURED == 'true'
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/schedule-recipe-cleanup.py
-      - name: Generate requested homemade ingredients cover
-        if: env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[homemade-ingredients-cover]') || inputs.homemade_ingredients_cover == true)
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/cover-homemade-ingredients.py
-      - name: Record parent cover result
-        if: always() && env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[homemade-ingredients-cover]') || inputs.homemade_ingredients_cover == true)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: parent-cover-report
-          path: storage/parent-cover-report.json
-          if-no-files-found: ignore
-      - name: Apply reviewed conservative recipe groups and cleanup
-        if: env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[reviewed-groups]')
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/apply-reviewed-recipe-groups.py
-      - name: Record reviewed grouping result
-        if: always() && env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[reviewed-groups]')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: reviewed-groups-report
-          path: storage/reviewed-groups-report.json
-          if-no-files-found: ignore
-      - name: Read-only recipe grouping inventory
-        if: env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[grouping-audit]')
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/audit-recipe-groups.py
-      - name: Record private recipe inventory
-        if: always() && env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[grouping-audit]')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: grouping-audit-report
-          path: storage/grouping-audit-report.json
-          if-no-files-found: ignore
-          retention-days: 1
-      - name: Group requested Breakfast Ring ingredients
-        if: env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[breakfast-groups]')
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/group-breakfast-ring.py
-      - name: Record Breakfast Ring grouping result
-        if: always() && env.HOSTING_CONFIGURED == 'true' && contains(github.event.head_commit.message, '[breakfast-groups]')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: breakfast-groups-report
-          path: storage/breakfast-groups-report.json
-          if-no-files-found: ignore
-      - name: Back up and remove unwanted hosted recipe actions
-        if: env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true)
-        env:
-          CPANEL_USER: ${{ secrets.CPANEL_USER }}
-          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/cleanup-hosted-actions.py
-      - name: Record action cleanup result
-        if: always() && env.HOSTING_CONFIGURED == 'true' && (contains(github.event.head_commit.message, '[cleanup-actions]') || inputs.cleanup_actions == true)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: action-cleanup-report
-          path: storage/action-cleanup-report.json
-          if-no-files-found: ignore
-      - name: Report deployment configuration
-        if: env.HOSTING_CONFIGURED != 'true'
-        run: echo 'Backend checks passed. Set CPANEL_USER and CPANEL_API_TOKEN repository secrets to enable automatic hosting deployment.'

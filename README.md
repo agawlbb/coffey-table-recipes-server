@@ -1,3 +1,12 @@
+# Shared-host retirement
+
+`feature/vps-remaining-php` retires the last application entry points. Runtime PHP,
+rendered recipe pages and managed images move to the
+[VPS repository](https://github.com/agawlbb/coffey-table-recipes-vps/blob/feature/vps-remaining-php/REMAINING-PHP.md).
+MySQL, SMTP and static Flutter hosting stay here. Source only; no live cutover yet.
+The following backend documentation is historical and must not be used to redeploy
+the retired application. Use the linked cutover instructions instead.
+
 # Coffey Table Recipes API
 
 PHP 8.0+ with PDO MySQL. Apache requires mod_rewrite and AllowOverride for the included .htaccess rules.

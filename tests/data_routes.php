@@ -15,11 +15,11 @@ function routeCheck(string $route,int $expected,string $code=''): void {
 foreach (['/recipes/1','/households/1/recipes','/households/1/recipes/1','/households/1/recipes/1/edit-options','/households/1/recipes/1/favorites',
     '/households/1/recipes/deleted','/households/1/recipe-blank','/households/1/name','/households/1/people/me/name','/households/1/people','/households/1/snapshot','/households/1/restaurants',
     '/households/1/meal-plan','/households/1/meal-plan/history','/households/1/shopping-list',
-    '/me/timers','/me/timer-devices','/me/timer-devices/remove'] as $route) routeCheck($route,410,'data_moved');
-routeCheck('/health',200);
-foreach (['/me','/households','/me/verification-email','/me/child-mode','/admin/users/2/reset-child-mode','/households/1/people/2/invitations','/invitations/3/respond'] as $route) routeCheck($route,410,'account_moved');
-routeCheck('/admin/users',401,'authentication_required');
+    '/me/timers','/me/timer-devices','/me/timer-devices/remove'] as $route) routeCheck($route,410,'service_moved');
+routeCheck('/health',410,'service_moved');
+foreach (['/me','/households','/me/verification-email','/me/child-mode','/admin/users/2/reset-child-mode','/households/1/people/2/invitations','/invitations/3/respond'] as $route) routeCheck($route,410,'service_moved');
+routeCheck('/admin/users',410,'service_moved');
 foreach (['/households/1/recipe-import','/households/1/recipe-category','/households/1/recipe-photo',
-    '/households/1/recipes/1/variation','/households/1/category-image','/admin/parent-categories','/admin/parent-categories/10/category-image'] as $route) routeCheck($route,410,'ai_moved');
+    '/households/1/recipes/1/variation','/households/1/category-image','/admin/parent-categories','/admin/parent-categories/10/category-image'] as $route) routeCheck($route,410,'service_moved');
 
-echo "InMotion retired data, account and AI routes; retained authenticated child policy passed without database access\n";
+echo "All InMotion application endpoints retired without loading database or private configuration\n";
