@@ -113,6 +113,7 @@ class DeploymentTests(unittest.TestCase):
                     if scenario in ('success','verified_source'):
                         deploy.deploy()
                         self.assertEqual(private.post.call_count, 3)
+                        self.assertEqual(public.options.call_args.args[0], deploy.PUBLIC + 'api/v1/health')
                         self.assertEqual(public.get.call_count, 6)
                         self.assertNotIn('Authorization', public.headers)
                         self.assertTrue(private.post.call_args_list[0].kwargs['data']['dir'].endswith('/storage'))

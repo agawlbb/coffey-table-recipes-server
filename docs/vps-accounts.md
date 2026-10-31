@@ -8,6 +8,16 @@ Retained shared-backend write guards read the same SQL state. Earlier descriptio
 of the VPS calling InMotion policy below are superseded by this change. See the
 VPS repository's `CHILD-MODE-SQL.md` for setup and deployment evidence.
 
+Cutover completed on 2026-10-31: five columns added; three file policies imported
+and verified for four SQL users, no unmatched files. Original file state remains
+intact. Temporary ALTER permission was revoked and original privileges verified.
+This branch's runtime index and ChildMode source were installed via authenticated
+cPanel and read-back hashes matched. Account/PIN/reset HTTP routes are retired;
+use the matching VPS app. No web frontend build was made. The VPS now reads policy
+directly from SQL and no longer calls this site's policy endpoint. SQL PIN,
+lockout, reset, isolation and route checks passed, as did 12 mocked deployment
+tool tests. Deployment's CORS probe now uses retained `/health`, not retired `/me`.
+
 The matching `feature/vps-account-auth` branches move `/me`, `/households`,
 `/me/verification-email`, invitation sending and invitation responses to the VPS
 account WebSocket scope. This repository returns `410 account_moved` for those
