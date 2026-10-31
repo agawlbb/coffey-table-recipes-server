@@ -1,5 +1,9 @@
 # Account migration branch
 
+Accepted for integration into `main` on 2026-10-31. This integration creates no
+release, build or deployment; the main merge commit skips the push-triggered
+deployment workflow. The completed account working branches are removed.
+
 Current policy: child-mode flag, PIN hashes, attempts, lockout and next-login reset
 state now live in the SQL users row. Apply `020_child_mode.sql` and preserve/import
 the legacy files once before deployment. This branch retires `/me/child-mode` and
@@ -24,7 +28,7 @@ account WebSocket scope. This repository returns `410 account_moved` for those
 routes. Firebase still owns passwords, Google sign-in and password resets.
 
 The implementation and private file destinations are documented in the VPS
-repository's [ACCOUNT-WEBSOCKET.md](https://github.com/agawlbb/coffey-table-recipes-vps/blob/feature/vps-account-auth/ACCOUNT-WEBSOCKET.md).
+repository's [ACCOUNT-WEBSOCKET.md](https://github.com/agawlbb/coffey-table-recipes-vps/blob/main/ACCOUNT-WEBSOCKET.md).
 Reuse `config/smtp.local.json` and the service-account file selected by
 `firebase_service_account_file` in `config/local.php`; defaults use
 `config/firebase-admin.local.json`. Keep these files outside Git.
