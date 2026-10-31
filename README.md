@@ -2,7 +2,7 @@
 
 `feature/vps-remaining-php` retires the last application entry points. Runtime PHP,
 rendered recipe pages and managed images move to the
-[VPS repository](https://github.com/agawlbb/coffey-table-recipes-vps/blob/feature/vps-remaining-php/REMAINING-PHP.md).
+[VPS repository](https://github.com/agawlbb/coffey-table-recipes-vps/blob/main/REMAINING-PHP.md).
 MySQL, SMTP and static Flutter hosting stay here. The VPS feature deployment copied
 the images and updated their references; shared-host endpoint retirement remains
 undeployed while the feature is tested.

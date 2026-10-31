@@ -1,8 +1,10 @@
 # Shared-host application retirement
 
-This branch is source preparation, not a deployed migration. It starts at shared
-main `cbf1e08`; do not merge until approved. Follow the VPS repository's
-[cutover instructions](https://github.com/agawlbb/coffey-table-recipes-vps/blob/feature/vps-remaining-php/REMAINING-PHP.md)
+The user approved merging this source on 2026-10-31, while explicitly deferring
+InMotion deployment. The main merge uses `[skip ci]` to suppress retirement; the
+workflow checks were run locally. Live shared-host entry points remain unchanged.
+The branch started at shared main `cbf1e08`. Follow the VPS repository's
+[cutover instructions](https://github.com/agawlbb/coffey-table-recipes-vps/blob/main/REMAINING-PHP.md)
 before retiring the old endpoints.
 
 `main` pushes and manual workflow dispatch run the retirement workflow. Feature
