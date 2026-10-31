@@ -124,7 +124,7 @@ def deploy():
     response.raise_for_status()
     if response.json().get('status') != 'ok':
         raise RuntimeError('Hosted liveness check failed')
-    response = public.options(PUBLIC + 'api/v1/me', headers={
+    response = public.options(PUBLIC + 'api/v1/health', headers={
         'Origin': 'http://localhost', 'Access-Control-Request-Method': 'GET',
         'Access-Control-Request-Headers': 'authorization,content-type'}, timeout=60)
     if response.status_code != 204 or response.headers.get('Access-Control-Allow-Origin') != 'http://localhost':
