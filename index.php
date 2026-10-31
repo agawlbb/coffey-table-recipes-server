@@ -19,6 +19,9 @@ try {
     }
     $route = substr($path, strlen($prefix));
     $method = $_SERVER['REQUEST_METHOD'];
+    if (preg_match('#^/(?:me(?:/verification-email)?|households|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$#D',$route)) {
+        throw new HttpError(410,'account_moved','Account setup and verification are available through the VPS WebSocket.');
+    }
     if (preg_match('#^/households/[1-9][0-9]*/(?:recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)$#D',$route) || preg_match('#^/admin/parent-categories(?:/[1-9][0-9]*/category-image)?$#D',$route)) {
         throw new HttpError(410,'ai_moved','AI requests are available through the VPS WebSocket.');
     }
@@ -76,13 +79,6 @@ try {
         $connections = new HomeAssistantConnections(database($config));
         $connections->household($token);
         $connections->revoke($token); respond(200, ['revoked'=>true]);
-    } elseif ($route === '/me/verification-email') {
-        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
-        $identity = authenticatedIdentity($config);
-        requestBody();
-        $directory = new FirebaseAccountDirectory($config);
-        (new VerificationService([$directory, 'verificationLink'], [new VerificationMail($config), 'send']))->send($identity);
-        respond(200, ['sent' => true]);
     } elseif ($route === '/admin/households' || preg_match('#^/admin/households/([1-9][0-9]{0,18})/ai-images$#', $route, $permissionMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
@@ -116,45 +112,6 @@ try {
             respond(200, ['deleted' => true]);
         } else {
             throw new HttpError(405, 'method_not_allowed', 'Unsupported request method.');
-        }
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/([1-9][0-9]{0,18})/invitations$#', $route, $inviteMatch)
-        || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {
-        $identity = authenticatedIdentity($config);
-        $pdo = database($config);
-        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
-        $user = $households->bootstrap($identity);
-        if ($method !== 'POST') {
-            header('Allow: POST, OPTIONS');
-            throw new HttpError(405, 'method_not_allowed', 'Use POST.');
-        }
-        $invitations = invitationService($pdo, $households, $config);
-        if (isset($inviteMatch[1])) {
-            $body = requestBody();
-            if (!is_string($body['email'] ?? null)) throw new HttpError(422, 'invalid_email', 'Enter a valid email address.');
-            respond(201, ['invitation' => $invitations->invite($user, $inviteMatch[1], $inviteMatch[2], $body['email'])]);
-        } else {
-            $body = requestBody();
-            if (!is_string($body['decision'] ?? null)) throw new HttpError(422, 'invalid_decision', 'Choose accept or decline.');
-            respond(200, ['invitation' => $invitations->respond($user, $respondMatch[1], $body['decision'])]);
-        }
-    } elseif ($route === '/me' || $route === '/households') {
-        $identity = authenticatedIdentity($config);
-        $pdo = database($config);
-        $service = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount'], $childModes);
-        $user = $service->bootstrap($identity);
-        if ($route === '/me' && $method === 'GET') {
-            $user['child_mode']=$childModes->state($identity)['enabled'];
-            $pending = invitationService($pdo, $service, $config)->pending($user);
-            respond(200, ['user' => $user, 'households' => $service->households($user['id']),
-                'invitations' => $pending['invitations'], 'invitation_verification_required' => $pending['verification_required']]);
-        } elseif ($route === '/households' && $method === 'GET') {
-            respond(200, ['households' => $service->households($user['id'])]);
-        } elseif ($route === '/households' && $method === 'POST') {
-            $body = requestBody();
-            respond(201, ['household' => $service->create($user['id'], requiredName($body, 'name'), requiredName($body, 'person_name'))]);
-        } else {
-            header('Allow: ' . ($route === '/me' ? 'GET, OPTIONS' : 'GET, POST, OPTIONS'));
-            respond(405, ['error' => ['code' => 'method_not_allowed', 'message' => 'Unsupported request method.']]);
         }
     } else {
         respond(404, ['error' => ['code' => 'not_found', 'message' => 'Endpoint not found.']]);

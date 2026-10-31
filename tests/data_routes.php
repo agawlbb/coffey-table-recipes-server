@@ -17,8 +17,9 @@ foreach (['/recipes/1','/households/1/recipes','/households/1/recipes/1','/house
     '/households/1/meal-plan','/households/1/meal-plan/history','/households/1/shopping-list',
     '/me/timers','/me/timer-devices','/me/timer-devices/remove'] as $route) routeCheck($route,410,'data_moved');
 routeCheck('/health',200);
-routeCheck('/me',401,'authentication_required');
+foreach (['/me','/households','/me/verification-email','/households/1/people/2/invitations','/invitations/3/respond'] as $route) routeCheck($route,410,'account_moved');
+routeCheck('/me/child-mode',401,'authentication_required');
 foreach (['/households/1/recipe-import','/households/1/recipe-category','/households/1/recipe-photo',
     '/households/1/recipes/1/variation','/households/1/category-image','/admin/parent-categories','/admin/parent-categories/10/category-image'] as $route) routeCheck($route,410,'ai_moved');
-routeCheck('/me/verification-email',405,'method_not_allowed');
-echo "InMotion retired data routes, signup and retired AI routes passed without database access\n";
+
+echo "InMotion retired data, account and AI routes; retained authenticated child policy passed without database access\n";
