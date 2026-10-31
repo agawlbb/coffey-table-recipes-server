@@ -36,10 +36,6 @@ function configuration(): array
     $config = is_file($local) ? array_replace_recursive($defaults, require $local) : $defaults;
     $smtpFile = dirname(__DIR__) . '/config/smtp.local.json';
     if (is_file($smtpFile)) $config['smtp'] = array_replace($config['smtp'], json_decode(file_get_contents($smtpFile), true, 16, JSON_THROW_ON_ERROR));
-    $aiFile = dirname(__DIR__) . '/config/recipe-ai.local.json';
-    if (is_file($aiFile)) $config['recipe_ai'] = array_replace($config['recipe_ai'], json_decode(file_get_contents($aiFile), true, 16, JSON_THROW_ON_ERROR));
-    // Private key files cannot override the version-controlled app model.
-    $config['recipe_ai']['model'] = $defaults['recipe_ai']['model'];
     return $config;
 }
 
