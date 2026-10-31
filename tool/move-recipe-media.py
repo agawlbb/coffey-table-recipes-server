@@ -14,7 +14,7 @@ import tempfile
 import urllib.parse
 import urllib.request
 
-NAME = re.compile(r'(?:[a-f0-9]{48}\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)')
+NAME = re.compile(r'(?:(?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)')
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
 
 
@@ -39,25 +39,29 @@ class Hosting:
         return data['data']
 
     def inventory(self):
-        rows = self.api('list_files', dir=self.directory, types='file')
-        if not isinstance(rows, list):
-            raise ValueError('Unrecognized media inventory')
         files = {}
-        for row in rows:
-            name = row.get('file', '')
-            if name in ('.', '..', '.htaccess'):
-                continue
-            # Category generation leaves empty flock files beside its artwork.
-            # They are synchronization markers, never image data to transfer.
-            if (re.fullmatch(r'category-[1-9][0-9]*\.jpg\.lock', name)
-                    and row.get('type') == 'file' and int(row.get('size') or 0) == 0):
-                continue
-            if not NAME.fullmatch(name) or row.get('type') != 'file':
-                raise ValueError('Unexpected media entry; review before moving files')
-            size = int(row.get('size') or 0)
-            if not 0 < size <= 40 * 1024 * 1024:
-                raise ValueError('Unexpected media size')
-            files[name] = size
+        self.locations = {}
+        directories = [self.directory, self.directory.removesuffix('/recipes') + '/recipe-photos', self.directory.removesuffix('/recipes') + '/recipe-illustrations']
+        for directory in directories:
+            rows = self.api('list_files', dir=directory, types='file')
+            if not isinstance(rows, list):
+                raise ValueError('Unrecognized media inventory')
+            for row in rows:
+                name = row.get('file', '')
+                if name in ('.', '..', '.htaccess'):
+                    continue
+                if (re.fullmatch(r'category-[1-9][0-9]*\.jpg\.lock', name)
+                        and row.get('type') == 'file' and int(row.get('size') or 0) == 0):
+                    continue
+                if not NAME.fullmatch(name) or row.get('type') != 'file':
+                    raise ValueError('Unexpected media entry; review before moving files')
+                size = int(row.get('size') or 0)
+                if not 0 < size <= 40 * 1024 * 1024:
+                    raise ValueError('Unexpected media size')
+                if name in files:
+                    raise ValueError('Duplicate filenames across source directories require review')
+                files[name] = size
+                self.locations[name] = directory
         return files
 
     def read(self, name, size):
@@ -65,7 +69,7 @@ class Hosting:
             raise ValueError('Unsafe media name')
         # ISO-8859-1 maps every byte to one Unicode code point, then JSON's UTF-8
         # transports it losslessly. This reads/transcodes the response, not the file.
-        data = self.api('get_file_content', dir=self.directory, file=name,
+        data = self.api('get_file_content', dir=getattr(self, 'locations', {}).get(name, self.directory), file=name,
                         from_charset='ISO-8859-1', to_charset='UTF-8')
         content = data.get('content')
         if not isinstance(content, str):
@@ -78,7 +82,7 @@ class Hosting:
     def trash(self, name):
         if not NAME.fullmatch(name):
             raise ValueError('Unsafe retirement target')
-        self.api('trash_file', path=self.directory + '/' + name)
+        self.api('trash_file', path=getattr(self, 'locations', {}).get(name, self.directory) + '/' + name)
 
 
 def transfer(hosting, destination):

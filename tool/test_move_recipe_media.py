@@ -21,10 +21,10 @@ class MediaTests(unittest.TestCase):
         hosting=object.__new__(media.Hosting); hosting.directory='/fixture'
         rows=[{'file':'category-8.jpg.lock','type':'file','size':''},
               {'file':PHOTO,'type':'file','size':'10'}]
-        with patch.object(hosting,'api',return_value=rows):
+        with patch.object(hosting,'api',side_effect=[rows,[],[]]):
             self.assertEqual(hosting.inventory(),{PHOTO:10})
         rows[0]['size']='12'
-        with patch.object(hosting,'api',return_value=rows):
+        with patch.object(hosting,'api',side_effect=[rows,[],[]]):
             with self.assertRaises(ValueError): hosting.inventory()
 
     def test_binary_response_round_trip_covers_every_byte(self):
