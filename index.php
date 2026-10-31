@@ -19,6 +19,9 @@ try {
     }
     $route = substr($path, strlen($prefix));
     $method = $_SERVER['REQUEST_METHOD'];
+    if (preg_match('#^/households/[1-9][0-9]*/(?:recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)$#D',$route) || preg_match('#^/admin/parent-categories(?:/[1-9][0-9]*/category-image)?$#D',$route)) {
+        throw new HttpError(410,'ai_moved','AI requests are available through the VPS WebSocket.');
+    }
     if ($route === '/home-assistant/shopping-list' || preg_match('#^/(?:me/(?:timers|timer-devices(?:/remove)?)|recipes/[1-9][0-9]*|households/[1-9][0-9]*/(?:shopping-list(?:/sync-request)?|snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|meal-plan(?:/.*)?|recipes(?:/(?![1-9][0-9]*/variation$).*)?))$#D', $route)) {
         throw new HttpError(410, 'data_moved', 'Data synchronization is available through the VPS.');
     }
@@ -80,21 +83,6 @@ try {
         $directory = new FirebaseAccountDirectory($config);
         (new VerificationService([$directory, 'verificationLink'], [new VerificationMail($config), 'send']))->send($identity);
         respond(200, ['sent' => true]);
-    } elseif ($route === '/admin/parent-categories' || preg_match('#^/admin/parent-categories/([1-9][0-9]{0,18})/category-image$#',$route,$parentImageMatch)) {
-        if (!in_array($method,['GET','POST'],true)) throw new HttpError(405,'method_not_allowed','Use GET or POST.');
-        $identity=authenticatedIdentity($config); $pdo=database($config);
-        $directory=new FirebaseAccountDirectory($config);
-        $user=(new HouseholdService($pdo,[$directory,'requireAccount']))->bootstrap($identity);
-        $mediaUrl=rtrim(preg_replace('#/app/?$#','',$config['app_url']),'/').'/media/recipes';
-        $images=new CategoryImageService($pdo,new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'),__DIR__.'/media/recipes',$mediaUrl);
-        $admin=new AdministrationService($pdo,[$directory,'delete'],null,$images,$mediaUrl);
-        if (isset($parentImageMatch[1])) {
-            if ($method!=='POST') throw new HttpError(405,'method_not_allowed','Use POST.');
-            requestBody();
-            respond(200,['image_url'=>$images->ensureParent($parentImageMatch[1],$user['id'])]);
-        } else {
-            respond(200,$admin->parentCategories($user['id'],$method==='POST'?requestBody():null));
-        }
     } elseif ($route === '/admin/households' || preg_match('#^/admin/households/([1-9][0-9]{0,18})/ai-images$#', $route, $permissionMatch)) {
         $identity = authenticatedIdentity($config);
         $pdo = database($config);
@@ -129,76 +117,6 @@ try {
         } else {
             throw new HttpError(405, 'method_not_allowed', 'Unsupported request method.');
         }
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/category-image$#', $route, $categoryMatch)) {
-        if ($method !== 'POST') throw new HttpError(405,'method_not_allowed','Use POST.');
-        $identity=authenticatedIdentity($config); $pdo=database($config);
-        $households=new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']); $user=$households->bootstrap($identity);
-        $households->membership($user['id'],$categoryMatch[1]);
-        $body=requestBody(); $id=$body['category_id'] ?? '';
-        if (!is_string($id) || !preg_match('/^[1-9][0-9]{0,18}$/',$id)) throw new HttpError(422,'invalid_category','Choose a category.');
-        $mediaUrl=rtrim(preg_replace('#/app/?$#','',$config['app_url']),'/').'/media/recipes';
-        $images=new CategoryImageService($pdo,new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'),__DIR__.'/media/recipes',$mediaUrl);
-        respond(200,['image_url'=>$images->ensure($id,$user['id'],$categoryMatch[1])]);
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-photo$#', $route, $photoMatch)) {
-        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
-        $identity = authenticatedIdentity($config); $pdo = database($config);
-        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
-        $user = $households->bootstrap($identity);
-        $households->requireAiImages($user['id'], $photoMatch[1]);
-        $body = requestBody(100000); $recipe = $body['recipe'] ?? null;
-        if (!is_array($recipe)) throw new HttpError(422,'invalid_recipe','Choose a recipe.');
-        if (isset($recipe['id'])) {
-            if (!is_string($recipe['id']) || !preg_match('/^[1-9][0-9]{0,18}$/',$recipe['id'])) throw new HttpError(422,'invalid_recipe','Invalid recipe.');
-            $stored = (new RecipeService($pdo,$households))->detail($user['id'],$photoMatch[1],$recipe['id']);
-            if ($stored['photos']!==[]) throw new HttpError(409,'photo_exists','This recipe already has photos.');
-        }
-        respond(200,(new RecipePhotoService($config['recipe_ai'],__DIR__.'/storage'))->generate($recipe,$user['id'],$photoMatch[1]));
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipes/([1-9][0-9]{0,18})/variation$#', $route, $variationMatch)) {
-        if ($method !== 'POST') throw new HttpError(405,'method_not_allowed','Use POST.');
-        $identity = authenticatedIdentity($config); $pdo = database($config);
-        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
-        $user = $households->bootstrap($identity);
-        $households->membership($user['id'],$variationMatch[1]);
-        $policy = RecipeVariationService::accessPolicy($config['recipe_ai']);
-        if ($policy === 'ai_images') {
-            try { $households->requireAiImages($user['id'],$variationMatch[1]); }
-            catch (HttpError $error) {
-                if ($error->errorCode !== 'ai_images_disabled') throw $error;
-                throw new HttpError(403,'variations_disabled','AI recipe variations are disabled for this household. Ask the application administrator to enable them.');
-            }
-        }
-        $recipes = new RecipeService($pdo,$households);
-        $source = $recipes->detail($user['id'],$variationMatch[1],$variationMatch[2]);
-        $options = $recipes->editOptions($user['id'],$variationMatch[1]);
-        // Keep the PHP execution budget above the bounded 75-second provider
-        // request and below the app's 110-second deadline. Preserve unlimited
-        // or already more generous hosting settings.
-        $executionLimit = (int)ini_get('max_execution_time');
-        if ($executionLimit > 0 && $executionLimit < 100) set_time_limit(100);
-        $draft = (new RecipeVariationService($config['recipe_ai'],__DIR__.'/storage'))->analyze($source,requestBody(100000),$user['id'],$variationMatch[1],$options['categories']);
-        $draft['recipe']['edit_options'] = $options;
-        respond(200,$draft);
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-category$#D', $route, $categoryMatch)) {
-        if ($method!=='POST') throw new HttpError(405,'method_not_allowed','Use POST.');
-        $pdo=database($config); $households=new HouseholdService($pdo,[new FirebaseAccountDirectory($config),'requireAccount']);
-        $user=$households->bootstrap(authenticatedIdentity($config));
-        $households->membership($user['id'],$categoryMatch[1]);
-        $body=requestBody(); $title=$body['title']??null;
-        if (!is_string($title)||trim($title)===''||mb_strlen($title)>300) throw new HttpError(422,'invalid_recipe','Enter a recipe title.');
-        $catalog=(new RecipeService($pdo,$households))->editOptions($user['id'],$categoryMatch[1])['categories'];
-        respond(200,['category'=>(new BlankRecipeCategoryService($config['recipe_ai'],__DIR__.'/storage'))->categorize($title,$catalog,$user['id'])]);
-    } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/recipe-import$#', $route, $importMatch)) {
-        if ($method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST.');
-        $identity = authenticatedIdentity($config);
-        $pdo = database($config);
-        $households = new HouseholdService($pdo, [new FirebaseAccountDirectory($config), 'requireAccount']);
-        $user = $households->bootstrap($identity);
-        $households->membership($user['id'], $importMatch[1]);
-        $options = (new RecipeService($pdo, $households))->editOptions($user['id'], $importMatch[1]);
-        $draft = (new RecipeImportService($config['recipe_ai'], __DIR__.'/storage'))->analyze(requestBody(8*1024*1024), $user['id'], $options['categories']);
-        $draft['recipe']['edit_options'] = $options;
-        foreach ($draft['related_imports'] ?? [] as $index=>$related) $draft['related_imports'][$index]['recipe']['edit_options']=$options;
-        respond(200, $draft);
     } elseif (preg_match('#^/households/([1-9][0-9]{0,18})/people/([1-9][0-9]{0,18})/invitations$#', $route, $inviteMatch)
         || preg_match('#^/invitations/([1-9][0-9]{0,18})/respond$#', $route, $respondMatch)) {
         $identity = authenticatedIdentity($config);

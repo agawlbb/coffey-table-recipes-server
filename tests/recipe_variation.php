@@ -108,10 +108,6 @@ try {
     $roundBody=array_replace($body,['request_id'=>str_repeat('c',32)]);
     for ($round=0;$round<8;$round++) $service->analyze($source,$roundBody+['answers'=>[['question'=>'Preference?','answer'=>(string)$round]]],'user-a','house-a');
     variationError(fn()=>$service->analyze($source,$roundBody+['answers'=>[['question'=>'Preference?','answer'=>'ninth']]],'user-a','house-a'),'variation_limit');
-    $route=file_get_contents(dirname(__DIR__).'/index.php');
-    $section=substr($route,strpos($route,"$"."variationMatch))"),4000);
-    expectVariation(strpos($section,"requireAiImages")<strpos($section,"->analyze("),'Family authorization precedes generation');
-    expectVariation(strpos($section,"->detail(")<strpos($section,"->analyze("),'Household-visible source loaded before generation');
     $spanishSource=array_replace($source,['title'=>'Curry de pollo','original_language'=>'es',
         'steps'=>[['id'=>'spanish-step','instruction'=>'Cocina el pollo.']]]);
     $spanishService=new RecipeVariationService($config,$directory,static function(array $payload): array {

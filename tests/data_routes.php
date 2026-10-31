@@ -19,5 +19,6 @@ foreach (['/recipes/1','/households/1/recipes','/households/1/recipes/1','/house
 routeCheck('/health',200);
 routeCheck('/me',401,'authentication_required');
 foreach (['/households/1/recipe-import','/households/1/recipe-category','/households/1/recipe-photo',
-    '/households/1/recipes/1/variation','/me/verification-email'] as $route) routeCheck($route,405,'method_not_allowed');
-echo "InMotion retired data routes, signup and retained AI routes passed without database access\n";
+    '/households/1/recipes/1/variation','/households/1/category-image','/admin/parent-categories','/admin/parent-categories/10/category-image'] as $route) routeCheck($route,410,'ai_moved');
+routeCheck('/me/verification-email',405,'method_not_allowed');
+echo "InMotion retired data routes, signup and retired AI routes passed without database access\n";

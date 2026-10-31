@@ -182,3 +182,38 @@ introduced. An optional privileged live-data CLI probe was blocked by automatic
 approval review and not executed, so authenticated full-payload verification on
 an installed app remains outstanding. This documentation-only push skips CI;
 the deployed runtime remains the successful source commit above.
+
+
+## AI retirement working branch
+
+`feature/vps-ai-websocket` starts at fetched main `c5503a3`, with matching app
+and VPS branches based on `2920c38` and `b977c8f`. The user approved integration
+and branch removal on October 31, 2026, and requested VPS deployment from main.
+This repository's integration merge uses `[skip ci]`: shared-hosting deployment
+is not part of that request, and published apps still use its HTTP AI endpoints.
+No shared-hosting deployment was performed. A later coordinated app/backend update
+can publish these endpoint retirements.
+The branch retires AI import, variation, photo, category and parent-category HTTP
+routes with `410 ai_moved`. Normal configuration no longer loads the AI key JSON.
+The VPS uses the already-uploaded private key file and executes these functions
+over its existing WebSocket endpoint. Account provisioning, invitations, child
+PIN/account policy, other account administration, SQL and existing media remain
+here. Existing private files and media are preserved. No schema migration is needed.
+
+Historical AI fixtures/classes and one-time setup tools remain in this repository;
+they are no longer application HTTP execution paths. The VPS branch carries the
+AI regression coverage and runtime implementation. Removed route-source assertions
+are replaced by actual router checks for `410 ai_moved` without database access.
+
+Validation (2026-10-30): `php -l index.php`, `php -l src/bootstrap.php`,
+`php tests/data_routes.php`, `php tests/recipe_variation.php` (91 fixture checks)
+and `php tests/household_child_status.php` passed. `git diff --check` passed.
+No hosted request, production SQL operation, credential write or deployment was
+performed. The removed static variation route assertions are covered by the
+VPS's actual authorized socket execution and the shared-hosting retirement test.
+
+Integration validation: all tracked PHP passed syntax checks, all 29 fixture
+scripts in the deployment workflow passed, and all 122 tool unit tests passed
+locally with mocked deployment/network operations. The relationship fixture emitted
+two temporary-directory cleanup warnings but passed its 97 assertions. No live
+deployment, migration, mail or paid AI request was performed by these fixture tests.
