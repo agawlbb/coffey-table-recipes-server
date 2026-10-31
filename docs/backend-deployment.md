@@ -189,10 +189,10 @@ the deployed runtime remains the successful source commit above.
 `feature/vps-ai-websocket` starts at fetched main `c5503a3`, with matching app
 and VPS branches based on `2920c38` and `b977c8f`. The user approved integration
 and branch removal on October 31, 2026, and requested VPS deployment from main.
-This repository's integration merge uses `[skip ci]`: shared-hosting deployment
-is not part of that request, and published apps still use its HTTP AI endpoints.
-No shared-hosting deployment was performed. A later coordinated app/backend update
-can publish these endpoint retirements.
+The initial integration merge used `[skip ci]`. The user subsequently explicitly
+requested allowing the normal main-push backend deployment to run. A follow-up
+push without a skip marker publishes these endpoint retirements through the
+existing workflow. No app build or release is included in this instruction.
 The branch retires AI import, variation, photo, category and parent-category HTTP
 routes with `410 ai_moved`. Normal configuration no longer loads the AI key JSON.
 The VPS uses the already-uploaded private key file and executes these functions
