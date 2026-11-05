@@ -1,3 +1,7 @@
+> 2026-11-05: InMotion CTR web hosting is retired; only SMTP mail hosting is retained.
+> See [docs/inmotion-retirement.md](docs/inmotion-retirement.md) for current behavior, archive and removal scope.
+> Earlier hosting/deployment instructions below are historical.
+
 # Shared-host retirement
 
 `feature/vps-remaining-php` retires the last application entry points. Runtime PHP,
