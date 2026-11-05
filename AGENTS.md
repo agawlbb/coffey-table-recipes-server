@@ -1,3 +1,9 @@
+> CTR InMotion hosting was retired on 2026-11-05. This repository is retained as
+> source history. Its GitHub hosting workflows are disabled. Do not deploy its
+> historical PHP files, recreate its databases or re-enable hosting workflows
+> without an explicit user request. InMotion supplies SMTP only; live CTR services
+> and MariaDB run on the VPS. See docs/inmotion-retirement.md.
+
 # Repository workflow
 
 Complete and verify project work, commit it, and push it to the existing GitHub origin. Before declaring completion, verify a clean working tree and matching local/GitHub branch heads. Respect explicit no-push or no-deployment instructions; report any synchronization blocker instead of claiming completion.
